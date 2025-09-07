@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mikrocloud - Lightweight PaaS</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        color: #333;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 3rem;
+        color: white;
+      }
+
+      .header h1 {
+        font-size: 3rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+      }
+
+      .header p {
+        font-size: 1.2rem;
+        opacity: 0.9;
+      }
+
+      .dashboard {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+
+      .nav {
+        background: #f8fafc;
+        padding: 1rem 2rem;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        gap: 2rem;
+      }
+
+      .nav-item {
+        padding: 0.5rem 1rem;
+        background: none;
+        border: none;
+        cursor: pointer;
+        border-radius: 6px;
+        transition: background-color 0.2s;
+      }
+
+      .nav-item:hover {
+        background: #e2e8f0;
+      }
+
+      .nav-item.active {
+        background: #3b82f6;
+        color: white;
+      }
+
+      .content {
+        padding: 2rem;
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+      }
+
+      .stat-card {
+        background: #f8fafc;
+        padding: 1.5rem;
+        border-radius: 8px;
+        border-left: 4px solid #3b82f6;
+      }
+
+      .stat-card h3 {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #64748b;
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+      }
+
+      .stat-card .value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #1e293b;
+      }
+
+      .apps-section {
+        margin-top: 2rem;
+      }
+
+      .section-header {
+        display: flex;
+        justify-content: between;
+        align-items: center;
+        margin-bottom: 1rem;
+      }
+
+      .section-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #1e293b;
+      }
+
+      .btn {
+        background: #3b82f6;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background-color 0.2s;
+      }
+
+      .btn:hover {
+        background: #2563eb;
+      }
+
+      .apps-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1.5rem;
+      }
+
+      .app-card {
+        background: #f8fafc;
+        padding: 1.5rem;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+
+      .app-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      }
+
+      .app-card h4 {
+        font-size: 1.125rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+      }
+
+      .app-status {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+      }
+
+      .status-running {
+        background: #dcfce7;
+        color: #166534;
+      }
+
+      .status-stopped {
+        background: #fee2e2;
+        color: #991b1b;
+      }
+
+      .status-deploying {
+        background: #fef3c7;
+        color: #92400e;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #64748b;
+      }
+
+      .empty-state h3 {
+        font-size: 1.25rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .loading {
+        text-align: center;
+        padding: 2rem;
+        color: #64748b;
+      }
+
+      .error {
+        background: #fee2e2;
+        color: #991b1b;
+        padding: 1rem;
+        border-radius: 6px;
+        margin-bottom: 1rem;
+      }
+
+      @media (max-width: 768px) {
+        .container {
+          padding: 1rem;
+        }
+
+        .header h1 {
+          font-size: 2rem;
+        }
+
+        .nav {
+          padding: 1rem;
+          flex-wrap: wrap;
+        }
+
+        .content {
+          padding: 1rem;
+        }
+
+        .stats-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Mikrocloud</h1>
+        <p>Ultra-lightweight Platform as a Service</p>
+      </div>
+
+      <div class="dashboard">
+        <nav class="nav">
+          <button class="nav-item active" onclick="showSection('dashboard')">
+            Dashboard
+          </button>
+          <button class="nav-item" onclick="showSection('applications')">
+            Applications
+          </button>
+          <button class="nav-item" onclick="showSection('domains')">
+            Domains
+          </button>
+          <button class="nav-item" onclick="showSection('system')">
+            System
+          </button>
+        </nav>
+
+        <div class="content">
+          <div id="error-container"></div>
+
+          <div id="dashboard-section">
+            <div class="stats-grid">
+              <div class="stat-card">
+                <h3>Applications</h3>
+                <div class="value" id="apps-count">-</div>
+              </div>
+              <div class="stat-card">
+                <h3>Running</h3>
+                <div class="value" id="running-count">-</div>
+              </div>
+              <div class="stat-card">
+                <h3>Memory Usage</h3>
+                <div class="value" id="memory-usage">-</div>
+              </div>
+              <div class="stat-card">
+                <h3>Uptime</h3>
+                <div class="value" id="uptime">-</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="applications-section" style="display: none">
+            <div class="section-header">
+              <h2 class="section-title">Applications</h2>
+              <button class="btn" onclick="createApp()">
+                Create Application
+              </button>
+            </div>
+            <div id="apps-container">
+              <div class="loading">Loading applications...</div>
+            </div>
+          </div>
+
+          <div id="domains-section" style="display: none">
+            <h2 class="section-title">Domains</h2>
+            <div class="empty-state">
+              <h3>No domains configured</h3>
+              <p>Add a domain to start serving your applications</p>
+            </div>
+          </div>
+
+          <div id="system-section" style="display: none">
+            <h2 class="section-title">System Information</h2>
+            <div id="system-info">
+              <div class="loading">Loading system information...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let currentSection = "dashboard";
+      let applications = [];
+
+      // Navigation
+      function showSection(section) {
+        // Hide all sections
+        document.querySelectorAll('[id$="-section"]').forEach((el) => {
+          el.style.display = "none";
+        });
+
+        // Remove active class from all nav items
+        document.querySelectorAll(".nav-item").forEach((el) => {
+          el.classList.remove("active");
+        });
+
+        // Show selected section
+        document.getElementById(section + "-section").style.display = "block";
+
+        // Add active class to selected nav item
+        event.target.classList.add("active");
+
+        currentSection = section;
+
+        // Load section data
+        loadSectionData(section);
+      }
+
+      // Load data for current section
+      async function loadSectionData(section) {
+        switch (section) {
+          case "dashboard":
+            await loadDashboardData();
+            break;
+          case "applications":
+            await loadApplications();
+            break;
+          case "system":
+            await loadSystemInfo();
+            break;
+        }
+      }
+
+      // Load dashboard data
+      async function loadDashboardData() {
+        try {
+          const [appsResponse, statusResponse] = await Promise.all([
+            fetch("/api/v1/apps"),
+            fetch("/api/v1/system/status"),
+          ]);
+
+          const apps = await appsResponse.json();
+          const status = await statusResponse.json();
+
+          document.getElementById("apps-count").textContent = apps.length;
+          document.getElementById("running-count").textContent = apps.filter(
+            (app) => app.status === "running"
+          ).length;
+          document.getElementById("memory-usage").textContent = "<50MB";
+          document.getElementById("uptime").textContent =
+            status.uptime || "0h 0m";
+        } catch (error) {
+          showError("Failed to load dashboard data: " + error.message);
+        }
+      }
+
+      // Load applications
+      async function loadApplications() {
+        try {
+          const response = await fetch("/api/v1/apps");
+          applications = await response.json();
+          renderApplications();
+        } catch (error) {
+          showError("Failed to load applications: " + error.message);
+        }
+      }
+
+      // Render applications
+      function renderApplications() {
+        const container = document.getElementById("apps-container");
+
+        if (applications.length === 0) {
+          container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No applications yet</h3>
+                        <p>Create your first application to get started</p>
+                    </div>
+                `;
+          return;
+        }
+
+        const appsHtml = applications
+          .map(
+            (app) => `
+                <div class="app-card">
+                    <h4>${app.name}</h4>
+                    <p>Status: <span class="app-status status-${app.status}">${
+              app.status
+            }</span></p>
+                    <p>Created: ${new Date(
+                      app.created_at
+                    ).toLocaleDateString()}</p>
+                    ${app.git_url ? `<p>Repository: ${app.git_url}</p>` : ""}
+                </div>
+            `
+          )
+          .join("");
+
+        container.innerHTML = `<div class="apps-grid">${appsHtml}</div>`;
+      }
+
+      // Load system information
+      async function loadSystemInfo() {
+        try {
+          const response = await fetch("/api/v1/system/info");
+          const info = await response.json();
+
+          const infoHtml = Object.entries(info)
+            .map(
+              ([key, value]) => `
+                    <div class="stat-card">
+                        <h3>${key.replace(/_/g, " ").toUpperCase()}</h3>
+                        <div class="value">${value}</div>
+                    </div>
+                `
+            )
+            .join("");
+
+          document.getElementById("system-info").innerHTML = `
+                    <div class="stats-grid">${infoHtml}</div>
+                `;
+        } catch (error) {
+          showError("Failed to load system information: " + error.message);
+        }
+      }
+
+      // Create new application
+      function createApp() {
+        const name = prompt("Enter application name:");
+        if (!name) return;
+
+        const gitUrl = prompt("Enter Git repository URL (optional):");
+
+        const payload = { name };
+        if (gitUrl) payload.git_url = gitUrl;
+
+        fetch("/api/v1/apps", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        })
+          .then((response) => {
+            if (response.ok) {
+              loadApplications();
+              showSuccess("Application created successfully");
+            } else {
+              return response.json().then((data) => {
+                throw new Error(data.error || "Failed to create application");
+              });
+            }
+          })
+          .catch((error) => {
+            showError("Failed to create application: " + error.message);
+          });
+      }
+
+      // Error handling
+      function showError(message) {
+        const container = document.getElementById("error-container");
+        container.innerHTML = `<div class="error">${message}</div>`;
+        setTimeout(() => {
+          container.innerHTML = "";
+        }, 5000);
+      }
+
+      function showSuccess(message) {
+        const container = document.getElementById("error-container");
+        container.innerHTML = `<div style="background: #dcfce7; color: #166534; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">${message}</div>`;
+        setTimeout(() => {
+          container.innerHTML = "";
+        }, 3000);
+      }
+
+      // Initialize
+      document.addEventListener("DOMContentLoaded", () => {
+        loadDashboardData();
+      });
+
+      // WebSocket connection for real-time updates
+      function connectWebSocket() {
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+        ws.onopen = () => {
+          console.log("WebSocket connected");
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            handleWebSocketMessage(data);
+          } catch (error) {
+            console.error("Failed to parse WebSocket message:", error);
+          }
+        };
+
+        ws.onclose = () => {
+          console.log("WebSocket disconnected, reconnecting in 5 seconds...");
+          setTimeout(connectWebSocket, 5000);
+        };
+
+        ws.onerror = (error) => {
+          console.error("WebSocket error:", error);
+        };
+      }
+
+      function handleWebSocketMessage(data) {
+        // Handle real-time updates
+        switch (data.type) {
+          case "deployment":
+            if (currentSection === "applications") {
+              loadApplications();
+            }
+            break;
+          case "status":
+            if (currentSection === "dashboard") {
+              loadDashboardData();
+            }
+            break;
+        }
+      }
+
+      // Start WebSocket connection
+      connectWebSocket();
+    </script>
+  </body>
+</html>

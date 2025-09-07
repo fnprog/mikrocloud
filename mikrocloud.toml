@@ -1,0 +1,25 @@
+# Mikrocloud Configuration File
+
+[server]
+host = "0.0.0.0"
+port = 3000
+data_dir = "${HOME}/.local/share/mikrocloud"
+log_level = "info"
+
+[database]
+url = "${HOME}/.local/share/mikrocloud/mikrocloud.db"
+
+[docker]
+runtime = "docker"  # or "podman"
+socket_path = "/var/run/docker.sock"
+rootless = false
+
+[ssl]
+enabled = false
+acme_email = ""
+staging = true
+certs_dir = "${HOME}/.local/share/mikrocloud/certs"
+
+[auth]
+enabled = false
+jwt_secret = ""  # Generate a secure secret in production
