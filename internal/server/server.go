@@ -31,7 +31,6 @@ type Server struct {
 }
 
 func New(cfg *config.Config, staticFS fs.FS) *Server {
-	// Initialize database
 	db, err := database.New(cfg.Database.URL)
 	if err != nil {
 		slog.Error("Failed to initialize database", "error", err)
@@ -76,13 +75,12 @@ func New(cfg *config.Config, staticFS fs.FS) *Server {
 }
 
 func (s *Server) Start(ctx context.Context) error {
-	// Setup API routes under /api prefix
+	// Setup routes
 	s.setupAPIRoutes()
-
-	// Setup static file serving for embedded frontend (with fallback)
 	s.setupStaticRoutes()
 
 	addr := fmt.Sprintf("%s:%d", s.config.Server.Host, s.config.Server.Port)
+
 	server := &http.Server{
 		Addr:    addr,
 		Handler: s.router,
@@ -122,9 +120,9 @@ func (s *Server) Start(ctx context.Context) error {
 }
 
 func (s *Server) setupAPIRoutes() {
-	// Mount API routes under /api prefix
 	s.router.Route("/api", func(r chi.Router) {
-		// Initialize Huma API on the /api subrouter
+		// r.Get("/live", s.handleWebSocket)
+
 		humaAPI := humachi.New(r, huma.DefaultConfig("Mikrocloud API", "0.1.0"))
 
 		// Setup all API routes

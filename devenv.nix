@@ -14,6 +14,9 @@ in
     pkgs.goose
     pkgs.awscli2
     pkgs.golangci-lint
+    pkgs.pkg-config
+    pkgs.gpgme
+    pkgs.btrfs-progs
   ];
 
   languages.javascript = {

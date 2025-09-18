@@ -1,10 +1,3 @@
-# Mikrocloud Go Makefile
-
-build-web:
-	@echo "Building frontend assets..."
-	cd web && npm install
-	cd web && npm run buildNY: help build build-web build-full run clean test deps migrate migrate-up migrate-down migrate-status docker-build docker-run
-
 # Default target
 help:
 	@echo "Available targets:"

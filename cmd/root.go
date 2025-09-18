@@ -24,8 +24,7 @@ var (
 	rootCmd  = &cobra.Command{
 		Use:   "mikrocloud",
 		Short: "Ultra-lightweight Platform as a Service (PaaS)",
-		Long: `Mikrocloud is a next-generation, multi-region Platform as a Service (PaaS) 
-built for ultra-lightweight performance (<50MB memory usage) with enterprise features.`,
+		Long:  `Mikrocloud is a next-generation, multi-region Platform as a Service (PaaS) built for ultra-lightweight performance (<50MB memory usage) with enterprise features.`,
 	}
 )
 
@@ -79,6 +78,7 @@ var serveCmd = &cobra.Command{
 		}
 
 		srv := server.New(cfg, staticFS)
+
 		return srv.Start(cmd.Context())
 	},
 }
@@ -108,7 +108,6 @@ var migrateCmd = &cobra.Command{
 
 		// Open database connection
 		db, err := sql.Open("sqlite3", cfg.Database.URL)
-
 		if err != nil {
 			return fmt.Errorf("failed to open database: %w", err)
 		}
@@ -131,5 +130,5 @@ func ensureDir(dir string) error {
 	if dir == "." || dir == "/" {
 		return nil
 	}
-	return os.MkdirAll(dir, 0755)
+	return os.MkdirAll(dir, 0o755)
 }

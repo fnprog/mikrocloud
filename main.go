@@ -15,11 +15,6 @@ import (
 //go:embed all:web/dist
 var DistFS embed.FS
 
-// GetStaticFS returns the embedded filesystem, stripping the "web/dist" prefix
-func GetStaticFS() (fs.FS, error) {
-	return fs.Sub(DistFS, "web/dist")
-}
-
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
@@ -28,8 +23,7 @@ func main() {
 	slog.SetDefault(logger)
 
 	// Set up static filesystem
-	staticFS, err := GetStaticFS()
-
+	staticFS, err := fs.Sub(DistFS, "web/dist")
 	if err != nil {
 		slog.Error("Failed to get static filesystem", "error", err)
 		os.Exit(1)
