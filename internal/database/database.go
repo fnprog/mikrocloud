@@ -10,14 +10,16 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/exp/slog"
 
-	"github.com/mikrocloud/mikrocloud/internal/infrastructure/repository"
+	"github.com/mikrocloud/mikrocloud/internal/domain/environments/repository"
+	"github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
+	"github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
 )
 
 type Database struct {
 	db                    *sql.DB
-	ProjectRepository     *repository.SQLiteProjectRepository
-	EnvironmentRepository *repository.SQLiteEnvironmentRepository
-	ServiceRepository     *repository.SQLiteServiceRepository
+	ProjectRepository     *projectsRepo.Repository
+	EnvironmentRepository *environmentsRepo.Repository
+	ServiceRepository     *servicesRepo.Repository
 }
 
 func New(databaseURL string) (*Database, error) {
@@ -51,9 +53,9 @@ func New(databaseURL string) (*Database, error) {
 	slog.Info("SQLite database connection established", "path", databaseURL)
 
 	// Initialize repositories
-	projectRepo := repository.NewSQLiteProjectRepository(db)
-	environmentRepo := repository.NewSQLiteEnvironmentRepository(db)
-	serviceRepo := repository.NewSQLiteServiceRepository(db)
+	projectRepo := projectsRepo.NewSQLiteProjectRepository(db)
+	environmentRepo := environmentsRepo.NewSQLiteEnvironmentRepository(db)
+	serviceRepo := servicesRepo.NewSQLiteServiceRepository(db)
 
 	return &Database{
 		db:                    db,

@@ -9,13 +9,14 @@ import (
 
 // Environment represents an environment within a project (e.g., prod, dev, staging)
 type Environment struct {
-	id          EnvironmentID
-	name        EnvironmentName
-	projectID   uuid.UUID
-	description string
-	variables   map[string]string
-	createdAt   time.Time
-	updatedAt   time.Time
+	id           EnvironmentID
+	name         EnvironmentName
+	isProduction bool
+	projectID    uuid.UUID
+	description  string
+	variables    map[string]string
+	createdAt    time.Time
+	updatedAt    time.Time
 }
 
 // EnvironmentID is a value object for environment identification
@@ -93,17 +94,18 @@ var (
 )
 
 // NewEnvironment creates a new environment with business rules enforcement
-func NewEnvironment(name EnvironmentName, projectID uuid.UUID, description string) *Environment {
+func NewEnvironment(name EnvironmentName, projectID uuid.UUID, description string, isProduction bool) *Environment {
 	now := time.Now()
 
 	return &Environment{
-		id:          NewEnvironmentID(),
-		name:        name,
-		projectID:   projectID,
-		description: description,
-		variables:   make(map[string]string),
-		createdAt:   now,
-		updatedAt:   now,
+		id:           NewEnvironmentID(),
+		name:         name,
+		isProduction: isProduction,
+		projectID:    projectID,
+		description:  description,
+		variables:    make(map[string]string),
+		createdAt:    now,
+		updatedAt:    now,
 	}
 }
 
@@ -114,6 +116,10 @@ func (e *Environment) ID() EnvironmentID {
 
 func (e *Environment) Name() EnvironmentName {
 	return e.name
+}
+
+func (e *Environment) IsProduction() bool {
+	return e.isProduction
 }
 
 func (e *Environment) ProjectID() uuid.UUID {
@@ -168,6 +174,11 @@ func (e *Environment) ChangeName(name EnvironmentName) error {
 	return nil
 }
 
+func (e *Environment) SetProduction(isProduction bool) {
+	e.isProduction = isProduction
+	e.updatedAt = time.Now()
+}
+
 // GetVariable retrieves a specific environment variable
 func (e *Environment) GetVariable(key string) (string, bool) {
 	value, exists := e.variables[key]
@@ -178,6 +189,7 @@ func (e *Environment) GetVariable(key string) (string, bool) {
 func ReconstructEnvironment(
 	id EnvironmentID,
 	name EnvironmentName,
+	isProduction bool,
 	projectID uuid.UUID,
 	description string,
 	variables map[string]string,
@@ -185,12 +197,13 @@ func ReconstructEnvironment(
 	updatedAt time.Time,
 ) *Environment {
 	return &Environment{
-		id:          id,
-		name:        name,
-		projectID:   projectID,
-		description: description,
-		variables:   variables,
-		createdAt:   createdAt,
-		updatedAt:   updatedAt,
+		id:           id,
+		name:         name,
+		isProduction: isProduction,
+		projectID:    projectID,
+		description:  description,
+		variables:    variables,
+		createdAt:    createdAt,
+		updatedAt:    updatedAt,
 	}
 }

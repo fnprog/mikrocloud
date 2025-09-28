@@ -7,18 +7,19 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 	"github.com/mikrocloud/mikrocloud/internal/database"
-	"github.com/mikrocloud/mikrocloud/internal/domain/environment"
-	"github.com/mikrocloud/mikrocloud/internal/domain/project"
-	"github.com/mikrocloud/mikrocloud/internal/domain/service"
-	"github.com/mikrocloud/mikrocloud/internal/services/service"
+	"github.com/mikrocloud/mikrocloud/internal/domain/environments"
+	"github.com/mikrocloud/mikrocloud/internal/domain/projects"
+	"github.com/mikrocloud/mikrocloud/internal/domain/services"
+	servicesService "github.com/mikrocloud/mikrocloud/internal/domain/services/service"
+	"github.com/mikrocloud/mikrocloud/internal/domain/users"
 )
 
 type ServiceHandler struct {
 	db             *database.Database
-	serviceService *services.ServiceService
+	serviceService *servicesService.ServiceService
 }
 
-func NewServiceHandler(db *database.Database, serviceService *services.ServiceService) *ServiceHandler {
+func NewServiceHandler(db *database.Database, serviceService *servicesService.ServiceService) *ServiceHandler {
 	return &ServiceHandler{
 		db:             db,
 		serviceService: serviceService,
@@ -145,25 +146,28 @@ type ServiceActionOutput struct {
 // CreateQuickService creates a new service with auto-generated project and prod environment
 func (h *ServiceHandler) CreateQuickService(ctx context.Context, input *QuickServiceInput) (*QuickServiceOutput, error) {
 	// Create project with same name as service (or add suffix)
-	projectName, err := project.NewProjectName(input.Body.Name)
+	projectName, err := projects.NewProjectName(input.Body.Name)
 	if err != nil {
 		return nil, huma.Error400BadRequest("invalid project name", err)
 	}
 
 	// Create service name
-	serviceName, err := service.NewServiceName(input.Body.Name)
+	serviceName, err := services.NewServiceName(input.Body.Name)
 	if err != nil {
 		return nil, huma.Error400BadRequest("invalid service name", err)
 	}
 
 	// Create project
-	proj := project.NewProject(projectName, fmt.Sprintf("Auto-generated project for %s", input.Body.Name))
+	// TODO: Get actual user ID from authentication context
+	userID, _ := users.UserIDFromString("00000000-0000-0000-0000-000000000000")
+	orgID, _ := users.OrganizationIDFromString("00000000-0000-0000-0000-000000000000")
+	proj := projects.NewProject(projectName, fmt.Sprintf("Auto-generated project for %s", input.Body.Name), userID, orgID, userID)
 
 	// Create default prod environment
-	env := environment.NewEnvironment(environment.EnvironmentProduction, proj.ID().UUID(), "Production environment")
+	env := environments.NewEnvironment(environments.EnvironmentProduction, proj.ID().UUID(), "Production environment", true)
 
 	// Parse Git URL
-	gitURL, err := service.NewGitURL(input.Body.GitURL, input.Body.GitBranch, input.Body.ContextRoot)
+	gitURL, err := services.NewGitURL(input.Body.GitURL, input.Body.GitBranch, input.Body.ContextRoot)
 	if err != nil {
 		return nil, huma.Error400BadRequest("invalid git URL", err)
 	}
@@ -172,7 +176,7 @@ func (h *ServiceHandler) CreateQuickService(ctx context.Context, input *QuickSer
 	buildConfig := h.createBuildConfig(input.Body.BuildpackType, input.Body.BuildConfig)
 
 	// Create service
-	svc := service.NewService(serviceName, proj.ID().UUID(), env.ID().UUID(), gitURL, buildConfig)
+	svc := services.NewService(serviceName, proj.ID().UUID(), env.ID().UUID(), gitURL, buildConfig)
 
 	// Set environment variables
 	for key, value := range input.Body.Environment {
@@ -225,13 +229,13 @@ func (h *ServiceHandler) CreateService(ctx context.Context, input *CreateService
 	}
 
 	// Create service name
-	serviceName, err := service.NewServiceName(input.Body.Name)
+	serviceName, err := services.NewServiceName(input.Body.Name)
 	if err != nil {
 		return nil, huma.Error400BadRequest("invalid service name", err)
 	}
 
 	// Parse Git URL
-	gitURL, err := service.NewGitURL(input.Body.GitURL, input.Body.GitBranch, input.Body.ContextRoot)
+	gitURL, err := services.NewGitURL(input.Body.GitURL, input.Body.GitBranch, input.Body.ContextRoot)
 	if err != nil {
 		return nil, huma.Error400BadRequest("invalid git URL", err)
 	}
@@ -240,7 +244,7 @@ func (h *ServiceHandler) CreateService(ctx context.Context, input *CreateService
 	buildConfig := h.createBuildConfig(input.Body.BuildpackType, input.Body.BuildConfig)
 
 	// Create service
-	svc := service.NewService(serviceName, projectID, environmentID, gitURL, buildConfig)
+	svc := services.NewService(serviceName, projectID, environmentID, gitURL, buildConfig)
 
 	// Set environment variables
 	for key, value := range input.Body.Environment {
@@ -360,8 +364,8 @@ func (h *ServiceHandler) DeleteService(ctx context.Context, input *ServiceAction
 }
 
 // Helper method to create build config from input
-func (h *ServiceHandler) createBuildConfig(buildpackType string, configInput *ServiceBuildConfigInput) *service.BuildConfig {
-	buildConfig := service.NewBuildConfig(service.BuildpackType(buildpackType))
+func (h *ServiceHandler) createBuildConfig(buildpackType string, configInput *ServiceBuildConfigInput) *services.BuildConfig {
+	buildConfig := services.NewBuildConfig(services.BuildpackType(buildpackType))
 
 	if configInput == nil {
 		return buildConfig
@@ -370,7 +374,7 @@ func (h *ServiceHandler) createBuildConfig(buildpackType string, configInput *Se
 	switch buildpackType {
 	case "nixpacks":
 		if configInput.Nixpacks != nil {
-			buildConfig.SetNixpacksConfig(&service.NixpacksConfig{
+			buildConfig.SetNixpacksConfig(&services.NixpacksConfig{
 				StartCommand: configInput.Nixpacks.StartCommand,
 				BuildCommand: configInput.Nixpacks.BuildCommand,
 				Variables:    configInput.Nixpacks.Variables,
@@ -378,7 +382,7 @@ func (h *ServiceHandler) createBuildConfig(buildpackType string, configInput *Se
 		}
 	case "static":
 		if configInput.Static != nil {
-			buildConfig.SetStaticConfig(&service.StaticConfig{
+			buildConfig.SetStaticConfig(&services.StaticConfig{
 				BuildCommand: configInput.Static.BuildCommand,
 				OutputDir:    configInput.Static.OutputDir,
 				NginxConfig:  configInput.Static.NginxConfig,
@@ -386,7 +390,7 @@ func (h *ServiceHandler) createBuildConfig(buildpackType string, configInput *Se
 		}
 	case "dockerfile":
 		if configInput.Dockerfile != nil {
-			buildConfig.SetDockerfileConfig(&service.DockerfileConfig{
+			buildConfig.SetDockerfileConfig(&services.DockerfileConfig{
 				DockerfilePath: configInput.Dockerfile.DockerfilePath,
 				BuildArgs:      configInput.Dockerfile.BuildArgs,
 				Target:         configInput.Dockerfile.Target,
@@ -394,7 +398,7 @@ func (h *ServiceHandler) createBuildConfig(buildpackType string, configInput *Se
 		}
 	case "docker-compose":
 		if configInput.Compose != nil {
-			buildConfig.SetComposeConfig(&service.ComposeConfig{
+			buildConfig.SetComposeConfig(&services.ComposeConfig{
 				ComposeFile: configInput.Compose.ComposeFile,
 				Service:     configInput.Compose.Service,
 			})

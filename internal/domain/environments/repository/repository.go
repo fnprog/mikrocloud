@@ -3,75 +3,48 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/mikrocloud/mikrocloud/internal/domain/environments"
-	"github.com/stephenafamo/bob/dialect/sqlite"
-	"github.com/stephenafamo/bob/dialect/sqlite/dm"
-	"github.com/stephenafamo/bob/dialect/sqlite/im"
-	"github.com/stephenafamo/bob/dialect/sqlite/sm"
-	"github.com/stephenafamo/bob/dialect/sqlite/um"
 )
 
-// Repository interface for environment persistence
+// Repository defines the interface for environment persistence
 type Repository interface {
-	Save(environment *environments.Environment) error
-	FindByID(id environments.EnvironmentID) (*environments.Environment, error)
-	FindByName(name environments.EnvironmentName, projectID string) (*environments.Environment, error)
-	FindByProjectID(projectID string) ([]*environments.Environment, error)
-	Update(environment *environments.Environment) error
-	Delete(id environments.EnvironmentID) error
-	List() ([]*environments.Environment, error)
+	Save(ctx context.Context, env *environments.Environment) error
+	FindByID(ctx context.Context, id environments.EnvironmentID) (*environments.Environment, error)
+	FindByProjectID(ctx context.Context, projectID uuid.UUID) ([]*environments.Environment, error)
+	FindAll(ctx context.Context) ([]*environments.Environment, error)
+	Delete(ctx context.Context, id environments.EnvironmentID) error
 }
 
-// SQLiteEnvironmentRepository implements the environment.Repository interface
+// SQLiteEnvironmentRepository implements Repository using SQLite
 type SQLiteEnvironmentRepository struct {
 	db *sql.DB
 }
 
-// NewSQLiteEnvironmentRepository creates a new SQLite-based environment repository
+// NewSQLiteEnvironmentRepository creates a new SQLite environment repository
 func NewSQLiteEnvironmentRepository(db *sql.DB) *SQLiteEnvironmentRepository {
 	return &SQLiteEnvironmentRepository{db: db}
 }
 
-// Save persists an environment to the database
-func (r *SQLiteEnvironmentRepository) Save(env *environments.Environment) error {
-	ctx := context.Background()
+// Save persists an environment to the database using raw SQL
+func (r *SQLiteEnvironmentRepository) Save(ctx context.Context, env *environments.Environment) error {
+	query := `
+		INSERT OR REPLACE INTO environments (id, name, is_production, project_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`
 
-	// Marshal variables to JSON
-	variablesJSON, err := json.Marshal(env.Variables())
-	if err != nil {
-		return fmt.Errorf("failed to marshal variables: %w", err)
-	}
-
-	// Use Bob query builder for INSERT with ON CONFLICT
-	query := sqlite.Insert(
-		im.Into("environments", "id", "name", "project_id", "description", "variables", "created_at", "updated_at"),
-		im.Values(sqlite.Arg(
-			env.ID().String(),
-			env.Name().String(),
-			env.ProjectID().String(),
-			env.Description(),
-			string(variablesJSON),
-			env.CreatedAt().Format(time.RFC3339),
-			env.UpdatedAt().Format(time.RFC3339),
-		)),
-		im.OnConflict("id").DoUpdate(
-			im.SetCol("description").ToArg(env.Description()),
-			im.SetCol("variables").ToArg(string(variablesJSON)),
-			im.SetCol("updated_at").ToArg(env.UpdatedAt().Format(time.RFC3339)),
-		),
+	_, err := r.db.ExecContext(ctx, query,
+		env.ID().String(),
+		env.Name().String(),
+		boolToInt(env.IsProduction()),
+		env.ProjectID().String(),
+		env.CreatedAt().Format(time.RFC3339),
+		env.UpdatedAt().Format(time.RFC3339),
 	)
 
-	queryStr, args, err := query.Build(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to build query: %w", err)
-	}
-
-	_, err = r.db.ExecContext(ctx, queryStr, args...)
 	if err != nil {
 		return fmt.Errorf("failed to save environment: %w", err)
 	}
@@ -79,25 +52,23 @@ func (r *SQLiteEnvironmentRepository) Save(env *environments.Environment) error 
 	return nil
 }
 
-// FindByID retrieves an environment by its ID
-func (r *SQLiteEnvironmentRepository) FindByID(id environments.EnvironmentID) (*environments.Environment, error) {
-	ctx := context.Background()
-
-	// Use Bob query builder for SELECT
-	query := sqlite.Select(
-		sm.Columns("id", "name", "project_id", "description", "variables", "created_at", "updated_at"),
-		sm.From("environments"),
-		sm.Where(sqlite.Quote("id").EQ(sqlite.Arg(id.String()))),
-	)
-
-	queryStr, args, err := query.Build(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build query: %w", err)
-	}
+// FindByID retrieves an environment by its ID using raw SQL
+func (r *SQLiteEnvironmentRepository) FindByID(ctx context.Context, id environments.EnvironmentID) (*environments.Environment, error) {
+	query := `
+		SELECT id, name, is_production, project_id, created_at, updated_at
+		FROM environments
+		WHERE id = ?
+	`
 
 	var row environmentRow
-	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(
-		&row.ID, &row.Name, &row.ProjectID, &row.Description, &row.Variables, &row.CreatedAt, &row.UpdatedAt)
+	err := r.db.QueryRowContext(ctx, query, id.String()).Scan(
+		&row.ID,
+		&row.Name,
+		&row.IsProduction,
+		&row.ProjectID,
+		&row.CreatedAt,
+		&row.UpdatedAt,
+	)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -109,146 +80,107 @@ func (r *SQLiteEnvironmentRepository) FindByID(id environments.EnvironmentID) (*
 	return r.mapRowToEnvironment(row)
 }
 
-// FindByName retrieves an environment by its name within a project
-func (r *SQLiteEnvironmentRepository) FindByName(name environments.EnvironmentName, projectID string) (*environments.Environment, error) {
-	ctx := context.Background()
+// FindByProjectID retrieves all environments for a specific project using raw SQL
+func (r *SQLiteEnvironmentRepository) FindByProjectID(ctx context.Context, projectID uuid.UUID) ([]*environments.Environment, error) {
+	query := `
+		SELECT id, name, is_production, project_id, created_at, updated_at
+		FROM environments
+		WHERE project_id = ?
+		ORDER BY created_at ASC
+	`
 
-	// Use Bob query builder for SELECT
-	query := sqlite.Select(
-		sm.Columns("id", "name", "project_id", "description", "variables", "created_at", "updated_at"),
-		sm.From("environments"),
-		sm.Where(sqlite.Quote("name").EQ(sqlite.Arg(name.String())).And(sqlite.Quote("project_id").EQ(sqlite.Arg(projectID)))),
-	)
-
-	queryStr, args, err := query.Build(ctx)
+	rows, err := r.db.QueryContext(ctx, query, projectID.String())
 	if err != nil {
-		return nil, fmt.Errorf("failed to build query: %w", err)
-	}
-
-	var row environmentRow
-	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(
-		&row.ID, &row.Name, &row.ProjectID, &row.Description, &row.Variables, &row.CreatedAt, &row.UpdatedAt)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("environment not found: %s in project %s", name.String(), projectID)
-		}
-		return nil, fmt.Errorf("failed to find environment by name: %w", err)
-	}
-
-	return r.mapRowToEnvironment(row)
-}
-
-// FindByProjectID retrieves all environments in a project
-func (r *SQLiteEnvironmentRepository) FindByProjectID(projectID string) ([]*environments.Environment, error) {
-	ctx := context.Background()
-
-	// Use Bob query builder for SELECT with WHERE and ORDER BY
-	query := sqlite.Select(
-		sm.Columns("id", "name", "project_id", "description", "variables", "created_at", "updated_at"),
-		sm.From("environments"),
-		sm.Where(sqlite.Quote("project_id").EQ(sqlite.Arg(projectID))),
-		sm.OrderBy("created_at").Asc(),
-	)
-
-	queryStr, args, err := query.Build(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build query: %w", err)
-	}
-
-	rows, err := r.db.QueryContext(ctx, queryStr, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query environments by project ID: %w", err)
+		return nil, fmt.Errorf("failed to query environments by project: %w", err)
 	}
 	defer rows.Close()
 
-	var environments []*environments.Environment
+	var envs []*environments.Environment
 	for rows.Next() {
 		var row environmentRow
-		err := rows.Scan(&row.ID, &row.Name, &row.ProjectID, &row.Description, &row.Variables, &row.CreatedAt, &row.UpdatedAt)
+		err := rows.Scan(
+			&row.ID,
+			&row.Name,
+			&row.IsProduction,
+			&row.ProjectID,
+			&row.CreatedAt,
+			&row.UpdatedAt,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan environment row: %w", err)
 		}
 
-		domainEnvironment, err := r.mapRowToEnvironment(row)
+		env, err := r.mapRowToEnvironment(row)
 		if err != nil {
 			return nil, fmt.Errorf("failed to map environment: %w", err)
 		}
 
-		environments = append(environments, domainEnvironment)
+		envs = append(envs, env)
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating over environment rows: %w", err)
+		return nil, fmt.Errorf("error iterating environment rows: %w", err)
 	}
 
-	return environments, nil
+	return envs, nil
 }
 
-// Update updates an existing environment
-func (r *SQLiteEnvironmentRepository) Update(env *environments.Environment) error {
-	ctx := context.Background()
+// FindAll retrieves all environments using raw SQL
+func (r *SQLiteEnvironmentRepository) FindAll(ctx context.Context) ([]*environments.Environment, error) {
+	query := `
+		SELECT id, name, is_production, project_id, created_at, updated_at
+		FROM environments
+		ORDER BY created_at ASC
+	`
 
-	// Marshal variables to JSON
-	variablesJSON, err := json.Marshal(env.Variables())
+	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
-		return fmt.Errorf("failed to marshal variables: %w", err)
+		return nil, fmt.Errorf("failed to query all environments: %w", err)
+	}
+	defer rows.Close()
+
+	var envs []*environments.Environment
+	for rows.Next() {
+		var row environmentRow
+		err := rows.Scan(
+			&row.ID,
+			&row.Name,
+			&row.IsProduction,
+			&row.ProjectID,
+			&row.CreatedAt,
+			&row.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan environment row: %w", err)
+		}
+
+		env, err := r.mapRowToEnvironment(row)
+		if err != nil {
+			return nil, fmt.Errorf("failed to map environment: %w", err)
+		}
+
+		envs = append(envs, env)
 	}
 
-	// Use Bob query builder for UPDATE
-	query := sqlite.Update(
-		um.Table("environments"),
-		um.SetCol("description").ToArg(env.Description()),
-		um.SetCol("variables").ToArg(string(variablesJSON)),
-		um.SetCol("updated_at").ToArg(env.UpdatedAt().Format(time.RFC3339)),
-		um.Where(sqlite.Quote("id").EQ(sqlite.Arg(env.ID().String()))),
-	)
-
-	queryStr, args, err := query.Build(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to build query: %w", err)
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating environment rows: %w", err)
 	}
 
-	result, err := r.db.ExecContext(ctx, queryStr, args...)
-	if err != nil {
-		return fmt.Errorf("failed to update environment: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to get affected rows: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		return fmt.Errorf("environment not found: %s", env.ID().String())
-	}
-
-	return nil
+	return envs, nil
 }
 
-// Delete removes an environment
-func (r *SQLiteEnvironmentRepository) Delete(id environments.EnvironmentID) error {
-	ctx := context.Background()
+// Delete removes an environment from the database using raw SQL
+func (r *SQLiteEnvironmentRepository) Delete(ctx context.Context, id environments.EnvironmentID) error {
+	query := `DELETE FROM environments WHERE id = ?`
 
-	// Use Bob query builder for DELETE
-	query := sqlite.Delete(
-		dm.From("environments"),
-		dm.Where(sqlite.Quote("id").EQ(sqlite.Arg(id.String()))),
-	)
-
-	queryStr, args, err := query.Build(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to build query: %w", err)
-	}
-
-	result, err := r.db.ExecContext(ctx, queryStr, args...)
+	result, err := r.db.ExecContext(ctx, query, id.String())
 	if err != nil {
 		return fmt.Errorf("failed to delete environment: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get affected rows: %w", err)
+		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
@@ -258,60 +190,14 @@ func (r *SQLiteEnvironmentRepository) Delete(id environments.EnvironmentID) erro
 	return nil
 }
 
-// List retrieves all environments
-func (r *SQLiteEnvironmentRepository) List() ([]*environments.Environment, error) {
-	ctx := context.Background()
-
-	// Use Bob query builder for SELECT with ORDER BY
-	query := sqlite.Select(
-		sm.Columns("id", "name", "project_id", "description", "variables", "created_at", "updated_at"),
-		sm.From("environments"),
-		sm.OrderBy("created_at").Desc(),
-	)
-
-	queryStr, args, err := query.Build(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build query: %w", err)
-	}
-
-	rows, err := r.db.QueryContext(ctx, queryStr, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query all environments: %w", err)
-	}
-	defer rows.Close()
-
-	var environments []*environments.Environment
-	for rows.Next() {
-		var row environmentRow
-		err := rows.Scan(&row.ID, &row.Name, &row.ProjectID, &row.Description, &row.Variables, &row.CreatedAt, &row.UpdatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan environment row: %w", err)
-		}
-
-		domainEnvironment, err := r.mapRowToEnvironment(row)
-		if err != nil {
-			return nil, fmt.Errorf("failed to map environment: %w", err)
-		}
-
-		environments = append(environments, domainEnvironment)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating over environment rows: %w", err)
-	}
-
-	return environments, nil
-}
-
-// environmentRow represents the database row structure
+// environmentRow represents the database row structure matching the schema
 type environmentRow struct {
-	ID          string
-	Name        string
-	ProjectID   string
-	Description string
-	Variables   string
-	CreatedAt   string
-	UpdatedAt   string
+	ID           string
+	Name         string
+	IsProduction int
+	ProjectID    string
+	CreatedAt    string
+	UpdatedAt    string
 }
 
 // mapRowToEnvironment converts a database row to a domain Environment
@@ -331,17 +217,6 @@ func (r *SQLiteEnvironmentRepository) mapRowToEnvironment(row environmentRow) (*
 	// Parse project ID
 	projectID := uuid.MustParse(row.ProjectID)
 
-	// Parse variables
-	var variables map[string]string
-	if row.Variables != "" {
-		err = json.Unmarshal([]byte(row.Variables), &variables)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal variables: %w", err)
-		}
-	} else {
-		variables = make(map[string]string)
-	}
-
 	// Parse timestamps
 	createdAt, err := time.Parse(time.RFC3339, row.CreatedAt)
 	if err != nil {
@@ -353,9 +228,20 @@ func (r *SQLiteEnvironmentRepository) mapRowToEnvironment(row environmentRow) (*
 		return nil, fmt.Errorf("invalid updated_at timestamp: %w", err)
 	}
 
-	// Reconstruct environment from persistence
+	// Convert integer to boolean
+	isProduction := row.IsProduction == 1
+
+	// Reconstruct environment from persistence (empty description and variables for now)
 	env := environments.ReconstructEnvironment(
-		envID, envName, projectID, row.Description, variables, createdAt, updatedAt)
+		envID, envName, isProduction, projectID, "", make(map[string]string), createdAt, updatedAt)
 
 	return env, nil
+}
+
+// boolToInt converts a boolean to an integer for SQLite storage
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

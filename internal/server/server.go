@@ -12,10 +12,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/danielgtaylor/huma/v2"
-	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/jwtauth/v5"
 	"golang.org/x/exp/slog"
 
 	"github.com/mikrocloud/mikrocloud/internal/api"
@@ -24,10 +23,11 @@ import (
 )
 
 type Server struct {
-	config   *config.Config
-	db       *database.Database
-	router   *chi.Mux
-	staticFS fs.FS
+	config    *config.Config
+	db        *database.Database
+	router    *chi.Mux
+	staticFS  fs.FS
+	tokenAuth *jwtauth.JWTAuth
 }
 
 func New(cfg *config.Config, staticFS fs.FS) *Server {
@@ -40,11 +40,16 @@ func New(cfg *config.Config, staticFS fs.FS) *Server {
 	// Initialize Chi router
 	router := chi.NewRouter()
 
+	// initialize auth middleware
+
+	tokenAuth := jwtauth.New("HS256", []byte("secret"), nil)
+
 	// Add middleware
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.Timeout(60 * time.Second))
+	router.Use(jwtauth.Verifier(tokenAuth))
 
 	// Custom logging middleware using slog
 	router.Use(func(next http.Handler) http.Handler {
@@ -67,10 +72,11 @@ func New(cfg *config.Config, staticFS fs.FS) *Server {
 	})
 
 	return &Server{
-		config:   cfg,
-		db:       db,
-		router:   router,
-		staticFS: staticFS,
+		config:    cfg,
+		db:        db,
+		router:    router,
+		staticFS:  staticFS,
+		tokenAuth: tokenAuth,
 	}
 }
 
@@ -121,12 +127,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 func (s *Server) setupAPIRoutes() {
 	s.router.Route("/api", func(r chi.Router) {
-		// r.Get("/live", s.handleWebSocket)
-
-		humaAPI := humachi.New(r, huma.DefaultConfig("Mikrocloud API", "0.1.0"))
-
-		// Setup all API routes
-		api.SetupRoutes(humaAPI, s.db, s.config)
+		api.SetupRoutes(s.router, s.db, s.config, s.tokenAuth)
 	})
 }
 

@@ -1,0 +1,406 @@
+package repository
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/mikrocloud/mikrocloud/internal/domain/applications"
+	"github.com/stephenafamo/bob/dialect/sqlite"
+	"github.com/stephenafamo/bob/dialect/sqlite/dm"
+	"github.com/stephenafamo/bob/dialect/sqlite/im"
+	"github.com/stephenafamo/bob/dialect/sqlite/sm"
+)
+
+type Repository interface {
+	Save(ctx context.Context, app *applications.Application) error
+	FindByID(ctx context.Context, id applications.ApplicationID) (*applications.Application, error)
+	FindByName(ctx context.Context, projectID uuid.UUID, name applications.ApplicationName) (*applications.Application, error)
+	FindByProject(ctx context.Context, projectID uuid.UUID) ([]*applications.Application, error)
+	FindByEnvironment(ctx context.Context, environmentID uuid.UUID) ([]*applications.Application, error)
+	FindAll(ctx context.Context) ([]*applications.Application, error)
+	Delete(ctx context.Context, id applications.ApplicationID) error
+	Exists(ctx context.Context, projectID uuid.UUID, name applications.ApplicationName) (bool, error)
+}
+
+type SQLiteApplicationRepository struct {
+	db *sql.DB
+}
+
+func NewSQLiteApplicationRepository(db *sql.DB) *SQLiteApplicationRepository {
+	return &SQLiteApplicationRepository{db: db}
+}
+
+func (r *SQLiteApplicationRepository) Save(ctx context.Context, app *applications.Application) error {
+	configJSON, err := json.Marshal(app.Config())
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	query := sqlite.Insert(
+		im.Into("applications"),
+		im.Values(
+			sqlite.Arg(app.ID().String()),
+			sqlite.Arg(app.Name().String()),
+			sqlite.Arg(app.Description()),
+			sqlite.Arg(app.ProjectID().String()),
+			sqlite.Arg(app.EnvironmentID().String()),
+			sqlite.Arg(app.RepoURL()),
+			sqlite.Arg(app.RepoBranch()),
+			sqlite.Arg(app.RepoPath()),
+			sqlite.Arg(app.Domain()),
+			sqlite.Arg(string(app.BuildpackType())),
+			sqlite.Arg(string(configJSON)),
+			sqlite.Arg(app.AutoDeploy()),
+			sqlite.Arg(string(app.Status())),
+			sqlite.Arg(app.CreatedAt().Format(time.RFC3339)),
+			sqlite.Arg(app.UpdatedAt().Format(time.RFC3339)),
+		),
+		im.OnConflict("id").DoUpdate(
+			im.SetCol("name").ToArg(app.Name().String()),
+			im.SetCol("description").ToArg(app.Description()),
+			im.SetCol("repo_url").ToArg(app.RepoURL()),
+			im.SetCol("repo_branch").ToArg(app.RepoBranch()),
+			im.SetCol("repo_path").ToArg(app.RepoPath()),
+			im.SetCol("domain").ToArg(app.Domain()),
+			im.SetCol("buildpack_type").ToArg(string(app.BuildpackType())),
+			im.SetCol("config").ToArg(string(configJSON)),
+			im.SetCol("auto_deploy").ToArg(app.AutoDeploy()),
+			im.SetCol("status").ToArg(string(app.Status())),
+			im.SetCol("updated_at").ToArg(app.UpdatedAt().Format(time.RFC3339)),
+		),
+	)
+
+	queryStr, args, err := query.Build(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to build query: %w", err)
+	}
+
+	_, err = r.db.ExecContext(ctx, queryStr, args...)
+	if err != nil {
+		return fmt.Errorf("failed to save application: %w", err)
+	}
+
+	return nil
+}
+
+func (r *SQLiteApplicationRepository) FindByID(ctx context.Context, id applications.ApplicationID) (*applications.Application, error) {
+	query := sqlite.Select(
+		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at"),
+		sm.From("applications"),
+		sm.Where(sqlite.Quote("id").EQ(sqlite.Arg(id.String()))),
+	)
+
+	queryStr, args, err := query.Build(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	var row applicationRow
+	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(
+		&row.ID, &row.Name, &row.Description, &row.ProjectID, &row.EnvironmentID,
+		&row.RepoURL, &row.RepoBranch, &row.RepoPath, &row.Domain, &row.BuildpackType,
+		&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("application not found: %s", id.String())
+		}
+		return nil, fmt.Errorf("failed to find application by ID: %w", err)
+	}
+
+	return r.mapRowToApplication(row)
+}
+
+func (r *SQLiteApplicationRepository) FindByName(ctx context.Context, projectID uuid.UUID, name applications.ApplicationName) (*applications.Application, error) {
+	query := sqlite.Select(
+		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at"),
+		sm.From("applications"),
+		sm.Where(
+			sqlite.Quote("project_id").EQ(sqlite.Arg(projectID.String())).
+				And(sqlite.Quote("name").EQ(sqlite.Arg(name.String()))),
+		),
+	)
+
+	queryStr, args, err := query.Build(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	var row applicationRow
+	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(
+		&row.ID, &row.Name, &row.Description, &row.ProjectID, &row.EnvironmentID,
+		&row.RepoURL, &row.RepoBranch, &row.RepoPath, &row.Domain, &row.BuildpackType,
+		&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("application not found: %s in project %s", name.String(), projectID.String())
+		}
+		return nil, fmt.Errorf("failed to find application by name: %w", err)
+	}
+
+	return r.mapRowToApplication(row)
+}
+
+func (r *SQLiteApplicationRepository) FindByProject(ctx context.Context, projectID uuid.UUID) ([]*applications.Application, error) {
+	query := sqlite.Select(
+		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at"),
+		sm.From("applications"),
+		sm.Where(sqlite.Quote("project_id").EQ(sqlite.Arg(projectID.String()))),
+		sm.OrderBy("created_at").Desc(),
+	)
+
+	queryStr, args, err := query.Build(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx, queryStr, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query applications by project: %w", err)
+	}
+	defer rows.Close()
+
+	var applications []*applications.Application
+	for rows.Next() {
+		var row applicationRow
+		err := rows.Scan(&row.ID, &row.Name, &row.Description, &row.ProjectID, &row.EnvironmentID,
+			&row.RepoURL, &row.RepoBranch, &row.RepoPath, &row.Domain, &row.BuildpackType,
+			&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan application row: %w", err)
+		}
+
+		app, err := r.mapRowToApplication(row)
+		if err != nil {
+			return nil, fmt.Errorf("failed to map application: %w", err)
+		}
+
+		applications = append(applications, app)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over application rows: %w", err)
+	}
+
+	return applications, nil
+}
+
+func (r *SQLiteApplicationRepository) FindByEnvironment(ctx context.Context, environmentID uuid.UUID) ([]*applications.Application, error) {
+	query := sqlite.Select(
+		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at"),
+		sm.From("applications"),
+		sm.Where(sqlite.Quote("environment_id").EQ(sqlite.Arg(environmentID.String()))),
+		sm.OrderBy("created_at").Desc(),
+	)
+
+	queryStr, args, err := query.Build(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx, queryStr, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query applications by environment: %w", err)
+	}
+	defer rows.Close()
+
+	var applications []*applications.Application
+	for rows.Next() {
+		var row applicationRow
+		err := rows.Scan(&row.ID, &row.Name, &row.Description, &row.ProjectID, &row.EnvironmentID,
+			&row.RepoURL, &row.RepoBranch, &row.RepoPath, &row.Domain, &row.BuildpackType,
+			&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan application row: %w", err)
+		}
+
+		app, err := r.mapRowToApplication(row)
+		if err != nil {
+			return nil, fmt.Errorf("failed to map application: %w", err)
+		}
+
+		applications = append(applications, app)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over application rows: %w", err)
+	}
+
+	return applications, nil
+}
+
+func (r *SQLiteApplicationRepository) FindAll(ctx context.Context) ([]*applications.Application, error) {
+	query := sqlite.Select(
+		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at"),
+		sm.From("applications"),
+		sm.OrderBy("created_at").Desc(),
+	)
+
+	queryStr, args, err := query.Build(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx, queryStr, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query all applications: %w", err)
+	}
+	defer rows.Close()
+
+	var applications []*applications.Application
+	for rows.Next() {
+		var row applicationRow
+		err := rows.Scan(&row.ID, &row.Name, &row.Description, &row.ProjectID, &row.EnvironmentID,
+			&row.RepoURL, &row.RepoBranch, &row.RepoPath, &row.Domain, &row.BuildpackType,
+			&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan application row: %w", err)
+		}
+
+		app, err := r.mapRowToApplication(row)
+		if err != nil {
+			return nil, fmt.Errorf("failed to map application: %w", err)
+		}
+
+		applications = append(applications, app)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over application rows: %w", err)
+	}
+
+	return applications, nil
+}
+
+func (r *SQLiteApplicationRepository) Delete(ctx context.Context, id applications.ApplicationID) error {
+	query := sqlite.Delete(
+		dm.From("applications"),
+		dm.Where(sqlite.Quote("id").EQ(sqlite.Arg(id.String()))),
+	)
+
+	queryStr, args, err := query.Build(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to build query: %w", err)
+	}
+
+	result, err := r.db.ExecContext(ctx, queryStr, args...)
+	if err != nil {
+		return fmt.Errorf("failed to delete application: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get affected rows: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("application not found: %s", id.String())
+	}
+
+	return nil
+}
+
+func (r *SQLiteApplicationRepository) Exists(ctx context.Context, projectID uuid.UUID, name applications.ApplicationName) (bool, error) {
+	query := sqlite.Select(
+		sm.Columns("COUNT(*)"),
+		sm.From("applications"),
+		sm.Where(
+			sqlite.Quote("project_id").EQ(sqlite.Arg(projectID.String())).
+				And(sqlite.Quote("name").EQ(sqlite.Arg(name.String()))),
+		),
+	)
+
+	queryStr, args, err := query.Build(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	var count int
+	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("failed to check if application exists: %w", err)
+	}
+
+	return count > 0, nil
+}
+
+type applicationRow struct {
+	ID            string
+	Name          string
+	Description   sql.NullString
+	ProjectID     string
+	EnvironmentID string
+	RepoURL       sql.NullString
+	RepoBranch    sql.NullString
+	RepoPath      sql.NullString
+	Domain        sql.NullString
+	BuildpackType string
+	Config        string
+	AutoDeploy    bool
+	Status        string
+	CreatedAt     string
+	UpdatedAt     string
+}
+
+func (r *SQLiteApplicationRepository) mapRowToApplication(row applicationRow) (*applications.Application, error) {
+	appID, err := applications.ApplicationIDFromString(row.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid application ID: %w", err)
+	}
+
+	appName, err := applications.NewApplicationName(row.Name)
+	if err != nil {
+		return nil, fmt.Errorf("invalid application name: %w", err)
+	}
+
+	projectID := uuid.MustParse(row.ProjectID)
+	environmentID := uuid.MustParse(row.EnvironmentID)
+
+	buildpackType := applications.BuildpackType(row.BuildpackType)
+	status := applications.ApplicationStatus(row.Status)
+
+	createdAt, err := time.Parse(time.RFC3339, row.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("invalid created_at timestamp: %w", err)
+	}
+
+	updatedAt, err := time.Parse(time.RFC3339, row.UpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("invalid updated_at timestamp: %w", err)
+	}
+
+	description := ""
+	if row.Description.Valid {
+		description = row.Description.String
+	}
+
+	repoURL := ""
+	if row.RepoURL.Valid {
+		repoURL = row.RepoURL.String
+	}
+
+	repoBranch := "main"
+	if row.RepoBranch.Valid {
+		repoBranch = row.RepoBranch.String
+	}
+
+	repoPath := ""
+	if row.RepoPath.Valid {
+		repoPath = row.RepoPath.String
+	}
+
+	domain := ""
+	if row.Domain.Valid {
+		domain = row.Domain.String
+	}
+
+	return applications.ReconstructApplication(
+		appID, appName, description, projectID, environmentID,
+		repoURL, repoBranch, repoPath, domain, buildpackType,
+		row.Config, row.AutoDeploy, status, createdAt, updatedAt), nil
+}

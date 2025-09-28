@@ -1,4 +1,4 @@
-// Package project contains the Project aggregate following DDD principles
+// Package projects contains the Project aggregate following DDD principles
 package projects
 
 import (
@@ -6,15 +6,20 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mikrocloud/mikrocloud/internal/domain/users"
 )
 
 // Project represents the core project entity
 type Project struct {
-	id          ProjectID
-	name        ProjectName
-	description string
-	createdAt   time.Time
-	updatedAt   time.Time
+	id             ProjectID
+	name           ProjectName
+	description    *string
+	userID         users.UserID
+	organizationID users.OrganizationID
+	createdBy      users.UserID
+	settings       string
+	createdAt      time.Time
+	updatedAt      time.Time
 }
 
 // ProjectID is a value object for project identification
@@ -60,15 +65,24 @@ func (n ProjectName) String() string {
 }
 
 // NewProject creates a new project with business rules enforcement
-func NewProject(name ProjectName, description string) *Project {
+func NewProject(
+	name ProjectName,
+	description *string,
+	userID users.UserID,
+	organizationID users.OrganizationID,
+) *Project {
 	now := time.Now()
 
 	return &Project{
-		id:          NewProjectID(),
-		name:        name,
-		description: description,
-		createdAt:   now,
-		updatedAt:   now,
+		id:             NewProjectID(),
+		name:           name,
+		description:    description,
+		userID:         userID,
+		organizationID: organizationID,
+		createdBy:      userID,
+		settings:       "{}",
+		createdAt:      now,
+		updatedAt:      now,
 	}
 }
 
@@ -81,8 +95,24 @@ func (p *Project) Name() ProjectName {
 	return p.name
 }
 
-func (p *Project) Description() string {
+func (p *Project) Description() *string {
 	return p.description
+}
+
+func (p *Project) UserID() users.UserID {
+	return p.userID
+}
+
+func (p *Project) OrganizationID() users.OrganizationID {
+	return p.organizationID
+}
+
+func (p *Project) CreatedBy() users.UserID {
+	return p.createdBy
+}
+
+func (p *Project) Settings() string {
+	return p.settings
 }
 
 func (p *Project) CreatedAt() time.Time {
@@ -94,8 +124,13 @@ func (p *Project) UpdatedAt() time.Time {
 }
 
 // Business methods
-func (p *Project) UpdateDescription(description string) {
+func (p *Project) UpdateDescription(description *string) {
 	p.description = description
+	p.updatedAt = time.Now()
+}
+
+func (p *Project) UpdateSettings(settings string) {
+	p.settings = settings
 	p.updatedAt = time.Now()
 }
 
@@ -110,15 +145,23 @@ func (p *Project) ChangeName(name ProjectName) error {
 func ReconstructProject(
 	id ProjectID,
 	name ProjectName,
-	description string,
+	description *string,
+	userID users.UserID,
+	organizationID users.OrganizationID,
+	createdBy users.UserID,
+	settings string,
 	createdAt time.Time,
 	updatedAt time.Time,
 ) *Project {
 	return &Project{
-		id:          id,
-		name:        name,
-		description: description,
-		createdAt:   createdAt,
-		updatedAt:   updatedAt,
+		id:             id,
+		name:           name,
+		description:    description,
+		userID:         userID,
+		organizationID: organizationID,
+		createdBy:      createdBy,
+		settings:       settings,
+		createdAt:      createdAt,
+		updatedAt:      updatedAt,
 	}
 }

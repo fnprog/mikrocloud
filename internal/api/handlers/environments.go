@@ -6,7 +6,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 	"github.com/mikrocloud/mikrocloud/internal/database"
-	"github.com/mikrocloud/mikrocloud/internal/domain/environment"
+	"github.com/mikrocloud/mikrocloud/internal/domain/environments"
 )
 
 type EnvironmentHandler struct {
@@ -79,13 +79,13 @@ func (h *EnvironmentHandler) CreateEnvironment(ctx context.Context, input *Creat
 	}
 
 	// Create environment name
-	envName, err := environment.NewEnvironmentName(input.Body.Name)
+	envName, err := environments.NewEnvironmentName(input.Body.Name)
 	if err != nil {
 		return nil, huma.Error400BadRequest("invalid environment name", err)
 	}
 
 	// Create environment
-	env := environment.NewEnvironment(envName, projectID, input.Body.Description)
+	env := environments.NewEnvironment(envName, projectID, input.Body.Description, false)
 
 	// Set variables
 	for key, value := range input.Body.Variables {

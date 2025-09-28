@@ -6,6 +6,7 @@ import (
 
 	"github.com/mikrocloud/mikrocloud/internal/domain/projects"
 	"github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
+	"github.com/mikrocloud/mikrocloud/internal/domain/users"
 )
 
 // ProjectService handles projects-related business operations
@@ -22,8 +23,10 @@ func NewProjectService(projectRepo repository.Repository) *ProjectService {
 
 // CreateProjectCommand represents the data needed to create a projects
 type CreateProjectCommand struct {
-	Name        string
-	Description string
+	Name           string
+	Description    *string
+	UserID         string
+	OrganisationID string
 }
 
 // CreateProject creates a new projects following business rules
@@ -34,17 +37,28 @@ func (s *ProjectService) CreateProject(ctx context.Context, cmd CreateProjectCom
 		return nil, fmt.Errorf("invalid projects name: %w", err)
 	}
 
-	// Check if projects already exists
+	// Check if projects with name already exists
 	exists, err := s.projectRepo.Exists(ctx, projectName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check projects existence: %w", err)
 	}
+
 	if exists {
 		return nil, fmt.Errorf("projects '%s' already exists", cmd.Name)
 	}
 
+	orgID, err := users.OrganizationIDFromString(cmd.OrganisationID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to translate organisationID: %w", err)
+	}
+
+	userID, err := users.UserIDFromString(cmd.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to translate userID: %w", err)
+	}
+
 	// Create the projects
-	proj := projects.NewProject(projectName, cmd.Description)
+	proj := projects.NewProject(projectName, cmd.Description, userID, orgID)
 
 	// Save the projects
 	if err := s.projectRepo.Save(ctx, proj); err != nil {
@@ -80,7 +94,7 @@ func (s *ProjectService) GetProjectByName(ctx context.Context, name string) (*pr
 }
 
 // UpdateProject updates an existing projects
-func (s *ProjectService) UpdateProject(ctx context.Context, id string, description string) (*projects.Project, error) {
+func (s *ProjectService) UpdateProject(ctx context.Context, id string, description *string) (*projects.Project, error) {
 	// Get existing projects
 	proj, err := s.GetProject(ctx, id)
 	if err != nil {

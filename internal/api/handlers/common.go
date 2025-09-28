@@ -37,6 +37,16 @@ func SystemStatus(ctx context.Context, input *struct{}) (*huma.ErrorModel, error
 	}, nil
 }
 
+// list all ressources (dbs, servers, etc....)
+func GetResources(ctx context.Context, input *struct{}) (*huma.ErrorModel, error) {
+	// TODO: Implement system info
+	return &huma.ErrorModel{
+		Status: 501,
+		Title:  "Not Implemented",
+		Detail: "System info not yet implemented",
+	}, nil
+}
+
 func SystemInfo(ctx context.Context, input *struct{}) (*huma.ErrorModel, error) {
 	// TODO: Implement system info
 	return &huma.ErrorModel{
