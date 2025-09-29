@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mikrocloud/mikrocloud/internal/container/manager"
+	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
 )
 
 type BuildService struct {

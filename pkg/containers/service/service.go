@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/mikrocloud/mikrocloud/internal/config"
-	"github.com/mikrocloud/mikrocloud/internal/container/build"
-	"github.com/mikrocloud/mikrocloud/internal/container/manager"
+	"github.com/mikrocloud/mikrocloud/pkg/containers/build"
+	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
 )
 
 type ContainerService struct {

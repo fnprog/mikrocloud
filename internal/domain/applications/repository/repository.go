@@ -35,9 +35,10 @@ func NewSQLiteApplicationRepository(db *sql.DB) *SQLiteApplicationRepository {
 }
 
 func (r *SQLiteApplicationRepository) Save(ctx context.Context, app *applications.Application) error {
-	configJSON, err := json.Marshal(app.Config())
+	// For now, use the old config field to store buildpack config for backward compatibility
+	buildpackJSON, err := json.Marshal(app.Buildpack())
 	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
+		return fmt.Errorf("failed to marshal buildpack config: %w", err)
 	}
 
 	query := sqlite.Insert(
@@ -48,12 +49,12 @@ func (r *SQLiteApplicationRepository) Save(ctx context.Context, app *application
 			sqlite.Arg(app.Description()),
 			sqlite.Arg(app.ProjectID().String()),
 			sqlite.Arg(app.EnvironmentID().String()),
-			sqlite.Arg(app.RepoURL()),
-			sqlite.Arg(app.RepoBranch()),
-			sqlite.Arg(app.RepoPath()),
+			sqlite.Arg(app.RepoURL()),    // For backward compatibility with git repos
+			sqlite.Arg(app.RepoBranch()), // For backward compatibility
+			sqlite.Arg(app.RepoPath()),   // For backward compatibility
 			sqlite.Arg(app.Domain()),
-			sqlite.Arg(string(app.BuildpackType())),
-			sqlite.Arg(string(configJSON)),
+			sqlite.Arg(string(app.BuildpackType())), // For backward compatibility
+			sqlite.Arg(string(buildpackJSON)),       // Store enhanced buildpack config in config field
 			sqlite.Arg(app.AutoDeploy()),
 			sqlite.Arg(string(app.Status())),
 			sqlite.Arg(app.CreatedAt().Format(time.RFC3339)),
@@ -67,7 +68,7 @@ func (r *SQLiteApplicationRepository) Save(ctx context.Context, app *application
 			im.SetCol("repo_path").ToArg(app.RepoPath()),
 			im.SetCol("domain").ToArg(app.Domain()),
 			im.SetCol("buildpack_type").ToArg(string(app.BuildpackType())),
-			im.SetCol("config").ToArg(string(configJSON)),
+			im.SetCol("config").ToArg(string(buildpackJSON)),
 			im.SetCol("auto_deploy").ToArg(app.AutoDeploy()),
 			im.SetCol("status").ToArg(string(app.Status())),
 			im.SetCol("updated_at").ToArg(app.UpdatedAt().Format(time.RFC3339)),
@@ -361,7 +362,7 @@ func (r *SQLiteApplicationRepository) mapRowToApplication(row applicationRow) (*
 	projectID := uuid.MustParse(row.ProjectID)
 	environmentID := uuid.MustParse(row.EnvironmentID)
 
-	buildpackType := applications.BuildpackType(row.BuildpackType)
+	// Parse build status and times
 	status := applications.ApplicationStatus(row.Status)
 
 	createdAt, err := time.Parse(time.RFC3339, row.CreatedAt)
@@ -379,6 +380,12 @@ func (r *SQLiteApplicationRepository) mapRowToApplication(row applicationRow) (*
 		description = row.Description.String
 	}
 
+	domain := ""
+	if row.Domain.Valid {
+		domain = row.Domain.String
+	}
+
+	// Create deployment source from legacy fields for backward compatibility
 	repoURL := ""
 	if row.RepoURL.Valid {
 		repoURL = row.RepoURL.String
@@ -394,13 +401,42 @@ func (r *SQLiteApplicationRepository) mapRowToApplication(row applicationRow) (*
 		repoPath = row.RepoPath.String
 	}
 
-	domain := ""
-	if row.Domain.Valid {
-		domain = row.Domain.String
+	// For now, create a git deployment source if we have a repo URL
+	var deploymentSource applications.DeploymentSource
+	if repoURL != "" {
+		deploymentSource = applications.NewGitDeploymentSource(repoURL, repoBranch, repoPath, "")
+	} else {
+		// Default empty deployment source
+		deploymentSource = applications.DeploymentSource{
+			Type: applications.DeploymentSourceTypeGit,
+		}
 	}
+
+	// Parse buildpack config from config field
+	buildpackType := applications.BuildpackType(row.BuildpackType)
+	var buildpackConfig applications.BuildpackConfig
+
+	// Try to parse config as new buildpack config format
+	var parsedConfig applications.BuildpackConfig
+	if err := json.Unmarshal([]byte(row.Config), &parsedConfig); err == nil && parsedConfig.Type != "" {
+		buildpackConfig = parsedConfig
+	} else {
+		// Fallback to legacy format - use buildpack_type and config as raw config
+		var configData interface{}
+		if err := json.Unmarshal([]byte(row.Config), &configData); err != nil {
+			configData = map[string]interface{}{}
+		}
+		buildpackConfig = applications.BuildpackConfig{
+			Type:   buildpackType,
+			Config: configData,
+		}
+	}
+
+	// For now, empty env vars (we'll add this to schema later)
+	envVars := make(map[string]string)
 
 	return applications.ReconstructApplication(
 		appID, appName, description, projectID, environmentID,
-		repoURL, repoBranch, repoPath, domain, buildpackType,
-		row.Config, row.AutoDeploy, status, createdAt, updatedAt), nil
+		deploymentSource, domain, buildpackConfig, envVars,
+		row.AutoDeploy, status, createdAt, updatedAt), nil
 }

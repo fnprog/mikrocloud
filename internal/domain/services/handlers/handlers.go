@@ -297,7 +297,8 @@ func (h *ServiceHandler) GetService(ctx context.Context, input *ServiceActionInp
 func (h *ServiceHandler) ListServices(ctx context.Context, input *struct {
 	ProjectID     string `path:"project_id"`
 	EnvironmentID string `path:"environment_id"`
-}) (*ListServicesOutput, error) {
+},
+) (*ListServicesOutput, error) {
 	// TODO: Implement database lookup
 	return &ListServicesOutput{
 		Body: struct {

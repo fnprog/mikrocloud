@@ -3,15 +3,17 @@ package api
 import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
-	environmentHandlers "github.com/mikrocloud/mikrocloud/internal/api/handlers"
+	"github.com/mikrocloud/mikrocloud/internal/api/middleware"
 	"github.com/mikrocloud/mikrocloud/internal/config"
 	"github.com/mikrocloud/mikrocloud/internal/database"
+	appHandlers "github.com/mikrocloud/mikrocloud/internal/domain/applications/handlers"
+	applicationsService "github.com/mikrocloud/mikrocloud/internal/domain/applications/service"
 	authHandlers "github.com/mikrocloud/mikrocloud/internal/domain/auth/handlers"
 	authService "github.com/mikrocloud/mikrocloud/internal/domain/auth/service"
+	envHandlers "github.com/mikrocloud/mikrocloud/internal/domain/environments/handlers"
 	environmentService "github.com/mikrocloud/mikrocloud/internal/domain/environments/service"
-	"github.com/mikrocloud/mikrocloud/internal/domain/projects/handlers"
+	projectHandlers "github.com/mikrocloud/mikrocloud/internal/domain/projects/handlers"
 	projectService "github.com/mikrocloud/mikrocloud/internal/domain/projects/service"
-	"github.com/mikrocloud/mikrocloud/internal/middleware"
 )
 
 func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, tokenAuth *jwtauth.JWTAuth) error {
@@ -19,11 +21,13 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	projSvc := projectService.NewProjectService(db.ProjectRepository)
 	authSvc := authService.NewAuthService(db.SessionRepository, db.AuthRepository, cfg.Auth.JWTSecret)
 	envSvc := environmentService.NewEnvironmentService(db.EnvironmentRepository)
+	appSvc := applicationsService.NewApplicationService(db.ApplicationRepository)
 
 	// Create handler dependencies
 	authHandler := authHandlers.NewAuthHandler(authSvc)
-	projectHandler := handlers.NewProjectHandler(projSvc)
-	environmentHandler := environmentHandlers.NewEnvironmentHandler(envSvc)
+	projectHandler := projectHandlers.NewProjectHandler(projSvc)
+	environmentHandler := envHandlers.NewEnvironmentHandler(envSvc)
+	applicationHandler := appHandlers.NewApplicationHandler(appSvc)
 
 	// Protected routes that require authentication
 	api.Group(func(r chi.Router) {
@@ -50,16 +54,20 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 						r.Delete("/", environmentHandler.DeleteEnvironment)
 					})
 				})
+
+				// Application routes within project
+				r.Route("/applications", func(r chi.Router) {
+					r.Get("/", applicationHandler.ListApplications)
+					r.Post("/", applicationHandler.CreateApplication)
+					r.Route("/{application_id}", func(r chi.Router) {
+						r.Get("/", applicationHandler.GetApplication)
+						r.Put("/", applicationHandler.UpdateApplication)
+						r.Delete("/", applicationHandler.DeleteApplication)
+						r.Post("/deploy", applicationHandler.DeployApplication)
+					})
+				})
 			})
 		})
-
-		// Application routes - TODO: Implement application handlers
-		/*
-			r.Route("/applications", func(r chi.Router) {
-				r.Get("/", applicationHandler.List)
-				r.Post("/", applicationHandler.Create)
-			})
-		*/
 
 		// Service routes - TODO: Implement service handlers
 		/*

@@ -10,6 +10,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/exp/slog"
 
+	applicationsRepo "github.com/mikrocloud/mikrocloud/internal/domain/applications/repository"
 	authRepo "github.com/mikrocloud/mikrocloud/internal/domain/auth/repository"
 	environmentsRepo "github.com/mikrocloud/mikrocloud/internal/domain/environments/repository"
 	projectsRepo "github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
@@ -20,6 +21,7 @@ import (
 type Database struct {
 	db                    *sql.DB
 	ProjectRepository     projectsRepo.Repository
+	ApplicationRepository applicationsRepo.Repository
 	EnvironmentRepository environmentsRepo.Repository
 	ServiceRepository     servicesRepo.Repository
 	UserRepository        usersRepo.Repository
@@ -59,6 +61,7 @@ func New(databaseURL string) (*Database, error) {
 
 	// Initialize repositories
 	projectRepo := projectsRepo.NewSQLiteProjectRepository(db)
+	applicationRepo := applicationsRepo.NewSQLiteApplicationRepository(db)
 	environmentRepo := environmentsRepo.NewSQLiteEnvironmentRepository(db)
 	serviceRepo := servicesRepo.NewSQLiteServiceRepository(db)
 	userRepo := usersRepo.NewSQLiteUserRepository(db)
@@ -68,6 +71,7 @@ func New(databaseURL string) (*Database, error) {
 	return &Database{
 		db:                    db,
 		ProjectRepository:     projectRepo,
+		ApplicationRepository: applicationRepo,
 		EnvironmentRepository: environmentRepo,
 		ServiceRepository:     serviceRepo,
 		UserRepository:        userRepo,
