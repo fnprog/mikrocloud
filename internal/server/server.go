@@ -42,7 +42,7 @@ func New(cfg *config.Config, staticFS fs.FS) *Server {
 
 	// initialize auth middleware
 
-	tokenAuth := jwtauth.New("HS256", []byte("secret"), nil)
+	tokenAuth := jwtauth.New("HS256", []byte(cfg.Auth.JWTSecret), nil)
 
 	// Add middleware
 	router.Use(middleware.RequestID)
@@ -127,7 +127,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 func (s *Server) setupAPIRoutes() {
 	s.router.Route("/api", func(r chi.Router) {
-		api.SetupRoutes(s.router, s.db, s.config, s.tokenAuth)
+		api.SetupRoutes(r, s.db, s.config, s.tokenAuth)
 	})
 }
 
@@ -251,18 +251,6 @@ func (s *Server) serveIndexHTML(frontendFS fs.FS) http.HandlerFunc {
 }
 
 func (s *Server) setupPlaceholderRoutes() {
-	// Health check endpoint
-	s.router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `{
-			"status": "ok",
-			"service": "mikrocloud",
-			"version": "0.1.0",
-			"timestamp": "%s"
-		}`, time.Now().UTC().Format(time.RFC3339))
-	})
-
 	// Frontend placeholder (fallback when assets aren't available)
 	s.router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")

@@ -10,16 +10,21 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/exp/slog"
 
-	"github.com/mikrocloud/mikrocloud/internal/domain/environments/repository"
-	"github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
-	"github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
+	authRepo "github.com/mikrocloud/mikrocloud/internal/domain/auth/repository"
+	environmentsRepo "github.com/mikrocloud/mikrocloud/internal/domain/environments/repository"
+	projectsRepo "github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
+	servicesRepo "github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
+	usersRepo "github.com/mikrocloud/mikrocloud/internal/domain/users/repository"
 )
 
 type Database struct {
 	db                    *sql.DB
-	ProjectRepository     *projectsRepo.Repository
-	EnvironmentRepository *environmentsRepo.Repository
-	ServiceRepository     *servicesRepo.Repository
+	ProjectRepository     projectsRepo.Repository
+	EnvironmentRepository environmentsRepo.Repository
+	ServiceRepository     servicesRepo.Repository
+	UserRepository        usersRepo.Repository
+	SessionRepository     authRepo.SessionRepository
+	AuthRepository        authRepo.AuthRepository
 }
 
 func New(databaseURL string) (*Database, error) {
@@ -56,12 +61,18 @@ func New(databaseURL string) (*Database, error) {
 	projectRepo := projectsRepo.NewSQLiteProjectRepository(db)
 	environmentRepo := environmentsRepo.NewSQLiteEnvironmentRepository(db)
 	serviceRepo := servicesRepo.NewSQLiteServiceRepository(db)
+	userRepo := usersRepo.NewSQLiteUserRepository(db)
+	sessionRepo := authRepo.NewSQLiteSessionRepository(db)
+	authRepository := authRepo.NewSQLiteAuthRepository(db)
 
 	return &Database{
 		db:                    db,
 		ProjectRepository:     projectRepo,
 		EnvironmentRepository: environmentRepo,
 		ServiceRepository:     serviceRepo,
+		UserRepository:        userRepo,
+		SessionRepository:     sessionRepo,
+		AuthRepository:        authRepository,
 	}, nil
 }
 

@@ -35,7 +35,7 @@ type SQLiteServiceRepository struct {
 }
 
 // NewSQLiteServiceRepository creates a new SQLite-based service repository
-func NewSQLiteServiceRepository(db *sql.DB) *SQLiteServiceRepository {
+func NewSQLiteServiceRepository(db *sql.DB) Repository {
 	return &SQLiteServiceRepository{db: db}
 }
 

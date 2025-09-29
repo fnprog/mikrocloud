@@ -88,28 +88,3 @@ func EnableSSL(ctx context.Context, input *struct{}) (*huma.ErrorModel, error) {
 		Detail: "SSL management not yet implemented",
 	}, nil
 }
-
-// Auth handlers (placeholders)
-func Login(ctx context.Context, input *struct{}) (*huma.ErrorModel, error) {
-	return &huma.ErrorModel{
-		Status: 501,
-		Title:  "Not Implemented",
-		Detail: "Authentication not yet implemented",
-	}, nil
-}
-
-func Register(ctx context.Context, input *struct{}) (*huma.ErrorModel, error) {
-	return &huma.ErrorModel{
-		Status: 501,
-		Title:  "Not Implemented",
-		Detail: "Authentication not yet implemented",
-	}, nil
-}
-
-func Logout(ctx context.Context, input *struct{}) (*huma.ErrorModel, error) {
-	return &huma.ErrorModel{
-		Status: 501,
-		Title:  "Not Implemented",
-		Detail: "Authentication not yet implemented",
-	}, nil
-}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/mikrocloud/mikrocloud/internal/domain/auth/service"
 	"github.com/mikrocloud/mikrocloud/internal/utils"
@@ -38,8 +39,9 @@ type RegisterRequest struct {
 
 // AuthResponse represents the authentication response
 type AuthResponse struct {
-	Token string `json:"token"`
-	User  User   `json:"user"`
+	Token        string `json:"token"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+	User         User   `json:"user"`
 }
 
 // User represents user data in responses
@@ -87,7 +89,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		User: User{
 			ID:    result.User.ID().String(),
 			Name:  result.User.Name(),
-			Email: result.User.Email(),
+			Email: result.User.Email().String(),
 		},
 	}
 
@@ -135,7 +137,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		User: User{
 			ID:    result.User.ID().String(),
 			Name:  result.User.Name(),
-			Email: result.User.Email(),
+			Email: result.User.Email().String(),
 		},
 	}
 
@@ -226,10 +228,15 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 
 // GetProfile returns the current user's profile
 func (h *AuthHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
-	// This assumes you have middleware that sets the user in context
-	// You would typically extract the user from the JWT token in middleware
-	userID, ok := r.Context().Value("user_id").(string)
-	if !ok {
+	// Extract user ID from JWT claims
+	_, claims, err := jwtauth.FromContext(r.Context())
+	if err != nil {
+		utils.SendError(w, http.StatusUnauthorized, "unauthorized", "Invalid token")
+		return
+	}
+
+	userID, ok := claims["user_id"].(string)
+	if !ok || userID == "" {
 		utils.SendError(w, http.StatusUnauthorized, "unauthorized", "User not authenticated")
 		return
 	}
@@ -248,7 +255,27 @@ func (h *AuthHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	response := User{
 		ID:    user.ID().String(),
 		Name:  user.Name(),
-		Email: user.Email(),
+		Email: user.Email().String(),
+	}
+
+	utils.SendJSON(w, http.StatusOK, response)
+}
+
+// SetupStatus represents the setup status response
+type SetupStatus struct {
+	IsSetup bool `json:"is_setup"`
+}
+
+// GetSetupStatus checks if the system has been set up (has any users)
+func (h *AuthHandler) GetSetupStatus(w http.ResponseWriter, r *http.Request) {
+	hasUsers, err := h.authService.HasAnyUsers(r.Context())
+	if err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "setup_check_failed", "Failed to check setup status: "+err.Error())
+		return
+	}
+
+	response := SetupStatus{
+		IsSetup: hasUsers,
 	}
 
 	utils.SendJSON(w, http.StatusOK, response)

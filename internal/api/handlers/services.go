@@ -161,7 +161,8 @@ func (h *ServiceHandler) CreateQuickService(ctx context.Context, input *QuickSer
 	// TODO: Get actual user ID from authentication context
 	userID, _ := users.UserIDFromString("00000000-0000-0000-0000-000000000000")
 	orgID, _ := users.OrganizationIDFromString("00000000-0000-0000-0000-000000000000")
-	proj := projects.NewProject(projectName, fmt.Sprintf("Auto-generated project for %s", input.Body.Name), userID, orgID, userID)
+	description := fmt.Sprintf("Auto-generated project for %s", input.Body.Name)
+	proj := projects.NewProject(projectName, &description, userID, orgID)
 
 	// Create default prod environment
 	env := environments.NewEnvironment(environments.EnvironmentProduction, proj.ID().UUID(), "Production environment", true)

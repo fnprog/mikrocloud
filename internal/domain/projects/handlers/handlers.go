@@ -96,7 +96,7 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	utils.SendJSON(w, http.StatusCreated, response)
 }
 
-// ListProjects lists all projects
+// List lists all projects
 func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 	projects, err := h.projectService.ListProjects(r.Context())
 	if err != nil {
@@ -122,7 +122,7 @@ func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 	utils.SendJSON(w, http.StatusOK, response)
 }
 
-// GetProject retrieves a specific project
+// Get retrieves a specific project
 func (h *ProjectHandler) Get(w http.ResponseWriter, r *http.Request) {
 	projectID := chi.URLParam(r, "project_id")
 	if projectID == "" {
@@ -147,7 +147,7 @@ func (h *ProjectHandler) Get(w http.ResponseWriter, r *http.Request) {
 	utils.SendJSON(w, http.StatusOK, response)
 }
 
-// UpdateProject updates a specific project
+// Update updates a specific project
 func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 	projectID := chi.URLParam(r, "project_id")
 	if projectID == "" {
@@ -166,12 +166,7 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cmd := service.UpdateProjectCommand{
-		Name:        req.Name,
-		Description: req.Description,
-	}
-
-	proj, err := h.projectService.UpdateProject(r.Context(), cmd)
+	proj, err := h.projectService.UpdateProject(r.Context(), projectID, req.Description)
 	if err != nil {
 		utils.SendError(w, http.StatusBadRequest, "update_failed", "Failed to update project: "+err.Error())
 		return
@@ -188,7 +183,7 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 	utils.SendJSON(w, http.StatusOK, response)
 }
 
-// DeleteProject deletes a project and all its environments and services
+// Delete deletes a project and all its environments and services
 func (h *ProjectHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	projectID := chi.URLParam(r, "project_id")
 	if projectID == "" {

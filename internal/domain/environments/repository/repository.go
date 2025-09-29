@@ -25,7 +25,7 @@ type SQLiteEnvironmentRepository struct {
 }
 
 // NewSQLiteEnvironmentRepository creates a new SQLite environment repository
-func NewSQLiteEnvironmentRepository(db *sql.DB) *SQLiteEnvironmentRepository {
+func NewSQLiteEnvironmentRepository(db *sql.DB) Repository {
 	return &SQLiteEnvironmentRepository{db: db}
 }
 

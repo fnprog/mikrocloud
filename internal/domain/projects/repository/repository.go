@@ -27,7 +27,7 @@ type SQLiteProjectRepository struct {
 }
 
 // NewSQLiteProjectRepository creates a new SQLite project repository
-func NewSQLiteProjectRepository(db *sql.DB) *SQLiteProjectRepository {
+func NewSQLiteProjectRepository(db *sql.DB) Repository {
 	return &SQLiteProjectRepository{db: db}
 }
 
@@ -225,9 +225,18 @@ func (r *SQLiteProjectRepository) mapRowToProject(row projectRow) (*projects.Pro
 	}
 
 	// Parse user IDs
-	userID := users.UserIDFromUUID(uuid.MustParse(row.UserID))
-	organizationID := users.OrganizationIDFromUUID(uuid.MustParse(row.OrganizationID))
-	createdBy := users.UserIDFromUUID(uuid.MustParse(row.CreatedBy))
+	userID, err := users.UserIDFromString(row.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user_id: %w", err)
+	}
+	organizationID, err := users.OrganizationIDFromString(row.OrganizationID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid organization_id: %w", err)
+	}
+	createdBy, err := users.UserIDFromString(row.CreatedBy)
+	if err != nil {
+		return nil, fmt.Errorf("invalid created_by: %w", err)
+	}
 
 	// Parse timestamps
 	createdAt, err := time.Parse(time.RFC3339, row.CreatedAt)
@@ -241,6 +250,10 @@ func (r *SQLiteProjectRepository) mapRowToProject(row projectRow) (*projects.Pro
 	}
 
 	// Reconstruct project from persistence
+	var description *string
+	if row.Description != "" {
+		description = &row.Description
+	}
 	return projects.ReconstructProject(
-		projectID, projectName, row.Description, userID, organizationID, createdBy, row.Settings, createdAt, updatedAt), nil
+		projectID, projectName, description, userID, organizationID, createdBy, row.Settings, createdAt, updatedAt), nil
 }

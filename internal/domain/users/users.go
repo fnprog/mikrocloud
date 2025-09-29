@@ -11,6 +11,7 @@ type User struct {
 	id              UserID
 	email           Email
 	passwordHash    string
+	name            string
 	username        *Username
 	status          UserStatus
 	emailVerifiedAt *time.Time
@@ -94,6 +95,20 @@ func NewUser(email Email, passwordHash string) *User {
 	}
 }
 
+func NewUserWithName(email Email, passwordHash, name string) *User {
+	now := time.Now()
+	return &User{
+		id:           NewUserID(),
+		email:        email,
+		passwordHash: passwordHash,
+		name:         name,
+		status:       UserStatusPending,
+		timezone:     "UTC",
+		createdAt:    now,
+		updatedAt:    now,
+	}
+}
+
 func (u *User) ID() UserID {
 	return u.id
 }
@@ -104,6 +119,10 @@ func (u *User) Email() Email {
 
 func (u *User) PasswordHash() string {
 	return u.passwordHash
+}
+
+func (u *User) Name() string {
+	return u.name
 }
 
 func (u *User) Username() *Username {
@@ -132,6 +151,11 @@ func (u *User) CreatedAt() time.Time {
 
 func (u *User) UpdatedAt() time.Time {
 	return u.updatedAt
+}
+
+func (u *User) SetName(name string) {
+	u.name = name
+	u.updatedAt = time.Now()
 }
 
 func (u *User) SetUsername(username *Username) {
@@ -171,6 +195,7 @@ func ReconstructUser(
 	id UserID,
 	email Email,
 	passwordHash string,
+	name string,
 	username *Username,
 	status UserStatus,
 	emailVerifiedAt *time.Time,
@@ -183,6 +208,7 @@ func ReconstructUser(
 		id:              id,
 		email:           email,
 		passwordHash:    passwordHash,
+		name:            name,
 		username:        username,
 		status:          status,
 		emailVerifiedAt: emailVerifiedAt,

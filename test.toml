@@ -7,7 +7,7 @@ data_dir = "${HOME}/.local/share/mikrocloud"
 log_level = "info"
 
 [database]
-url = "${HOME}/.local/share/mikrocloud/mikrocloud.db"
+url = "./test.db"
 
 [docker]
 runtime = "docker"  # or "podman"

@@ -502,8 +502,10 @@ func (r *SQLiteUserRepository) mapRowToUser(row userRow) (*users.User, error) {
 		}
 	}
 
+	// For now, use empty string for name since it's not in the database schema yet
+	name := ""
 	return users.ReconstructUser(
-		userID, email, row.PasswordHash, username, status,
+		userID, email, row.PasswordHash, name, username, status,
 		emailVerifiedAt, lastLoginAt, row.Timezone, createdAt, updatedAt), nil
 }
 
