@@ -3,10 +3,12 @@ package api
 import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
+	environmentHandlers "github.com/mikrocloud/mikrocloud/internal/api/handlers"
 	"github.com/mikrocloud/mikrocloud/internal/config"
 	"github.com/mikrocloud/mikrocloud/internal/database"
 	authHandlers "github.com/mikrocloud/mikrocloud/internal/domain/auth/handlers"
 	authService "github.com/mikrocloud/mikrocloud/internal/domain/auth/service"
+	environmentService "github.com/mikrocloud/mikrocloud/internal/domain/environments/service"
 	"github.com/mikrocloud/mikrocloud/internal/domain/projects/handlers"
 	projectService "github.com/mikrocloud/mikrocloud/internal/domain/projects/service"
 	"github.com/mikrocloud/mikrocloud/internal/middleware"
@@ -16,10 +18,12 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	// Create service instances
 	projSvc := projectService.NewProjectService(db.ProjectRepository)
 	authSvc := authService.NewAuthService(db.SessionRepository, db.AuthRepository, cfg.Auth.JWTSecret)
+	envSvc := environmentService.NewEnvironmentService(db.EnvironmentRepository)
 
 	// Create handler dependencies
 	authHandler := authHandlers.NewAuthHandler(authSvc)
 	projectHandler := handlers.NewProjectHandler(projSvc)
+	environmentHandler := environmentHandlers.NewEnvironmentHandler(envSvc)
 
 	// Protected routes that require authentication
 	api.Group(func(r chi.Router) {
@@ -35,21 +39,19 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 				r.Get("/", projectHandler.Get)
 				r.Put("/", projectHandler.Update)
 				r.Delete("/", projectHandler.Delete)
-			})
-		})
 
-		// Environment routes - TODO: Implement environment handlers
-		/*
-			r.Route("/environments", func(r chi.Router) {
-				r.Get("/", environmentHandler.List)
-				r.Post("/", environmentHandler.Create)
-				r.Route("/{id}", func(r chi.Router) {
-					r.Get("/", environmentHandler.Get)
-					r.Put("/", environmentHandler.Update)
-					r.Delete("/", environmentHandler.Delete)
+				// Environment routes within project
+				r.Route("/environments", func(r chi.Router) {
+					r.Get("/", environmentHandler.ListEnvironments)
+					r.Post("/", environmentHandler.CreateEnvironment)
+					r.Route("/{environment_id}", func(r chi.Router) {
+						r.Get("/", environmentHandler.GetEnvironment)
+						r.Put("/", environmentHandler.UpdateEnvironment)
+						r.Delete("/", environmentHandler.DeleteEnvironment)
+					})
 				})
 			})
-		*/
+		})
 
 		// Application routes - TODO: Implement application handlers
 		/*

@@ -31,19 +31,43 @@ func NewSQLiteEnvironmentRepository(db *sql.DB) Repository {
 
 // Save persists an environment to the database using raw SQL
 func (r *SQLiteEnvironmentRepository) Save(ctx context.Context, env *environments.Environment) error {
-	query := `
-		INSERT OR REPLACE INTO environments (id, name, is_production, project_id, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`
+	// Check if environment exists
+	existingQuery := `SELECT id FROM environments WHERE id = ?`
+	var existingID string
+	err := r.db.QueryRowContext(ctx, existingQuery, env.ID().String()).Scan(&existingID)
 
-	_, err := r.db.ExecContext(ctx, query,
-		env.ID().String(),
-		env.Name().String(),
-		boolToInt(env.IsProduction()),
-		env.ProjectID().String(),
-		env.CreatedAt().Format(time.RFC3339),
-		env.UpdatedAt().Format(time.RFC3339),
-	)
+	if err != nil && err != sql.ErrNoRows {
+		return fmt.Errorf("failed to check existing environment: %w", err)
+	}
+
+	if err == sql.ErrNoRows {
+		// Insert new environment
+		query := `
+			INSERT INTO environments (id, name, is_production, project_id, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`
+		_, err = r.db.ExecContext(ctx, query,
+			env.ID().String(),
+			env.Name().String(),
+			boolToInt(env.IsProduction()),
+			env.ProjectID().String(),
+			env.CreatedAt().Format(time.RFC3339),
+			env.UpdatedAt().Format(time.RFC3339),
+		)
+	} else {
+		// Update existing environment
+		query := `
+			UPDATE environments 
+			SET name = ?, is_production = ?, updated_at = ?
+			WHERE id = ?
+		`
+		_, err = r.db.ExecContext(ctx, query,
+			env.Name().String(),
+			boolToInt(env.IsProduction()),
+			env.UpdatedAt().Format(time.RFC3339),
+			env.ID().String(),
+		)
+	}
 
 	if err != nil {
 		return fmt.Errorf("failed to save environment: %w", err)
