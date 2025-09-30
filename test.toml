@@ -2,12 +2,12 @@
 
 [server]
 host = "0.0.0.0"
-port = 3000
+port = 3001
 data_dir = "${HOME}/.local/share/mikrocloud"
 log_level = "info"
 
 [database]
-url = "./test.db"
+url = "${HOME}/.local/share/mikrocloud/mikrocloud.db"
 
 [docker]
 runtime = "docker"  # or "podman"

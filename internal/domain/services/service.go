@@ -1,4 +1,4 @@
-// Package service contains the Service aggregate following DDD principles
+// Package services contains deployment templates and marketplace functionality
 package services
 
 import (
@@ -6,372 +6,415 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mikrocloud/mikrocloud/internal/domain/applications"
 )
 
-// Service represents the core service entity (replaces Application)
-type Service struct {
-	id            ServiceID
-	name          ServiceName
-	projectID     uuid.UUID
-	environmentID uuid.UUID
-	gitURL        *GitURL
-	buildConfig   *BuildConfig
-	environment   map[string]string
-	status        ServiceStatus
-	createdAt     time.Time
-	updatedAt     time.Time
+// ServiceTemplate represents a pre-configured deployment template
+type ServiceTemplate struct {
+	id          TemplateID
+	name        TemplateName
+	description string
+	category    TemplateCategory
+	version     string
+	gitURL      *applications.GitURL
+	buildConfig *applications.BuildConfig
+	environment map[string]string
+	ports       []Port
+	volumes     []Volume
+	isOfficial  bool
+	createdAt   time.Time
+	updatedAt   time.Time
 }
 
-// ServiceID is a value object for service identification
-type ServiceID struct {
+// TemplateID is a value object for template identification
+type TemplateID struct {
 	value uuid.UUID
 }
 
-func NewServiceID() ServiceID {
-	return ServiceID{value: uuid.New()}
+func NewTemplateID() TemplateID {
+	return TemplateID{value: uuid.New()}
 }
 
-func ServiceIDFromString(s string) (ServiceID, error) {
+func TemplateIDFromString(s string) (TemplateID, error) {
 	id, err := uuid.Parse(s)
 	if err != nil {
-		return ServiceID{}, fmt.Errorf("invalid service ID: %w", err)
+		return TemplateID{}, fmt.Errorf("invalid template ID: %w", err)
 	}
-	return ServiceID{value: id}, nil
+	return TemplateID{value: id}, nil
 }
 
-func (id ServiceID) String() string {
+func (id TemplateID) String() string {
 	return id.value.String()
 }
 
-func (id ServiceID) UUID() uuid.UUID {
+func (id TemplateID) UUID() uuid.UUID {
 	return id.value
 }
 
-// ServiceName is a value object that enforces naming rules
-type ServiceName struct {
+// TemplateName is a value object that enforces naming rules
+type TemplateName struct {
 	value string
 }
 
-func NewServiceName(name string) (ServiceName, error) {
+func NewTemplateName(name string) (TemplateName, error) {
 	if name == "" {
-		return ServiceName{}, fmt.Errorf("service name cannot be empty")
+		return TemplateName{}, fmt.Errorf("template name cannot be empty")
 	}
 
 	if len(name) > 50 {
-		return ServiceName{}, fmt.Errorf("service name cannot exceed 50 characters")
+		return TemplateName{}, fmt.Errorf("template name cannot exceed 50 characters")
 	}
 
-	// Additional validation rules for DNS-safe names
-	// TODO: Add regex validation for DNS-compatible names
-
-	return ServiceName{value: name}, nil
+	return TemplateName{value: name}, nil
 }
 
-func (n ServiceName) String() string {
+func (n TemplateName) String() string {
 	return n.value
 }
 
-// GitURL is a value object for Git repository URLs
-type GitURL struct {
-	value       string
-	branch      string
-	contextRoot string
-}
-
-func NewGitURL(url, branch, contextRoot string) (*GitURL, error) {
-	if url == "" {
-		return nil, fmt.Errorf("git URL cannot be empty")
-	}
-
-	if branch == "" {
-		branch = "main" // Default branch
-	}
-
-	return &GitURL{
-		value:       url,
-		branch:      branch,
-		contextRoot: contextRoot,
-	}, nil
-}
-
-func (g *GitURL) URL() string {
-	return g.value
-}
-
-func (g *GitURL) Branch() string {
-	return g.branch
-}
-
-func (g *GitURL) ContextRoot() string {
-	return g.contextRoot
-}
-
-// BuildConfig represents build configuration for the service
-type BuildConfig struct {
-	buildpackType BuildpackType
-	nixpacks      *NixpacksConfig
-	static        *StaticConfig
-	dockerfile    *DockerfileConfig
-	compose       *ComposeConfig
-}
-
-type BuildpackType string
+// TemplateCategory represents different types of service templates
+type TemplateCategory string
 
 const (
-	BuildpackNixpacks      BuildpackType = "nixpacks"
-	BuildpackStatic        BuildpackType = "static"
-	BuildpackDockerfile    BuildpackType = "dockerfile"
-	BuildpackDockerCompose BuildpackType = "docker-compose"
+	CategoryDatabase   TemplateCategory = "database"
+	CategoryWebApp     TemplateCategory = "webapp"
+	CategoryAPI        TemplateCategory = "api"
+	CategoryWorker     TemplateCategory = "worker"
+	CategoryStorage    TemplateCategory = "storage"
+	CategoryMonitoring TemplateCategory = "monitoring"
+	CategoryCache      TemplateCategory = "cache"
+	CategoryMessaging  TemplateCategory = "messaging"
+	CategoryAnalytics  TemplateCategory = "analytics"
+	CategorySecurity   TemplateCategory = "security"
+	CategoryDevTools   TemplateCategory = "devtools"
+	CategoryOther      TemplateCategory = "other"
 )
 
-type NixpacksConfig struct {
-	StartCommand string            `json:"start_command,omitempty"`
-	BuildCommand string            `json:"build_command,omitempty"`
-	Variables    map[string]string `json:"variables,omitempty"`
+// Port represents a port configuration
+type Port struct {
+	Port     int    `json:"port"`
+	Protocol string `json:"protocol"` // tcp, udp
+	Public   bool   `json:"public"`   // whether to expose publicly
 }
 
-type StaticConfig struct {
-	BuildCommand string `json:"build_command,omitempty"`
-	OutputDir    string `json:"output_dir,omitempty"`
-	NginxConfig  string `json:"nginx_config,omitempty"`
+// Volume represents a volume mount
+type Volume struct {
+	Name      string `json:"name"`
+	MountPath string `json:"mount_path"`
+	Size      string `json:"size,omitempty"` // e.g., "1Gi", "500Mi"
+	ReadOnly  bool   `json:"read_only"`
 }
 
-type DockerfileConfig struct {
-	DockerfilePath string            `json:"dockerfile_path,omitempty"`
-	BuildArgs      map[string]string `json:"build_args,omitempty"`
-	Target         string            `json:"target,omitempty"`
+// DeploymentRequest represents a request to deploy a template as an application
+type DeploymentRequest struct {
+	ProjectID     uuid.UUID
+	EnvironmentID uuid.UUID
+	Name          string
+	Environment   map[string]string      // override environment variables
+	CustomConfig  map[string]interface{} // template-specific configuration
 }
 
-type ComposeConfig struct {
-	ComposeFile string `json:"compose_file,omitempty"`
-	Service     string `json:"service,omitempty"`
+// DeploymentPreview shows what an application would look like from a template
+type DeploymentPreview struct {
+	TemplateName    TemplateName
+	ApplicationName string
+	ProjectID       uuid.UUID
+	EnvironmentID   uuid.UUID
+	GitURL          *applications.GitURL
+	BuildConfig     *applications.BuildConfig
+	Environment     map[string]string
+	Ports           []Port
+	Volumes         []Volume
 }
 
-func NewBuildConfig(buildpackType BuildpackType) *BuildConfig {
-	return &BuildConfig{
-		buildpackType: buildpackType,
-	}
-}
-
-func (bc *BuildConfig) SetNixpacksConfig(config *NixpacksConfig) {
-	bc.buildpackType = BuildpackNixpacks
-	bc.nixpacks = config
-}
-
-func (bc *BuildConfig) SetStaticConfig(config *StaticConfig) {
-	bc.buildpackType = BuildpackStatic
-	bc.static = config
-}
-
-func (bc *BuildConfig) SetDockerfileConfig(config *DockerfileConfig) {
-	bc.buildpackType = BuildpackDockerfile
-	bc.dockerfile = config
-}
-
-func (bc *BuildConfig) SetComposeConfig(config *ComposeConfig) {
-	bc.buildpackType = BuildpackDockerCompose
-	bc.compose = config
-}
-
-func (bc *BuildConfig) BuildpackType() BuildpackType {
-	return bc.buildpackType
-}
-
-func (bc *BuildConfig) NixpacksConfig() *NixpacksConfig {
-	return bc.nixpacks
-}
-
-func (bc *BuildConfig) StaticConfig() *StaticConfig {
-	return bc.static
-}
-
-func (bc *BuildConfig) DockerfileConfig() *DockerfileConfig {
-	return bc.dockerfile
-}
-
-func (bc *BuildConfig) ComposeConfig() *ComposeConfig {
-	return bc.compose
-}
-
-// ServiceStatus represents the current state of a service
-type ServiceStatus int
-
-const (
-	ServiceStatusCreated ServiceStatus = iota
-	ServiceStatusBuilding
-	ServiceStatusDeploying
-	ServiceStatusRunning
-	ServiceStatusStopped
-	ServiceStatusFailed
-)
-
-func (s ServiceStatus) String() string {
-	switch s {
-	case ServiceStatusCreated:
-		return "created"
-	case ServiceStatusBuilding:
-		return "building"
-	case ServiceStatusDeploying:
-		return "deploying"
-	case ServiceStatusRunning:
-		return "running"
-	case ServiceStatusStopped:
-		return "stopped"
-	case ServiceStatusFailed:
-		return "failed"
-	default:
-		return "unknown"
-	}
-}
-
-// NewService creates a new service with business rules enforcement
-func NewService(name ServiceName, projectID, environmentID uuid.UUID, gitURL *GitURL, buildConfig *BuildConfig) *Service {
+// NewServiceTemplate creates a new service template
+func NewServiceTemplate(
+	name TemplateName,
+	description string,
+	category TemplateCategory,
+	version string,
+	gitURL *applications.GitURL,
+	buildConfig *applications.BuildConfig,
+	isOfficial bool,
+) *ServiceTemplate {
 	now := time.Now()
 
-	return &Service{
-		id:            NewServiceID(),
-		name:          name,
-		projectID:     projectID,
-		environmentID: environmentID,
-		gitURL:        gitURL,
-		buildConfig:   buildConfig,
-		environment:   make(map[string]string),
-		status:        ServiceStatusCreated,
-		createdAt:     now,
-		updatedAt:     now,
+	return &ServiceTemplate{
+		id:          NewTemplateID(),
+		name:        name,
+		description: description,
+		category:    category,
+		version:     version,
+		gitURL:      gitURL,
+		buildConfig: buildConfig,
+		environment: make(map[string]string),
+		ports:       make([]Port, 0),
+		volumes:     make([]Volume, 0),
+		isOfficial:  isOfficial,
+		createdAt:   now,
+		updatedAt:   now,
 	}
 }
 
 // Getters
-func (s *Service) ID() ServiceID {
-	return s.id
+func (st *ServiceTemplate) ID() TemplateID {
+	return st.id
 }
 
-func (s *Service) Name() ServiceName {
-	return s.name
+func (st *ServiceTemplate) Name() TemplateName {
+	return st.name
 }
 
-func (s *Service) ProjectID() uuid.UUID {
-	return s.projectID
+func (st *ServiceTemplate) Description() string {
+	return st.description
 }
 
-func (s *Service) EnvironmentID() uuid.UUID {
-	return s.environmentID
+func (st *ServiceTemplate) Category() TemplateCategory {
+	return st.category
 }
 
-func (s *Service) GitURL() *GitURL {
-	return s.gitURL
+func (st *ServiceTemplate) Version() string {
+	return st.version
 }
 
-func (s *Service) BuildConfig() *BuildConfig {
-	return s.buildConfig
+func (st *ServiceTemplate) GitURL() *applications.GitURL {
+	return st.gitURL
 }
 
-func (s *Service) Environment() map[string]string {
+func (st *ServiceTemplate) BuildConfig() *applications.BuildConfig {
+	return st.buildConfig
+}
+
+func (st *ServiceTemplate) Environment() map[string]string {
 	// Return a copy to maintain encapsulation
 	env := make(map[string]string)
-	for k, v := range s.environment {
+	for k, v := range st.environment {
 		env[k] = v
 	}
 	return env
 }
 
-func (s *Service) Status() ServiceStatus {
-	return s.status
+func (st *ServiceTemplate) Ports() []Port {
+	return append([]Port(nil), st.ports...)
 }
 
-func (s *Service) CreatedAt() time.Time {
-	return s.createdAt
+func (st *ServiceTemplate) Volumes() []Volume {
+	return append([]Volume(nil), st.volumes...)
 }
 
-func (s *Service) UpdatedAt() time.Time {
-	return s.updatedAt
+func (st *ServiceTemplate) IsOfficial() bool {
+	return st.isOfficial
+}
+
+func (st *ServiceTemplate) CreatedAt() time.Time {
+	return st.createdAt
+}
+
+func (st *ServiceTemplate) UpdatedAt() time.Time {
+	return st.updatedAt
 }
 
 // Business methods
-func (s *Service) UpdateGitURL(gitURL *GitURL) error {
-	if gitURL == nil {
-		return fmt.Errorf("git URL cannot be nil")
-	}
-
-	s.gitURL = gitURL
-	s.updatedAt = time.Now()
-	return nil
-}
-
-func (s *Service) UpdateBuildConfig(buildConfig *BuildConfig) error {
-	if buildConfig == nil {
-		return fmt.Errorf("build config cannot be nil")
-	}
-
-	s.buildConfig = buildConfig
-	s.updatedAt = time.Now()
-	return nil
-}
-
-func (s *Service) SetEnvironmentVariable(key, value string) error {
+func (st *ServiceTemplate) SetEnvironmentVariable(key, value string) error {
 	if key == "" {
 		return fmt.Errorf("environment variable key cannot be empty")
 	}
 
-	s.environment[key] = value
-	s.updatedAt = time.Now()
+	st.environment[key] = value
+	st.updatedAt = time.Now()
 	return nil
 }
 
-func (s *Service) RemoveEnvironmentVariable(key string) {
-	delete(s.environment, key)
-	s.updatedAt = time.Now()
+func (st *ServiceTemplate) RemoveEnvironmentVariable(key string) {
+	delete(st.environment, key)
+	st.updatedAt = time.Now()
 }
 
-func (s *Service) ChangeStatus(status ServiceStatus) {
-	s.status = status
-	s.updatedAt = time.Now()
+func (st *ServiceTemplate) AddPort(port Port) {
+	st.ports = append(st.ports, port)
+	st.updatedAt = time.Now()
 }
 
-// CanDeploy checks if the service can be deployed
-func (s *Service) CanDeploy() error {
-	switch s.status {
-	case ServiceStatusBuilding:
-		return fmt.Errorf("service is currently building")
-	case ServiceStatusDeploying:
-		return fmt.Errorf("service is currently deploying")
-	default:
-		return nil
+func (st *ServiceTemplate) AddVolume(volume Volume) {
+	st.volumes = append(st.volumes, volume)
+	st.updatedAt = time.Now()
+}
+
+func (st *ServiceTemplate) UpdateVersion(version string) {
+	st.version = version
+	st.updatedAt = time.Now()
+}
+
+// CreateApplication creates an application from this template
+func (st *ServiceTemplate) CreateApplication(req DeploymentRequest) (*applications.Application, error) {
+	// Create application name
+	appName, err := applications.NewApplicationName(req.Name)
+	if err != nil {
+		return nil, fmt.Errorf("invalid application name: %w", err)
 	}
-}
 
-// CanStop checks if the service can be stopped
-func (s *Service) CanStop() error {
-	if s.status != ServiceStatusRunning {
-		return fmt.Errorf("service is not running")
+	// Create deployment source based on template configuration
+	var deploymentSource applications.DeploymentSource
+	if st.gitURL != nil {
+		// Git-based deployment
+		deploymentSource = applications.DeploymentSource{
+			Type: applications.DeploymentSourceTypeGit,
+			GitRepo: &applications.GitRepoSource{
+				URL:    st.gitURL.URL(),
+				Branch: st.gitURL.Branch(),
+				Path:   st.gitURL.ContextRoot(),
+			},
+		}
+	} else {
+		// Docker registry deployment (for pre-built images like PostgreSQL)
+		// For templates without Git URL, assume it's a Docker image
+		imageName := st.name.String()
+		imageTag := st.version
+		if st.category == CategoryDatabase && st.name.String() == "postgres" {
+			imageName = "postgres"
+		}
+		deploymentSource = applications.DeploymentSource{
+			Type: applications.DeploymentSourceTypeRegistry,
+			Registry: &applications.RegistrySource{
+				Image: imageName,
+				Tag:   imageTag,
+			},
+		}
 	}
-	return nil
+
+	// Create application from template
+	app := applications.NewApplication(
+		appName,
+		st.description,
+		req.ProjectID,
+		req.EnvironmentID,
+		deploymentSource,
+		st.buildConfig,
+	)
+
+	// Merge template environment with request overrides
+	finalEnv := make(map[string]string)
+	for k, v := range st.environment {
+		finalEnv[k] = v
+	}
+	for k, v := range req.Environment {
+		finalEnv[k] = v
+	}
+
+	// Set environment variables
+	for key, value := range finalEnv {
+		app.SetEnvVar(key, value)
+	}
+
+	return app, nil
 }
 
-// ReconstructService recreates a service from persistence data
-func ReconstructService(
-	id ServiceID,
-	name ServiceName,
-	projectID uuid.UUID,
-	environmentID uuid.UUID,
-	gitURL *GitURL,
-	buildConfig *BuildConfig,
+// ReconstructServiceTemplate recreates a service template from persistence data
+func ReconstructServiceTemplate(
+	id TemplateID,
+	name TemplateName,
+	description string,
+	category TemplateCategory,
+	version string,
+	gitURL *applications.GitURL,
+	buildConfig *applications.BuildConfig,
 	environment map[string]string,
-	status ServiceStatus,
+	ports []Port,
+	volumes []Volume,
+	isOfficial bool,
 	createdAt time.Time,
 	updatedAt time.Time,
-) *Service {
-	return &Service{
-		id:            id,
-		name:          name,
-		projectID:     projectID,
-		environmentID: environmentID,
-		gitURL:        gitURL,
-		buildConfig:   buildConfig,
-		environment:   environment,
-		status:        status,
-		createdAt:     createdAt,
-		updatedAt:     updatedAt,
+) *ServiceTemplate {
+	return &ServiceTemplate{
+		id:          id,
+		name:        name,
+		description: description,
+		category:    category,
+		version:     version,
+		gitURL:      gitURL,
+		buildConfig: buildConfig,
+		environment: environment,
+		ports:       ports,
+		volumes:     volumes,
+		isOfficial:  isOfficial,
+		createdAt:   createdAt,
+		updatedAt:   updatedAt,
 	}
+}
+
+// GetOfficialTemplates returns a list of official service templates
+func GetOfficialTemplates() []*ServiceTemplate {
+	templates := make([]*ServiceTemplate, 0)
+
+	// PostgreSQL Template
+	pgName, _ := NewTemplateName("PostgreSQL")
+	pgGitURL, _ := applications.NewGitURL("https://github.com/docker-library/postgres.git", "main", "")
+	pgBuildConfig := applications.NewBuildConfig(applications.BuildpackTypeDockerfile)
+	pgBuildConfig.SetDockerfileConfig(&applications.DockerfileConfig{
+		DockerfilePath: "Dockerfile",
+	})
+
+	pgTemplate := NewServiceTemplate(
+		pgName,
+		"PostgreSQL database server",
+		CategoryDatabase,
+		"16",
+		pgGitURL,
+		pgBuildConfig,
+		true,
+	)
+	pgTemplate.SetEnvironmentVariable("POSTGRES_DB", "myapp")
+	pgTemplate.SetEnvironmentVariable("POSTGRES_USER", "admin")
+	pgTemplate.SetEnvironmentVariable("POSTGRES_PASSWORD", "changeme")
+	pgTemplate.AddPort(Port{Port: 5432, Protocol: "tcp", Public: false})
+	pgTemplate.AddVolume(Volume{Name: "postgres_data", MountPath: "/var/lib/postgresql/data", Size: "1Gi"})
+	templates = append(templates, pgTemplate)
+
+	// Redis Template
+	redisName, _ := NewTemplateName("Redis")
+	redisGitURL, _ := applications.NewGitURL("https://github.com/docker-library/redis.git", "main", "")
+	redisBuildConfig := applications.NewBuildConfig(applications.BuildpackTypeDockerfile)
+	redisBuildConfig.SetDockerfileConfig(&applications.DockerfileConfig{
+		DockerfilePath: "Dockerfile",
+	})
+
+	redisTemplate := NewServiceTemplate(
+		redisName,
+		"Redis in-memory data store",
+		CategoryCache,
+		"7",
+		redisGitURL,
+		redisBuildConfig,
+		true,
+	)
+	redisTemplate.AddPort(Port{Port: 6379, Protocol: "tcp", Public: false})
+	redisTemplate.AddVolume(Volume{Name: "redis_data", MountPath: "/data", Size: "500Mi"})
+	templates = append(templates, redisTemplate)
+
+	// Supabase Template
+	supabaseName, _ := NewTemplateName("Supabase")
+	supabaseGitURL, _ := applications.NewGitURL("https://github.com/supabase/supabase.git", "main", "docker")
+	supabaseBuildConfig := applications.NewBuildConfig(applications.BuildpackTypeDockerCompose)
+	supabaseBuildConfig.SetComposeConfig(&applications.ComposeConfig{
+		ComposeFile: "docker-compose.yml",
+	})
+
+	supabaseTemplate := NewServiceTemplate(
+		supabaseName,
+		"Open source Firebase alternative",
+		CategoryDatabase,
+		"latest",
+		supabaseGitURL,
+		supabaseBuildConfig,
+		true,
+	)
+	supabaseTemplate.SetEnvironmentVariable("POSTGRES_PASSWORD", "changeme")
+	supabaseTemplate.SetEnvironmentVariable("JWT_SECRET", "super-secret-jwt-token-with-at-least-32-characters-long")
+	supabaseTemplate.SetEnvironmentVariable("ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9")
+	supabaseTemplate.AddPort(Port{Port: 3000, Protocol: "tcp", Public: true}) // Supabase Studio
+	supabaseTemplate.AddPort(Port{Port: 8000, Protocol: "tcp", Public: true}) // Kong API Gateway
+	supabaseTemplate.AddVolume(Volume{Name: "supabase_db", MountPath: "/var/lib/postgresql/data", Size: "2Gi"})
+	templates = append(templates, supabaseTemplate)
+
+	return templates
 }

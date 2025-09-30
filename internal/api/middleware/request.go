@@ -23,9 +23,14 @@ func ExtractUserOrg() func(http.Handler) http.Handler {
 			userID, _ := claims["user_id"].(string)
 			orgID, _ := claims["org_id"].(string)
 
-			if userID == "" || orgID == "" {
-				http.Error(w, "missing user/org in token", http.StatusUnauthorized)
+			if userID == "" {
+				http.Error(w, "missing user in token", http.StatusUnauthorized)
 				return
+			}
+
+			// For now, use user_id as org_id if no org_id is provided (temporary fix)
+			if orgID == "" {
+				orgID = userID
 			}
 
 			// put into context

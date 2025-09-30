@@ -7,49 +7,100 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/mikrocloud/mikrocloud/internal/domain/applications"
+	applicationService "github.com/mikrocloud/mikrocloud/internal/domain/applications/service"
 	"github.com/mikrocloud/mikrocloud/internal/domain/services"
 	"github.com/stephenafamo/bob/dialect/sqlite"
 	"github.com/stephenafamo/bob/dialect/sqlite/dm"
 	"github.com/stephenafamo/bob/dialect/sqlite/im"
 	"github.com/stephenafamo/bob/dialect/sqlite/sm"
-	"github.com/stephenafamo/bob/dialect/sqlite/um"
 )
 
-// Repository interface for service persistence
-type Repository interface {
-	Save(service *services.Service) error
-	FindByID(id services.ServiceID) (*services.Service, error)
-	FindByName(name services.ServiceName, environmentID string) (*services.Service, error)
-	FindByProjectID(projectID string) ([]*services.Service, error)
-	FindByEnvironmentID(environmentID string) ([]*services.Service, error)
-	FindByProjectAndEnvironment(projectID, environmentID string) ([]*services.Service, error)
-	Update(service *services.Service) error
-	Delete(id services.ServiceID) error
-	List() ([]*services.Service, error)
+// TemplateRepository interface for service template persistence
+type TemplateRepository interface {
+	Save(template *services.ServiceTemplate) error
+	FindByID(id services.TemplateID) (*services.ServiceTemplate, error)
+	FindByName(name services.TemplateName) (*services.ServiceTemplate, error)
+	FindByCategory(category services.TemplateCategory) ([]*services.ServiceTemplate, error)
+	ListOfficial() ([]*services.ServiceTemplate, error)
+	Update(template *services.ServiceTemplate) error
+	Delete(id services.TemplateID) error
+	List() ([]*services.ServiceTemplate, error)
 }
 
-// SQLiteServiceRepository implements the service.Repository interface
-type SQLiteServiceRepository struct {
+// QuickDeployService provides a service for quick application deployment from templates
+type QuickDeployService struct {
+	templateRepo TemplateRepository
+	appService   ApplicationService // interface for applications domain
+}
+
+// ApplicationService interface to avoid circular dependencies
+type ApplicationService interface {
+	CreateApplication(ctx context.Context, cmd applicationService.CreateApplicationCommand) (*applications.Application, error)
+}
+
+func NewQuickDeployService(templateRepo TemplateRepository, appService ApplicationService) *QuickDeployService {
+	return &QuickDeployService{
+		templateRepo: templateRepo,
+		appService:   appService,
+	}
+}
+
+// DeployTemplate creates an application from a template
+func (s *QuickDeployService) DeployTemplate(ctx context.Context, templateID services.TemplateID, req services.DeploymentRequest) (*applications.Application, error) {
+	// Find the template
+	template, err := s.templateRepo.FindByID(templateID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find template: %w", err)
+	}
+
+	// Create application from template
+	app, err := template.CreateApplication(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create application from template: %w", err)
+	}
+
+	// Convert Application to CreateApplicationCommand for the service
+	cmd := applicationService.CreateApplicationCommand{
+		Name:             app.Name().String(),
+		Description:      app.Description(),
+		ProjectID:        app.ProjectID(),
+		EnvironmentID:    app.EnvironmentID(),
+		DeploymentSource: app.DeploymentSource(),
+		BuildpackConfig:  app.Buildpack(),
+		EnvVars:          app.EnvVars(),
+	}
+
+	// Create the application using the service
+	createdApp, err := s.appService.CreateApplication(ctx, cmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to save application: %w", err)
+	}
+
+	return createdApp, nil
+}
+
+// SQLiteTemplateRepository implements the TemplateRepository interface
+type SQLiteTemplateRepository struct {
 	db *sql.DB
 }
 
-// NewSQLiteServiceRepository creates a new SQLite-based service repository
-func NewSQLiteServiceRepository(db *sql.DB) Repository {
-	return &SQLiteServiceRepository{db: db}
+// NewSQLiteTemplateRepository creates a new SQLite-based template repository
+func NewSQLiteTemplateRepository(db *sql.DB) TemplateRepository {
+	return &SQLiteTemplateRepository{db: db}
 }
 
-// Save persists a service to the database
-func (r *SQLiteServiceRepository) Save(svc *services.Service) error {
+// Save persists a service template to the database
+func (r *SQLiteTemplateRepository) Save(template *services.ServiceTemplate) error {
 	ctx := context.Background()
 
 	// Marshal GitURL to JSON
 	var gitURLJSON string
-	if svc.GitURL() != nil {
+	if template.GitURL() != nil {
 		gitURLData := map[string]string{
-			"url":          svc.GitURL().URL(),
-			"branch":       svc.GitURL().Branch(),
-			"context_root": svc.GitURL().ContextRoot(),
+			"url":          template.GitURL().URL(),
+			"branch":       template.GitURL().Branch(),
+			"context_root": template.GitURL().ContextRoot(),
 		}
 		data, err := json.Marshal(gitURLData)
 		if err != nil {
@@ -60,21 +111,21 @@ func (r *SQLiteServiceRepository) Save(svc *services.Service) error {
 
 	// Marshal BuildConfig to JSON
 	var buildConfigJSON string
-	if svc.BuildConfig() != nil {
+	if template.BuildConfig() != nil {
 		buildConfigData := map[string]interface{}{
-			"buildpack_type": string(svc.BuildConfig().BuildpackType()),
+			"buildpack_type": string(template.BuildConfig().BuildpackType()),
 		}
-		if svc.BuildConfig().NixpacksConfig() != nil {
-			buildConfigData["nixpacks"] = svc.BuildConfig().NixpacksConfig()
+		if template.BuildConfig().NixpacksConfig() != nil {
+			buildConfigData["nixpacks"] = template.BuildConfig().NixpacksConfig()
 		}
-		if svc.BuildConfig().StaticConfig() != nil {
-			buildConfigData["static"] = svc.BuildConfig().StaticConfig()
+		if template.BuildConfig().StaticConfig() != nil {
+			buildConfigData["static"] = template.BuildConfig().StaticConfig()
 		}
-		if svc.BuildConfig().DockerfileConfig() != nil {
-			buildConfigData["dockerfile"] = svc.BuildConfig().DockerfileConfig()
+		if template.BuildConfig().DockerfileConfig() != nil {
+			buildConfigData["dockerfile"] = template.BuildConfig().DockerfileConfig()
 		}
-		if svc.BuildConfig().ComposeConfig() != nil {
-			buildConfigData["compose"] = svc.BuildConfig().ComposeConfig()
+		if template.BuildConfig().ComposeConfig() != nil {
+			buildConfigData["compose"] = template.BuildConfig().ComposeConfig()
 		}
 		data, err := json.Marshal(buildConfigData)
 		if err != nil {
@@ -84,21 +135,50 @@ func (r *SQLiteServiceRepository) Save(svc *services.Service) error {
 	}
 
 	// Marshal environment variables to JSON
-	envJSON, err := json.Marshal(svc.Environment())
+	envJSON, err := json.Marshal(template.Environment())
 	if err != nil {
 		return fmt.Errorf("failed to marshal environment: %w", err)
 	}
 
+	// Marshal ports to JSON
+	portsJSON, err := json.Marshal(template.Ports())
+	if err != nil {
+		return fmt.Errorf("failed to marshal ports: %w", err)
+	}
+
+	// Marshal volumes to JSON
+	volumesJSON, err := json.Marshal(template.Volumes())
+	if err != nil {
+		return fmt.Errorf("failed to marshal volumes: %w", err)
+	}
+
 	// Use Bob query builder for INSERT with ON CONFLICT (upsert)
 	query := sqlite.Insert(
-		im.Into("services"),
-		im.Values(sqlite.Arg(svc.ID().String()), sqlite.Arg(svc.Name().String()), sqlite.Arg(svc.EnvironmentID().String()), sqlite.Arg(svc.ProjectID().String()), sqlite.Arg(gitURLJSON), sqlite.Arg(buildConfigJSON), sqlite.Arg(string(envJSON)), sqlite.Arg(svc.Status().String()), sqlite.Arg(svc.CreatedAt().Format(time.RFC3339)), sqlite.Arg(svc.UpdatedAt().Format(time.RFC3339))),
+		im.Into("service_templates"),
+		im.Values(
+			sqlite.Arg(template.ID().String()),
+			sqlite.Arg(template.Name().String()),
+			sqlite.Arg(template.Description()),
+			sqlite.Arg(string(template.Category())),
+			sqlite.Arg(template.Version()),
+			sqlite.Arg(gitURLJSON),
+			sqlite.Arg(buildConfigJSON),
+			sqlite.Arg(string(envJSON)),
+			sqlite.Arg(string(portsJSON)),
+			sqlite.Arg(string(volumesJSON)),
+			sqlite.Arg(template.IsOfficial()),
+			sqlite.Arg(template.CreatedAt().Format(time.RFC3339)),
+			sqlite.Arg(template.UpdatedAt().Format(time.RFC3339)),
+		),
 		im.OnConflict("id").DoUpdate(
+			im.SetCol("description").ToArg(template.Description()),
+			im.SetCol("version").ToArg(template.Version()),
 			im.SetCol("git_url").ToArg(gitURLJSON),
 			im.SetCol("build_config").ToArg(buildConfigJSON),
 			im.SetCol("environment").ToArg(string(envJSON)),
-			im.SetCol("status").ToArg(svc.Status().String()),
-			im.SetCol("updated_at").ToArg(svc.UpdatedAt().Format(time.RFC3339)),
+			im.SetCol("ports").ToArg(string(portsJSON)),
+			im.SetCol("volumes").ToArg(string(volumesJSON)),
+			im.SetCol("updated_at").ToArg(template.UpdatedAt().Format(time.RFC3339)),
 		),
 	)
 
@@ -109,20 +189,19 @@ func (r *SQLiteServiceRepository) Save(svc *services.Service) error {
 
 	_, err = r.db.ExecContext(ctx, queryStr, args...)
 	if err != nil {
-		return fmt.Errorf("failed to save service: %w", err)
+		return fmt.Errorf("failed to save template: %w", err)
 	}
 
 	return nil
 }
 
-// FindByID retrieves a service by its ID
-func (r *SQLiteServiceRepository) FindByID(id services.ServiceID) (*services.Service, error) {
+// FindByID retrieves a template by its ID
+func (r *SQLiteTemplateRepository) FindByID(id services.TemplateID) (*services.ServiceTemplate, error) {
 	ctx := context.Background()
 
-	// Use Bob query builder for SELECT
 	query := sqlite.Select(
-		sm.Columns("id", "name", "environment_id", "project_id", "git_url", "build_config", "environment", "status", "created_at", "updated_at"),
-		sm.From("services"),
+		sm.Columns("id", "name", "description", "category", "version", "git_url", "build_config", "environment", "ports", "volumes", "is_official", "created_at", "updated_at"),
+		sm.From("service_templates"),
 		sm.Where(sqlite.Quote("id").EQ(sqlite.Arg(id.String()))),
 	)
 
@@ -131,250 +210,85 @@ func (r *SQLiteServiceRepository) FindByID(id services.ServiceID) (*services.Ser
 		return nil, fmt.Errorf("failed to build query: %w", err)
 	}
 
-	var row serviceRow
+	var row templateRow
 	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(
-		&row.ID, &row.Name, &row.EnvironmentID, &row.ProjectID, &row.GitURL, &row.BuildConfig, &row.Environment, &row.Status, &row.CreatedAt, &row.UpdatedAt)
+		&row.ID, &row.Name, &row.Description, &row.Category, &row.Version,
+		&row.GitURL, &row.BuildConfig, &row.Environment, &row.Ports, &row.Volumes,
+		&row.IsOfficial, &row.CreatedAt, &row.UpdatedAt)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("service not found: %s", id.String())
+			return nil, fmt.Errorf("template not found: %s", id.String())
 		}
-		return nil, fmt.Errorf("failed to find service by ID: %w", err)
+		return nil, fmt.Errorf("failed to find template by ID: %w", err)
 	}
 
-	return r.mapRowToService(row)
+	return r.mapRowToTemplate(row)
 }
 
-// FindByName retrieves a service by its name within an environment
-func (r *SQLiteServiceRepository) FindByName(name services.ServiceName, environmentID string) (*services.Service, error) {
+// FindByName retrieves a template by its name
+func (r *SQLiteTemplateRepository) FindByName(name services.TemplateName) (*services.ServiceTemplate, error) {
 	ctx := context.Background()
 
 	query := `
-		SELECT id, name, environment_id, project_id, git_url, build_config, environment, status, created_at, updated_at
-		FROM services 
-		WHERE name = ? AND environment_id = ?`
+		SELECT id, name, description, category, version, git_url, build_config, environment, ports, volumes, is_official, created_at, updated_at
+		FROM service_templates 
+		WHERE name = ?`
 
-	var row serviceRow
-	err := r.db.QueryRowContext(ctx, query, name.String(), environmentID).Scan(
-		&row.ID, &row.Name, &row.EnvironmentID, &row.ProjectID, &row.GitURL, &row.BuildConfig, &row.Environment, &row.Status, &row.CreatedAt, &row.UpdatedAt)
+	var row templateRow
+	err := r.db.QueryRowContext(ctx, query, name.String()).Scan(
+		&row.ID, &row.Name, &row.Description, &row.Category, &row.Version,
+		&row.GitURL, &row.BuildConfig, &row.Environment, &row.Ports, &row.Volumes,
+		&row.IsOfficial, &row.CreatedAt, &row.UpdatedAt)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("service not found: %s in environment %s", name.String(), environmentID)
+			return nil, fmt.Errorf("template not found: %s", name.String())
 		}
-		return nil, fmt.Errorf("failed to find service by name: %w", err)
+		return nil, fmt.Errorf("failed to find template by name: %w", err)
 	}
 
-	return r.mapRowToService(row)
+	return r.mapRowToTemplate(row)
 }
 
-// FindByEnvironmentID retrieves all services in an environment
-func (r *SQLiteServiceRepository) FindByEnvironmentID(environmentID string) ([]*services.Service, error) {
+// FindByCategory retrieves all templates in a category
+func (r *SQLiteTemplateRepository) FindByCategory(category services.TemplateCategory) ([]*services.ServiceTemplate, error) {
 	ctx := context.Background()
 
 	query := `
-		SELECT id, name, environment_id, project_id, git_url, build_config, environment, status, created_at, updated_at
-		FROM services 
-		WHERE environment_id = ?
-		ORDER BY created_at ASC`
+		SELECT id, name, description, category, version, git_url, build_config, environment, ports, volumes, is_official, created_at, updated_at
+		FROM service_templates 
+		WHERE category = ?
+		ORDER BY is_official DESC, name ASC`
 
-	rows, err := r.db.QueryContext(ctx, query, environmentID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query services by environment ID: %w", err)
-	}
-	defer rows.Close()
-
-	var services []*services.Service
-	for rows.Next() {
-		var row serviceRow
-		err := rows.Scan(&row.ID, &row.Name, &row.EnvironmentID, &row.ProjectID, &row.GitURL, &row.BuildConfig, &row.Environment, &row.Status, &row.CreatedAt, &row.UpdatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan service row: %w", err)
-		}
-
-		domainService, err := r.mapRowToService(row)
-		if err != nil {
-			return nil, fmt.Errorf("failed to map service: %w", err)
-		}
-
-		services = append(services, domainService)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating over service rows: %w", err)
-	}
-
-	return services, nil
+	return r.queryTemplates(ctx, query, string(category))
 }
 
-// FindByProjectAndEnvironment retrieves all services in a specific project and environment
-func (r *SQLiteServiceRepository) FindByProjectAndEnvironment(projectID, environmentID string) ([]*services.Service, error) {
+// ListOfficial retrieves all official templates
+func (r *SQLiteTemplateRepository) ListOfficial() ([]*services.ServiceTemplate, error) {
 	ctx := context.Background()
 
 	query := `
-		SELECT id, name, environment_id, project_id, git_url, build_config, environment, status, created_at, updated_at
-		FROM services 
-		WHERE project_id = ? AND environment_id = ?
-		ORDER BY created_at ASC`
+		SELECT id, name, description, category, version, git_url, build_config, environment, ports, volumes, is_official, created_at, updated_at
+		FROM service_templates 
+		WHERE is_official = true
+		ORDER BY category ASC, name ASC`
 
-	rows, err := r.db.QueryContext(ctx, query, projectID, environmentID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query services by project and environment: %w", err)
-	}
-	defer rows.Close()
-
-	var services []*services.Service
-	for rows.Next() {
-		var row serviceRow
-		err := rows.Scan(&row.ID, &row.Name, &row.EnvironmentID, &row.ProjectID, &row.GitURL, &row.BuildConfig, &row.Environment, &row.Status, &row.CreatedAt, &row.UpdatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan service row: %w", err)
-		}
-
-		domainService, err := r.mapRowToService(row)
-		if err != nil {
-			return nil, fmt.Errorf("failed to map service: %w", err)
-		}
-
-		services = append(services, domainService)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating over service rows: %w", err)
-	}
-
-	return services, nil
+	return r.queryTemplates(ctx, query)
 }
 
-// FindByProjectID retrieves all services in a project
-func (r *SQLiteServiceRepository) FindByProjectID(projectID string) ([]*services.Service, error) {
-	ctx := context.Background()
-
-	query := `
-		SELECT id, name, environment_id, project_id, git_url, build_config, environment, status, created_at, updated_at
-		FROM services 
-		WHERE project_id = ?
-		ORDER BY created_at ASC`
-
-	rows, err := r.db.QueryContext(ctx, query, projectID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query services by project ID: %w", err)
-	}
-	defer rows.Close()
-
-	var services []*services.Service
-	for rows.Next() {
-		var row serviceRow
-		err := rows.Scan(&row.ID, &row.Name, &row.EnvironmentID, &row.ProjectID, &row.GitURL, &row.BuildConfig, &row.Environment, &row.Status, &row.CreatedAt, &row.UpdatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan service row: %w", err)
-		}
-
-		domainService, err := r.mapRowToService(row)
-		if err != nil {
-			return nil, fmt.Errorf("failed to map service: %w", err)
-		}
-
-		services = append(services, domainService)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating over service rows: %w", err)
-	}
-
-	return services, nil
+// Update updates an existing template
+func (r *SQLiteTemplateRepository) Update(template *services.ServiceTemplate) error {
+	// Implementation similar to Save but using UPDATE
+	return r.Save(template) // For simplicity, using upsert
 }
 
-// Update updates an existing service
-func (r *SQLiteServiceRepository) Update(svc *services.Service) error {
+// Delete removes a template
+func (r *SQLiteTemplateRepository) Delete(id services.TemplateID) error {
 	ctx := context.Background()
 
-	// Marshal GitURL to JSON
-	var gitURLJSON string
-	if svc.GitURL() != nil {
-		gitURLData := map[string]string{
-			"url":          svc.GitURL().URL(),
-			"branch":       svc.GitURL().Branch(),
-			"context_root": svc.GitURL().ContextRoot(),
-		}
-		data, err := json.Marshal(gitURLData)
-		if err != nil {
-			return fmt.Errorf("failed to marshal git URL: %w", err)
-		}
-		gitURLJSON = string(data)
-	}
-
-	// Marshal BuildConfig to JSON
-	var buildConfigJSON string
-	if svc.BuildConfig() != nil {
-		buildConfigData := map[string]interface{}{
-			"buildpack_type": string(svc.BuildConfig().BuildpackType()),
-		}
-		if svc.BuildConfig().NixpacksConfig() != nil {
-			buildConfigData["nixpacks"] = svc.BuildConfig().NixpacksConfig()
-		}
-		if svc.BuildConfig().StaticConfig() != nil {
-			buildConfigData["static"] = svc.BuildConfig().StaticConfig()
-		}
-		if svc.BuildConfig().DockerfileConfig() != nil {
-			buildConfigData["dockerfile"] = svc.BuildConfig().DockerfileConfig()
-		}
-		if svc.BuildConfig().ComposeConfig() != nil {
-			buildConfigData["compose"] = svc.BuildConfig().ComposeConfig()
-		}
-		data, err := json.Marshal(buildConfigData)
-		if err != nil {
-			return fmt.Errorf("failed to marshal build config: %w", err)
-		}
-		buildConfigJSON = string(data)
-	}
-
-	// Marshal environment variables to JSON
-	envJSON, err := json.Marshal(svc.Environment())
-	if err != nil {
-		return fmt.Errorf("failed to marshal environment: %w", err)
-	}
-
-	// Use Bob query builder for UPDATE
-	query := sqlite.Update(
-		um.Table("services"),
-		um.SetCol("git_url").ToArg(gitURLJSON),
-		um.SetCol("build_config").ToArg(buildConfigJSON),
-		um.SetCol("environment").ToArg(string(envJSON)),
-		um.SetCol("status").ToArg(svc.Status().String()),
-		um.SetCol("updated_at").ToArg(svc.UpdatedAt().Format(time.RFC3339)),
-		um.Where(sqlite.Quote("id").EQ(sqlite.Arg(svc.ID().String()))),
-	)
-
-	queryStr, args, err := query.Build(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to build query: %w", err)
-	}
-
-	result, err := r.db.ExecContext(ctx, queryStr, args...)
-	if err != nil {
-		return fmt.Errorf("failed to update service: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to get affected rows: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		return fmt.Errorf("service not found: %s", svc.ID().String())
-	}
-
-	return nil
-}
-
-// Delete removes a service
-func (r *SQLiteServiceRepository) Delete(id services.ServiceID) error {
-	ctx := context.Background()
-
-	// Use Bob query builder for DELETE
 	query := sqlite.Delete(
-		dm.From("services"),
+		dm.From("service_templates"),
 		dm.Where(sqlite.Quote("id").EQ(sqlite.Arg(id.String()))),
 	)
 
@@ -385,7 +299,7 @@ func (r *SQLiteServiceRepository) Delete(id services.ServiceID) error {
 
 	result, err := r.db.ExecContext(ctx, queryStr, args...)
 	if err != nil {
-		return fmt.Errorf("failed to delete service: %w", err)
+		return fmt.Errorf("failed to delete template: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -394,99 +308,100 @@ func (r *SQLiteServiceRepository) Delete(id services.ServiceID) error {
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("service not found: %s", id.String())
+		return fmt.Errorf("template not found: %s", id.String())
 	}
 
 	return nil
 }
 
-// List retrieves all services
-func (r *SQLiteServiceRepository) List() ([]*services.Service, error) {
+// List retrieves all templates
+func (r *SQLiteTemplateRepository) List() ([]*services.ServiceTemplate, error) {
 	ctx := context.Background()
 
 	query := `
-		SELECT id, name, environment_id, project_id, git_url, build_config, environment, status, created_at, updated_at
-		FROM services 
-		ORDER BY created_at DESC`
+		SELECT id, name, description, category, version, git_url, build_config, environment, ports, volumes, is_official, created_at, updated_at
+		FROM service_templates 
+		ORDER BY is_official DESC, category ASC, name ASC`
 
-	rows, err := r.db.QueryContext(ctx, query)
+	return r.queryTemplates(ctx, query)
+}
+
+// Helper method to query templates
+func (r *SQLiteTemplateRepository) queryTemplates(ctx context.Context, query string, args ...interface{}) ([]*services.ServiceTemplate, error) {
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query all services: %w", err)
+		return nil, fmt.Errorf("failed to query templates: %w", err)
 	}
 	defer rows.Close()
 
-	var services []*services.Service
+	var templates []*services.ServiceTemplate
 	for rows.Next() {
-		var row serviceRow
-		err := rows.Scan(&row.ID, &row.Name, &row.EnvironmentID, &row.ProjectID, &row.GitURL, &row.BuildConfig, &row.Environment, &row.Status, &row.CreatedAt, &row.UpdatedAt)
+		var row templateRow
+		err := rows.Scan(&row.ID, &row.Name, &row.Description, &row.Category, &row.Version,
+			&row.GitURL, &row.BuildConfig, &row.Environment, &row.Ports, &row.Volumes,
+			&row.IsOfficial, &row.CreatedAt, &row.UpdatedAt)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan service row: %w", err)
+			return nil, fmt.Errorf("failed to scan template row: %w", err)
 		}
 
-		domainService, err := r.mapRowToService(row)
+		template, err := r.mapRowToTemplate(row)
 		if err != nil {
-			return nil, fmt.Errorf("failed to map service: %w", err)
+			return nil, fmt.Errorf("failed to map template: %w", err)
 		}
 
-		services = append(services, domainService)
+		templates = append(templates, template)
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating over service rows: %w", err)
+		return nil, fmt.Errorf("error iterating over template rows: %w", err)
 	}
 
-	return services, nil
+	return templates, nil
 }
 
-// serviceRow represents the database row structure
-type serviceRow struct {
-	ID            string
-	Name          string
-	EnvironmentID string
-	ProjectID     string
-	GitURL        string
-	BuildConfig   string
-	Environment   string
-	Status        string
-	CreatedAt     string
-	UpdatedAt     string
+// templateRow represents the database row structure
+type templateRow struct {
+	ID          string
+	Name        string
+	Description string
+	Category    string
+	Version     string
+	GitURL      string
+	BuildConfig string
+	Environment string
+	Ports       string
+	Volumes     string
+	IsOfficial  bool
+	CreatedAt   string
+	UpdatedAt   string
 }
 
-// mapRowToService converts a database row to a domain Service
-func (r *SQLiteServiceRepository) mapRowToService(row serviceRow) (*services.Service, error) {
-	// Parse service ID
-	svcID, err := services.ServiceIDFromString(row.ID)
+// mapRowToTemplate converts a database row to a domain ServiceTemplate
+func (r *SQLiteTemplateRepository) mapRowToTemplate(row templateRow) (*services.ServiceTemplate, error) {
+	// Parse template ID
+	templateID, err := services.TemplateIDFromString(row.ID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid service ID: %w", err)
+		return nil, fmt.Errorf("invalid template ID: %w", err)
 	}
 
-	// Parse service name
-	svcName, err := services.NewServiceName(row.Name)
+	// Parse template name
+	templateName, err := services.NewTemplateName(row.Name)
 	if err != nil {
-		return nil, fmt.Errorf("invalid service name: %w", err)
+		return nil, fmt.Errorf("invalid template name: %w", err)
 	}
 
-	// Parse environment ID
-	envID, err := uuid.Parse(row.EnvironmentID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid environment ID: %w", err)
-	}
-
-	// Parse project ID
-	projectID, err := uuid.Parse(row.ProjectID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid project ID: %w", err)
-	}
+	// Parse category
+	category := services.TemplateCategory(row.Category)
 
 	// Parse GitURL
-	var gitURL *services.GitURL
+	var gitURL *applications.GitURL
 	if row.GitURL != "" {
 		var gitURLData map[string]string
 		err = json.Unmarshal([]byte(row.GitURL), &gitURLData)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal git URL: %w", err)
 		}
-		gitURL, err = services.NewGitURL(
+		gitURL, err = applications.NewGitURL(
 			gitURLData["url"],
 			gitURLData["branch"],
 			gitURLData["context_root"],
@@ -497,7 +412,7 @@ func (r *SQLiteServiceRepository) mapRowToService(row serviceRow) (*services.Ser
 	}
 
 	// Parse BuildConfig
-	var buildConfig *services.BuildConfig
+	var buildConfig *applications.BuildConfig
 	if row.BuildConfig != "" {
 		var buildConfigData map[string]interface{}
 		err = json.Unmarshal([]byte(row.BuildConfig), &buildConfigData)
@@ -505,38 +420,42 @@ func (r *SQLiteServiceRepository) mapRowToService(row serviceRow) (*services.Ser
 			return nil, fmt.Errorf("failed to unmarshal build config: %w", err)
 		}
 
-		buildpackType := services.BuildpackType(buildConfigData["buildpack_type"].(string))
-		buildConfig = services.NewBuildConfig(buildpackType)
+		buildpackType := applications.BuildpackType(buildConfigData["buildpack_type"].(string))
+		buildConfig = applications.NewBuildConfig(buildpackType)
 
 		// Set specific config based on buildpack type
 		switch buildpackType {
-		case services.BuildpackNixpacks:
+		case applications.BuildpackTypeNixpacks:
 			if nixpacks, exists := buildConfigData["nixpacks"]; exists {
 				configBytes, _ := json.Marshal(nixpacks)
-				var nixpacksConfig services.NixpacksConfig
-				json.Unmarshal(configBytes, &nixpacksConfig)
-				buildConfig.SetNixpacksConfig(&nixpacksConfig)
+				var nixpacksConfig applications.NixpacksConfig
+				if err := json.Unmarshal(configBytes, &nixpacksConfig); err == nil {
+					buildConfig.SetNixpacksConfig(&nixpacksConfig)
+				}
 			}
-		case services.BuildpackStatic:
+		case applications.BuildpackTypeStatic:
 			if static, exists := buildConfigData["static"]; exists {
 				configBytes, _ := json.Marshal(static)
-				var staticConfig services.StaticConfig
-				json.Unmarshal(configBytes, &staticConfig)
-				buildConfig.SetStaticConfig(&staticConfig)
+				var staticConfig applications.StaticConfig
+				if err := json.Unmarshal(configBytes, &staticConfig); err == nil {
+					buildConfig.SetStaticConfig(&staticConfig)
+				}
 			}
-		case services.BuildpackDockerfile:
+		case applications.BuildpackTypeDockerfile:
 			if dockerfile, exists := buildConfigData["dockerfile"]; exists {
 				configBytes, _ := json.Marshal(dockerfile)
-				var dockerfileConfig services.DockerfileConfig
-				json.Unmarshal(configBytes, &dockerfileConfig)
-				buildConfig.SetDockerfileConfig(&dockerfileConfig)
+				var dockerfileConfig applications.DockerfileConfig
+				if err := json.Unmarshal(configBytes, &dockerfileConfig); err == nil {
+					buildConfig.SetDockerfileConfig(&dockerfileConfig)
+				}
 			}
-		case services.BuildpackDockerCompose:
+		case applications.BuildpackTypeDockerCompose:
 			if compose, exists := buildConfigData["compose"]; exists {
 				configBytes, _ := json.Marshal(compose)
-				var composeConfig services.ComposeConfig
-				json.Unmarshal(configBytes, &composeConfig)
-				buildConfig.SetComposeConfig(&composeConfig)
+				var composeConfig applications.ComposeConfig
+				if err := json.Unmarshal(configBytes, &composeConfig); err == nil {
+					buildConfig.SetComposeConfig(&composeConfig)
+				}
 			}
 		}
 	}
@@ -552,23 +471,26 @@ func (r *SQLiteServiceRepository) mapRowToService(row serviceRow) (*services.Ser
 		environment = make(map[string]string)
 	}
 
-	// Parse status
-	var status services.ServiceStatus
-	switch row.Status {
-	case "created":
-		status = services.ServiceStatusCreated
-	case "building":
-		status = services.ServiceStatusBuilding
-	case "deploying":
-		status = services.ServiceStatusDeploying
-	case "running":
-		status = services.ServiceStatusRunning
-	case "stopped":
-		status = services.ServiceStatusStopped
-	case "failed":
-		status = services.ServiceStatusFailed
-	default:
-		status = services.ServiceStatusCreated
+	// Parse ports
+	var ports []services.Port
+	if row.Ports != "" {
+		err = json.Unmarshal([]byte(row.Ports), &ports)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal ports: %w", err)
+		}
+	} else {
+		ports = make([]services.Port, 0)
+	}
+
+	// Parse volumes
+	var volumes []services.Volume
+	if row.Volumes != "" {
+		err = json.Unmarshal([]byte(row.Volumes), &volumes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal volumes: %w", err)
+		}
+	} else {
+		volumes = make([]services.Volume, 0)
 	}
 
 	// Parse timestamps
@@ -582,9 +504,11 @@ func (r *SQLiteServiceRepository) mapRowToService(row serviceRow) (*services.Ser
 		return nil, fmt.Errorf("invalid updated_at timestamp: %w", err)
 	}
 
-	// Reconstruct service from persistence
-	svc := services.ReconstructService(
-		svcID, svcName, projectID, envID, gitURL, buildConfig, environment, status, createdAt, updatedAt)
+	// Reconstruct template from persistence
+	template := services.ReconstructServiceTemplate(
+		templateID, templateName, row.Description, category, row.Version,
+		gitURL, buildConfig, environment, ports, volumes, row.IsOfficial,
+		createdAt, updatedAt)
 
-	return svc, nil
+	return template, nil
 }

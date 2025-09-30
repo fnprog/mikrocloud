@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/mikrocloud/mikrocloud/internal/container/build"
-	"github.com/mikrocloud/mikrocloud/internal/container/manager"
+	"github.com/mikrocloud/mikrocloud/pkg/containers/build"
+	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
 )
 
 func main() {

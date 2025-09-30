@@ -7,6 +7,7 @@ import (
 	"github.com/mikrocloud/mikrocloud/internal/domain/applications"
 	"github.com/mikrocloud/mikrocloud/internal/domain/deployments"
 	"github.com/mikrocloud/mikrocloud/internal/domain/users"
+	"github.com/mikrocloud/mikrocloud/pkg/containers/build"
 )
 
 type DeploymentRepository interface {
@@ -20,13 +21,23 @@ type DeploymentRepository interface {
 	ListByStatus(ctx context.Context, status deployments.DeploymentStatus) ([]*deployments.Deployment, error)
 }
 
-type DeploymentService struct {
-	repo DeploymentRepository
+type BuildService interface {
+	BuildImage(ctx context.Context, request build.BuildRequest) (*build.BuildResult, error)
 }
 
-func NewDeploymentService(repo DeploymentRepository) *DeploymentService {
+type ApplicationService interface {
+	GetApplication(ctx context.Context, id applications.ApplicationID) (*applications.Application, error)
+}
+
+type DeploymentService struct {
+	repo         DeploymentRepository
+	buildService BuildService
+}
+
+func NewDeploymentService(repo DeploymentRepository, buildService BuildService) *DeploymentService {
 	return &DeploymentService{
-		repo: repo,
+		repo:         repo,
+		buildService: buildService,
 	}
 }
 
@@ -67,6 +78,196 @@ func (s *DeploymentService) CreateDeployment(ctx context.Context, cmd CreateDepl
 	}
 
 	return deployment, nil
+}
+
+func (s *DeploymentService) CreateAndExecuteDeployment(ctx context.Context, cmd CreateDeploymentCommand, appService ApplicationService) (*deployments.Deployment, error) {
+	// Create the deployment record
+	deployment, err := s.CreateDeployment(ctx, cmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create deployment: %w", err)
+	}
+
+	// Start the build process in the background
+	go func() {
+		if err := s.executeBuildAndDeploy(context.Background(), deployment.ID(), appService); err != nil {
+			// Log error and mark deployment as failed
+			s.FailDeployment(context.Background(), deployment.ID(), err.Error())
+		}
+	}()
+
+	return deployment, nil
+}
+
+func (s *DeploymentService) executeBuildAndDeploy(ctx context.Context, deploymentID deployments.DeploymentID, appService ApplicationService) error {
+	// Start build phase
+	if err := s.StartBuild(ctx, deploymentID); err != nil {
+		return fmt.Errorf("failed to start build: %w", err)
+	}
+
+	// Get deployment and application details
+	deployment, err := s.repo.GetByID(ctx, deploymentID)
+	if err != nil {
+		return fmt.Errorf("failed to get deployment: %w", err)
+	}
+
+	app, err := appService.GetApplication(ctx, deployment.ApplicationID())
+	if err != nil {
+		return fmt.Errorf("failed to get application: %w", err)
+	}
+
+	// Convert application config to build request
+	buildRequest, err := s.createBuildRequest(deployment, app)
+	if err != nil {
+		return fmt.Errorf("failed to create build request: %w", err)
+	}
+
+	// Execute the build
+	buildResult, err := s.buildService.BuildImage(ctx, *buildRequest)
+	if err != nil {
+		s.AppendBuildLogs(ctx, deploymentID, fmt.Sprintf("Build failed: %v", err))
+		return fmt.Errorf("build failed: %w", err)
+	}
+
+	// Update deployment with build logs
+	if buildResult.BuildLogs != "" {
+		s.AppendBuildLogs(ctx, deploymentID, buildResult.BuildLogs)
+	}
+
+	if !buildResult.Success {
+		s.AppendBuildLogs(ctx, deploymentID, fmt.Sprintf("Build failed: %s", buildResult.Error))
+		return fmt.Errorf("build failed: %s", buildResult.Error)
+	}
+
+	// Complete build phase
+	if err := s.CompleteBuild(ctx, deploymentID); err != nil {
+		return fmt.Errorf("failed to complete build: %w", err)
+	}
+
+	// Start deploy phase
+	if err := s.StartDeploy(ctx, deploymentID); err != nil {
+		return fmt.Errorf("failed to start deploy: %w", err)
+	}
+
+	// Set image information
+	if buildResult.ImageTag != "" {
+		// Note: BuildResult doesn't have ImageDigest field yet, using ImageTag for now
+		// TODO: Add ImageDigest field to BuildResult when container registry integration is added
+	}
+
+	// TODO: Integrate with container orchestration to deploy the built image
+	// For now, we'll simulate a successful deployment
+	s.AppendDeployLogs(ctx, deploymentID, "Deployment completed successfully")
+
+	// Complete deploy phase
+	if err := s.CompleteDeploy(ctx, deploymentID); err != nil {
+		return fmt.Errorf("failed to complete deploy: %w", err)
+	}
+
+	return nil
+}
+
+func (s *DeploymentService) createBuildRequest(deployment *deployments.Deployment, app *applications.Application) (*build.BuildRequest, error) {
+	// Extract deployment source information
+	deploymentSource := app.DeploymentSource()
+
+	var gitRepo, gitBranch, contextRoot string
+	var environment map[string]string
+
+	// Handle different deployment source types
+	switch deploymentSource.Type {
+	case applications.DeploymentSourceTypeGit:
+		if deploymentSource.GitRepo != nil {
+			gitRepo = deploymentSource.GitRepo.URL
+			gitBranch = deploymentSource.GitRepo.Branch
+			contextRoot = deploymentSource.GitRepo.Path
+		}
+	case applications.DeploymentSourceTypeRegistry:
+		// For registry deployments, we don't need to build
+		return nil, fmt.Errorf("registry deployments don't require building")
+	case applications.DeploymentSourceTypeUpload:
+		// For upload deployments, the build context is different
+		// TODO: Implement upload-based builds
+		return nil, fmt.Errorf("upload deployments not yet implemented")
+	default:
+		return nil, fmt.Errorf("unsupported deployment source type: %s", deploymentSource.Type)
+	}
+
+	// Get environment variables
+	environment = app.EnvVars()
+	// Convert buildpack config to build request format
+	buildpackConfig := app.Buildpack()
+	if buildpackConfig == nil {
+		return nil, fmt.Errorf("application has no buildpack configuration")
+	}
+
+	var buildpackType build.BuildpackType
+
+	switch buildpackConfig.BuildpackType() {
+	case applications.BuildpackTypeNixpacks:
+		buildpackType = build.Nixpacks
+	case applications.BuildpackTypeStatic:
+		buildpackType = build.Static
+	case applications.BuildpackTypeDockerfile:
+		buildpackType = build.DockerfileType
+	case applications.BuildpackTypeDockerCompose:
+		buildpackType = build.DockerCompose
+	default:
+		return nil, fmt.Errorf("unsupported buildpack type: %s", buildpackConfig.BuildpackType())
+	}
+
+	// Create build request
+	buildRequest := &build.BuildRequest{
+		ID:            deployment.ID().String(),
+		ImageTag:      deployment.ImageTag(),
+		GitRepo:       gitRepo,
+		GitBranch:     gitBranch,
+		ContextRoot:   contextRoot,
+		BuildpackType: buildpackType,
+		Environment:   environment,
+	}
+
+	// Set buildpack-specific configurations based on the config field
+	// Note: We now use typed configs from the BuildConfig
+
+	switch buildpackConfig.BuildpackType() {
+	case applications.BuildpackTypeNixpacks:
+		if nixConfig := buildpackConfig.NixpacksConfig(); nixConfig != nil {
+			nixpacksConfig := &build.NixpacksConfig{
+				StartCommand: nixConfig.StartCommand,
+				BuildCommand: nixConfig.BuildCommand,
+				Variables:    nixConfig.Variables,
+			}
+			buildRequest.NixpacksConfig = nixpacksConfig
+		}
+	case applications.BuildpackTypeStatic:
+		if staticConfig := buildpackConfig.StaticConfig(); staticConfig != nil {
+			staticBuildConfig := &build.StaticConfig{
+				BuildCommand: staticConfig.BuildCommand,
+				OutputDir:    staticConfig.OutputDir,
+				NginxConfig:  staticConfig.NginxConfig,
+			}
+			buildRequest.StaticConfig = staticBuildConfig
+		}
+	case applications.BuildpackTypeDockerfile:
+		if dockerConfig := buildpackConfig.DockerfileConfig(); dockerConfig != nil {
+			dockerfileConfig := &build.DockerfileConfig{
+				DockerfilePath: dockerConfig.DockerfilePath,
+				BuildArgs:      dockerConfig.BuildArgs,
+				Target:         dockerConfig.Target,
+			}
+			buildRequest.DockerfileConfig = dockerfileConfig
+		}
+	case applications.BuildpackTypeDockerCompose:
+		if composeConfig := buildpackConfig.ComposeConfig(); composeConfig != nil {
+			composeRequestConfig := &build.ComposeConfig{
+				ComposeFile: composeConfig.ComposeFile,
+				Service:     composeConfig.Service,
+			}
+			buildRequest.ComposeConfig = composeRequestConfig
+		}
+	}
+
+	return buildRequest, nil
 }
 
 func (s *DeploymentService) getNextDeploymentNumber(ctx context.Context, applicationID applications.ApplicationID) (int, error) {

@@ -4,307 +4,184 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mikrocloud/mikrocloud/internal/container/build"
-	"github.com/mikrocloud/mikrocloud/internal/container/manager"
+	"github.com/google/uuid"
+	"github.com/mikrocloud/mikrocloud/internal/domain/applications"
 	"github.com/mikrocloud/mikrocloud/internal/domain/services"
 	"github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
 )
 
-// ServiceService handles services business logic
-type ServiceService struct {
-	serviceRepo      repository.Repository
-	containerManager manager.ContainerManager
-	buildService     *build.BuildService
+// TemplateService handles service template business logic (marketplace)
+type TemplateService struct {
+	templateRepo       repository.TemplateRepository
+	quickDeployService *repository.QuickDeployService
 }
 
-func NewServiceService(
-	serviceRepo repository.Repository,
-	containerManager manager.ContainerManager,
-	buildService *build.BuildService,
-) *ServiceService {
-	return &ServiceService{
-		serviceRepo:      serviceRepo,
-		containerManager: containerManager,
-		buildService:     buildService,
+func NewTemplateService(
+	templateRepo repository.TemplateRepository,
+	quickDeployService *repository.QuickDeployService,
+) *TemplateService {
+	return &TemplateService{
+		templateRepo:       templateRepo,
+		quickDeployService: quickDeployService,
 	}
 }
 
-// CreateService creates a new services
-func (s *ServiceService) CreateService(ctx context.Context, svc *services.Service) error {
-	// Validate services
-	if svc == nil {
-		return fmt.Errorf("services cannot be nil")
+// Template management operations
+
+// CreateTemplate creates a new service template
+func (s *TemplateService) CreateTemplate(ctx context.Context, template *services.ServiceTemplate) error {
+	if template == nil {
+		return fmt.Errorf("template cannot be nil")
 	}
 
-	// Check if services name already exists in the project/environment
-	existingServices, err := s.serviceRepo.FindByProjectAndEnvironment(
-		svc.ProjectID().String(),
-		svc.EnvironmentID().String(),
-	)
+	// Check if template name already exists
+	existing, err := s.templateRepo.FindByName(template.Name())
+	if err == nil && existing != nil {
+		return fmt.Errorf("template with name '%s' already exists", template.Name().String())
+	}
+
+	// Save the template
+	if err := s.templateRepo.Save(template); err != nil {
+		return fmt.Errorf("failed to save template: %w", err)
+	}
+
+	return nil
+}
+
+// GetTemplate retrieves a template by ID
+func (s *TemplateService) GetTemplate(ctx context.Context, id services.TemplateID) (*services.ServiceTemplate, error) {
+	template, err := s.templateRepo.FindByID(id)
 	if err != nil {
-		return fmt.Errorf("failed to check existing services: %w", err)
+		return nil, fmt.Errorf("failed to find template: %w", err)
+	}
+	return template, nil
+}
+
+// GetTemplateByName retrieves a template by name
+func (s *TemplateService) GetTemplateByName(ctx context.Context, name services.TemplateName) (*services.ServiceTemplate, error) {
+	template, err := s.templateRepo.FindByName(name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find template: %w", err)
+	}
+	return template, nil
+}
+
+// UpdateTemplate updates a template
+func (s *TemplateService) UpdateTemplate(ctx context.Context, template *services.ServiceTemplate) error {
+	if err := s.templateRepo.Update(template); err != nil {
+		return fmt.Errorf("failed to update template: %w", err)
+	}
+	return nil
+}
+
+// DeleteTemplate deletes a template
+func (s *TemplateService) DeleteTemplate(ctx context.Context, id services.TemplateID) error {
+	if err := s.templateRepo.Delete(id); err != nil {
+		return fmt.Errorf("failed to delete template: %w", err)
+	}
+	return nil
+}
+
+// ListTemplates lists all templates
+func (s *TemplateService) ListTemplates(ctx context.Context) ([]*services.ServiceTemplate, error) {
+	templates, err := s.templateRepo.List()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list templates: %w", err)
+	}
+	return templates, nil
+}
+
+// ListTemplatesByCategory lists templates by category
+func (s *TemplateService) ListTemplatesByCategory(ctx context.Context, category services.TemplateCategory) ([]*services.ServiceTemplate, error) {
+	templates, err := s.templateRepo.FindByCategory(category)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list templates by category: %w", err)
+	}
+	return templates, nil
+}
+
+// ListOfficialTemplates lists all official templates
+func (s *TemplateService) ListOfficialTemplates(ctx context.Context) ([]*services.ServiceTemplate, error) {
+	templates, err := s.templateRepo.ListOfficial()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list official templates: %w", err)
+	}
+	return templates, nil
+}
+
+// Quick deployment operations
+
+// DeployTemplate deploys a template as an application
+func (s *TemplateService) DeployTemplate(ctx context.Context, templateID services.TemplateID, req services.DeploymentRequest) (*applications.Application, error) {
+	app, err := s.quickDeployService.DeployTemplate(ctx, templateID, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to deploy template: %w", err)
+	}
+	return app, nil
+}
+
+// ValidateDeploymentRequest validates a deployment request for a template
+func (s *TemplateService) ValidateDeploymentRequest(ctx context.Context, templateID services.TemplateID, req services.DeploymentRequest) error {
+	// Validate that the request has all required fields
+	if req.Name == "" {
+		return fmt.Errorf("application name is required")
 	}
 
-	for _, existing := range existingServices {
-		if existing.Name().String() == svc.Name().String() {
-			return fmt.Errorf("services with name '%s' already exists in this environment", svc.Name().String())
+	if req.ProjectID == uuid.Nil {
+		return fmt.Errorf("project ID is required")
+	}
+
+	if req.EnvironmentID == uuid.Nil {
+		return fmt.Errorf("environment ID is required")
+	}
+
+	// Templates can be either Git-based or Docker registry-based
+	// No need to validate specific requirements here since CreateApplication handles both cases
+
+	return nil
+}
+
+// PreviewDeployment shows what an application would look like when created from a template
+func (s *TemplateService) PreviewDeployment(ctx context.Context, templateID services.TemplateID, req services.DeploymentRequest) (*services.DeploymentPreview, error) {
+	// Get the template
+	template, err := s.templateRepo.FindByID(templateID)
+	if err != nil {
+		return nil, fmt.Errorf("template not found: %w", err)
+	}
+
+	// Validate the request
+	if err := s.ValidateDeploymentRequest(ctx, templateID, req); err != nil {
+		return nil, err
+	}
+
+	// Create a preview without actually saving the application
+	gitURL := template.GitURL()
+	buildConfig := template.BuildConfig()
+
+	environment := template.Environment()
+	if req.Environment != nil {
+		// Merge environments, with request overriding template
+		merged := make(map[string]string)
+		for k, v := range environment {
+			merged[k] = v
 		}
-	}
-
-	// Save the services
-	if err := s.serviceRepo.Save(svc); err != nil {
-		return fmt.Errorf("failed to save services: %w", err)
-	}
-
-	return nil
-}
-
-// GetService retrieves a services by ID
-func (s *ServiceService) GetService(ctx context.Context, id services.ServiceID) (*services.Service, error) {
-	svc, err := s.serviceRepo.FindByID(id)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find services: %w", err)
-	}
-	return svc, nil
-}
-
-// UpdateService updates a services
-func (s *ServiceService) UpdateService(ctx context.Context, svc *services.Service) error {
-	if err := s.serviceRepo.Update(svc); err != nil {
-		return fmt.Errorf("failed to update services: %w", err)
-	}
-	return nil
-}
-
-// DeleteService deletes a services and its containers
-func (s *ServiceService) DeleteService(ctx context.Context, id services.ServiceID) error {
-	// Get services first
-	svc, err := s.serviceRepo.FindByID(id)
-	if err != nil {
-		return fmt.Errorf("failed to find services: %w", err)
-	}
-
-	// Stop and remove any running containers
-	if svc.Status() == services.ServiceStatusRunning {
-		if err := s.StopService(ctx, id); err != nil {
-			return fmt.Errorf("failed to stop services before deletion: %w", err)
+		for k, v := range req.Environment {
+			merged[k] = v
 		}
+		environment = merged
 	}
 
-	// Delete from database
-	if err := s.serviceRepo.Delete(id); err != nil {
-		return fmt.Errorf("failed to delete services: %w", err)
+	preview := &services.DeploymentPreview{
+		TemplateName:    template.Name(),
+		ApplicationName: req.Name,
+		ProjectID:       req.ProjectID,
+		EnvironmentID:   req.EnvironmentID,
+		GitURL:          gitURL,
+		BuildConfig:     buildConfig,
+		Environment:     environment,
+		Ports:           template.Ports(),
+		Volumes:         template.Volumes(),
 	}
 
-	return nil
-}
-
-// DeployService builds and deploys a services
-func (s *ServiceService) DeployService(ctx context.Context, id services.ServiceID) error {
-	// Get services
-	svc, err := s.serviceRepo.FindByID(id)
-	if err != nil {
-		return fmt.Errorf("failed to find services: %w", err)
-	}
-
-	// Check if services can be deployed
-	if err := svc.CanDeploy(); err != nil {
-		return err
-	}
-
-	// Update status to building
-	svc.ChangeStatus(services.ServiceStatusBuilding)
-	if err := s.serviceRepo.Update(svc); err != nil {
-		return fmt.Errorf("failed to update services status: %w", err)
-	}
-
-	// Create build request
-	buildRequest := s.createBuildRequest(svc)
-
-	// Build the image
-	buildResult, err := s.buildService.BuildImage(ctx, buildRequest)
-	if err != nil {
-		svc.ChangeStatus(services.ServiceStatusFailed)
-		s.serviceRepo.Update(svc)
-		return fmt.Errorf("failed to build services: %w", err)
-	}
-
-	if !buildResult.Success {
-		svc.ChangeStatus(services.ServiceStatusFailed)
-		s.serviceRepo.Update(svc)
-		return fmt.Errorf("build failed: %s", buildResult.Error)
-	}
-
-	// Update status to deploying
-	svc.ChangeStatus(services.ServiceStatusDeploying)
-	if err := s.serviceRepo.Update(svc); err != nil {
-		return fmt.Errorf("failed to update services status: %w", err)
-	}
-
-	// Deploy the container
-	if err := s.deployContainer(ctx, svc, buildResult.ImageTag); err != nil {
-		svc.ChangeStatus(services.ServiceStatusFailed)
-		s.serviceRepo.Update(svc)
-		return fmt.Errorf("failed to deploy container: %w", err)
-	}
-
-	// Update status to running
-	svc.ChangeStatus(services.ServiceStatusRunning)
-	if err := s.serviceRepo.Update(svc); err != nil {
-		return fmt.Errorf("failed to update services status: %w", err)
-	}
-
-	return nil
-}
-
-// StopService stops a running services
-func (s *ServiceService) StopService(ctx context.Context, id services.ServiceID) error {
-	// Get services
-	svc, err := s.serviceRepo.FindByID(id)
-	if err != nil {
-		return fmt.Errorf("failed to find services: %w", err)
-	}
-
-	// Check if services can be stopped
-	if err := svc.CanStop(); err != nil {
-		return err
-	}
-
-	// Stop the container (using services name as container name)
-	containerName := s.getContainerName(svc)
-	if err := s.containerManager.Stop(ctx, containerName); err != nil {
-		return fmt.Errorf("failed to stop container: %w", err)
-	}
-
-	// Update status
-	svc.ChangeStatus(services.ServiceStatusStopped)
-	if err := s.serviceRepo.Update(svc); err != nil {
-		return fmt.Errorf("failed to update services status: %w", err)
-	}
-
-	return nil
-}
-
-// RestartService restarts a services
-func (s *ServiceService) RestartService(ctx context.Context, id services.ServiceID) error {
-	// Get services
-	svc, err := s.serviceRepo.FindByID(id)
-	if err != nil {
-		return fmt.Errorf("failed to find services: %w", err)
-	}
-
-	// Restart the container
-	containerName := s.getContainerName(svc)
-	if err := s.containerManager.Restart(ctx, containerName); err != nil {
-		return fmt.Errorf("failed to restart container: %w", err)
-	}
-
-	// Update status
-	svc.ChangeStatus(services.ServiceStatusRunning)
-	if err := s.serviceRepo.Update(svc); err != nil {
-		return fmt.Errorf("failed to update services status: %w", err)
-	}
-
-	return nil
-}
-
-// ListServices lists services by project and environment
-func (s *ServiceService) ListServices(ctx context.Context, projectID, environmentID string) ([]*services.Service, error) {
-	if projectID != "" && environmentID != "" {
-		return s.serviceRepo.FindByProjectAndEnvironment(projectID, environmentID)
-	} else if projectID != "" {
-		return s.serviceRepo.FindByProjectID(projectID)
-	} else if environmentID != "" {
-		return s.serviceRepo.FindByEnvironmentID(environmentID)
-	}
-	return s.serviceRepo.List()
-}
-
-// Helper methods
-
-func (s *ServiceService) createBuildRequest(svc *services.Service) build.BuildRequest {
-	buildRequest := build.BuildRequest{
-		ID:          svc.ID().String(),
-		GitRepo:     svc.GitURL().URL(),
-		GitBranch:   svc.GitURL().Branch(),
-		ContextRoot: svc.GitURL().ContextRoot(),
-		ImageTag:    s.getImageTag(svc),
-		Environment: svc.Environment(),
-	}
-
-	buildConfig := svc.BuildConfig()
-	switch buildConfig.BuildpackType() {
-	case services.BuildpackNixpacks:
-		buildRequest.BuildpackType = build.Nixpacks
-		if config := buildConfig.NixpacksConfig(); config != nil {
-			buildRequest.NixpacksConfig = &build.NixpacksConfig{
-				StartCommand: config.StartCommand,
-				BuildCommand: config.BuildCommand,
-				Variables:    config.Variables,
-			}
-		}
-	case services.BuildpackStatic:
-		buildRequest.BuildpackType = build.Static
-		if config := buildConfig.StaticConfig(); config != nil {
-			buildRequest.StaticConfig = &build.StaticConfig{
-				BuildCommand: config.BuildCommand,
-				OutputDir:    config.OutputDir,
-				NginxConfig:  config.NginxConfig,
-			}
-		}
-	case services.BuildpackDockerfile:
-		buildRequest.BuildpackType = build.DockerfileType
-		if config := buildConfig.DockerfileConfig(); config != nil {
-			buildRequest.DockerfileConfig = &build.DockerfileConfig{
-				DockerfilePath: config.DockerfilePath,
-				BuildArgs:      config.BuildArgs,
-				Target:         config.Target,
-			}
-		}
-	case services.BuildpackDockerCompose:
-		buildRequest.BuildpackType = build.DockerCompose
-		if config := buildConfig.ComposeConfig(); config != nil {
-			buildRequest.ComposeConfig = &build.ComposeConfig{
-				ComposeFile: config.ComposeFile,
-				Service:     config.Service,
-			}
-		}
-	}
-
-	return buildRequest
-}
-
-func (s *ServiceService) deployContainer(ctx context.Context, svc *services.Service, imageTag string) error {
-	containerConfig := manager.ContainerConfig{
-		Image:       imageTag,
-		Name:        s.getContainerName(svc),
-		Environment: svc.Environment(),
-		// TODO: Add port mappings, volumes, etc. based on services configuration
-		RestartPolicy: "unless-stopped",
-	}
-
-	// Create and start the container
-	containerID, err := s.containerManager.Create(ctx, containerConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create container: %w", err)
-	}
-
-	if err := s.containerManager.Start(ctx, containerID); err != nil {
-		return fmt.Errorf("failed to start container: %w", err)
-	}
-
-	return nil
-}
-
-func (s *ServiceService) getContainerName(svc *services.Service) string {
-	// Create a unique container name based on project, environment, and services
-	return fmt.Sprintf("mikrocloud-%s-%s-%s",
-		svc.ProjectID().String()[:8],
-		svc.EnvironmentID().String()[:8],
-		svc.Name().String())
-}
-
-func (s *ServiceService) getImageTag(svc *services.Service) string {
-	// Create image tag based on services
-	return fmt.Sprintf("mikrocloud/%s:%s", svc.Name().String(), "latest")
+	return preview, nil
 }

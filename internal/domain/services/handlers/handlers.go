@@ -1,411 +1,493 @@
 package handlers
 
 import (
-	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 
-	"github.com/danielgtaylor/huma/v2"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
-	"github.com/mikrocloud/mikrocloud/internal/database"
-	"github.com/mikrocloud/mikrocloud/internal/domain/environments"
-	"github.com/mikrocloud/mikrocloud/internal/domain/projects"
+	"github.com/mikrocloud/mikrocloud/internal/domain/applications"
 	"github.com/mikrocloud/mikrocloud/internal/domain/services"
 	servicesService "github.com/mikrocloud/mikrocloud/internal/domain/services/service"
-	"github.com/mikrocloud/mikrocloud/internal/domain/users"
+	"github.com/mikrocloud/mikrocloud/internal/utils"
 )
 
-type ServiceHandler struct {
-	db             *database.Database
-	serviceService *servicesService.ServiceService
+type TemplateHandler struct {
+	templateService *servicesService.TemplateService
+	validator       *validator.Validate
 }
 
-func NewServiceHandler(db *database.Database, serviceService *servicesService.ServiceService) *ServiceHandler {
-	return &ServiceHandler{
-		db:             db,
-		serviceService: serviceService,
+func NewTemplateHandler(templateService *servicesService.TemplateService) *TemplateHandler {
+	return &TemplateHandler{
+		templateService: templateService,
+		validator:       validator.New(),
 	}
 }
 
-// QuickServiceInput for one-off service creation
-type QuickServiceInput struct {
-	Body struct {
-		Name          string                   `json:"name" minLength:"1" maxLength:"50" example:"my-service"`
-		GitURL        string                   `json:"git_url" example:"https://github.com/user/repo.git"`
-		GitBranch     string                   `json:"git_branch,omitempty" example:"main"`
-		ContextRoot   string                   `json:"context_root,omitempty" example:"frontend/"`
-		BuildpackType string                   `json:"buildpack_type" example:"nixpacks" enum:"nixpacks,static,dockerfile,docker-compose"`
-		Environment   map[string]string        `json:"environment,omitempty"`
-		BuildConfig   *ServiceBuildConfigInput `json:"build_config,omitempty"`
-	}
+// Template Management DTOs
+
+type CreateTemplateRequest struct {
+	Name        string            `json:"name" validate:"required,min=1,max=50"`
+	Description string            `json:"description" validate:"required,min=1,max=500"`
+	Category    string            `json:"category" validate:"required"`
+	Version     string            `json:"version" validate:"required"`
+	GitURL      string            `json:"git_url,omitempty"`
+	GitBranch   string            `json:"git_branch,omitempty"`
+	ContextRoot string            `json:"context_root,omitempty"`
+	Environment map[string]string `json:"environment,omitempty"`
+	Ports       []PortRequest     `json:"ports,omitempty"`
+	Volumes     []VolumeRequest   `json:"volumes,omitempty"`
 }
 
-type ServiceBuildConfigInput struct {
-	Nixpacks   *NixpacksConfigInput   `json:"nixpacks,omitempty"`
-	Static     *StaticConfigInput     `json:"static,omitempty"`
-	Dockerfile *DockerfileConfigInput `json:"dockerfile,omitempty"`
-	Compose    *ComposeConfigInput    `json:"compose,omitempty"`
+type PortRequest struct {
+	ContainerPort int    `json:"container_port" validate:"required,min=1,max=65535"`
+	HostPort      int    `json:"host_port,omitempty"`
+	Protocol      string `json:"protocol,omitempty"`
+	Name          string `json:"name,omitempty"`
 }
 
-type NixpacksConfigInput struct {
-	StartCommand string            `json:"start_command,omitempty"`
-	BuildCommand string            `json:"build_command,omitempty"`
-	Variables    map[string]string `json:"variables,omitempty"`
+type VolumeRequest struct {
+	ContainerPath string `json:"container_path" validate:"required"`
+	HostPath      string `json:"host_path,omitempty"`
+	Type          string `json:"type,omitempty"`
+	Name          string `json:"name,omitempty"`
 }
 
-type StaticConfigInput struct {
-	BuildCommand string `json:"build_command,omitempty"`
-	OutputDir    string `json:"output_dir,omitempty"`
-	NginxConfig  string `json:"nginx_config,omitempty"`
+type UpdateTemplateRequest struct {
+	Version     string            `json:"version,omitempty"`
+	Environment map[string]string `json:"environment,omitempty"`
+	Ports       []PortRequest     `json:"ports,omitempty"`
+	Volumes     []VolumeRequest   `json:"volumes,omitempty"`
 }
 
-type DockerfileConfigInput struct {
-	DockerfilePath string            `json:"dockerfile_path,omitempty"`
-	BuildArgs      map[string]string `json:"build_args,omitempty"`
-	Target         string            `json:"target,omitempty"`
+// Deployment DTOs
+
+type DeployTemplateRequest struct {
+	Name          string                 `json:"name" validate:"required,min=1,max=50"`
+	ProjectID     string                 `json:"project_id" validate:"required,uuid"`
+	EnvironmentID string                 `json:"environment_id" validate:"required,uuid"`
+	Environment   map[string]string      `json:"environment,omitempty"`
+	CustomConfig  map[string]interface{} `json:"custom_config,omitempty"`
 }
 
-type ComposeConfigInput struct {
-	ComposeFile string `json:"compose_file,omitempty"`
-	Service     string `json:"service,omitempty"`
+type PreviewDeploymentRequest struct {
+	Name          string                 `json:"name" validate:"required,min=1,max=50"`
+	ProjectID     string                 `json:"project_id" validate:"required,uuid"`
+	EnvironmentID string                 `json:"environment_id" validate:"required,uuid"`
+	Environment   map[string]string      `json:"environment,omitempty"`
+	CustomConfig  map[string]interface{} `json:"custom_config,omitempty"`
 }
 
-type QuickServiceOutput struct {
-	Body struct {
-		ID          string `json:"id"`
-		Name        string `json:"name"`
-		ProjectID   string `json:"project_id"`
-		ProjectName string `json:"project_name"`
-		Environment string `json:"environment"`
-		GitURL      string `json:"git_url"`
-		Status      string `json:"status"`
-		CreatedAt   string `json:"created_at"`
-	}
+// Response DTOs
+
+type TemplateResponse struct {
+	ID          string                    `json:"id"`
+	Name        string                    `json:"name"`
+	Description string                    `json:"description"`
+	Category    services.TemplateCategory `json:"category"`
+	Version     string                    `json:"version"`
+	GitURL      *applications.GitURL      `json:"git_url"`
+	Environment map[string]string         `json:"environment"`
+	Ports       []services.Port           `json:"ports"`
+	Volumes     []services.Volume         `json:"volumes"`
+	Official    bool                      `json:"official"`
+	CreatedAt   string                    `json:"created_at,omitempty"`
+	UpdatedAt   string                    `json:"updated_at,omitempty"`
 }
 
-// CreateServiceInput for creating services in existing project/environment
-type CreateServiceInput struct {
-	ProjectID     string `path:"project_id"`
-	EnvironmentID string `path:"environment_id"`
-	Body          struct {
-		Name          string                   `json:"name" minLength:"1" maxLength:"50"`
-		GitURL        string                   `json:"git_url"`
-		GitBranch     string                   `json:"git_branch,omitempty"`
-		ContextRoot   string                   `json:"context_root,omitempty"`
-		BuildpackType string                   `json:"buildpack_type" enum:"nixpacks,static,dockerfile,docker-compose"`
-		Environment   map[string]string        `json:"environment,omitempty"`
-		BuildConfig   *ServiceBuildConfigInput `json:"build_config,omitempty"`
-	}
+type TemplateListResponse struct {
+	Templates []TemplateResponse `json:"templates"`
+	Count     int                `json:"count"`
 }
 
-type ServiceOutput struct {
-	Body struct {
-		ID            string            `json:"id"`
-		Name          string            `json:"name"`
-		ProjectID     string            `json:"project_id"`
-		EnvironmentID string            `json:"environment_id"`
-		GitURL        string            `json:"git_url"`
-		GitBranch     string            `json:"git_branch"`
-		ContextRoot   string            `json:"context_root"`
-		BuildpackType string            `json:"buildpack_type"`
-		Environment   map[string]string `json:"environment"`
-		Status        string            `json:"status"`
-		CreatedAt     string            `json:"created_at"`
-		UpdatedAt     string            `json:"updated_at"`
-	}
-}
-
-type ServiceListItem struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	ProjectID     string `json:"project_id"`
-	EnvironmentID string `json:"environment_id"`
-	GitURL        string `json:"git_url"`
+type DeploymentResponse struct {
+	ApplicationID string `json:"application_id"`
 	Status        string `json:"status"`
-	CreatedAt     string `json:"created_at"`
+	Message       string `json:"message"`
 }
 
-type ListServicesOutput struct {
-	Body struct {
-		Services []ServiceListItem `json:"services"`
+type DeploymentPreviewResponse struct {
+	Preview *services.DeploymentPreview `json:"preview"`
+}
+
+// Template Management Handlers
+
+func (h *TemplateHandler) CreateTemplate(w http.ResponseWriter, r *http.Request) {
+	var req CreateTemplateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "Invalid request body", err.Error())
+		return
 	}
-}
 
-type ServiceActionInput struct {
-	ProjectID     string `path:"project_id"`
-	EnvironmentID string `path:"environment_id"`
-	ServiceID     string `path:"service_id"`
-}
-
-type ServiceActionOutput struct {
-	Body struct {
-		Message string `json:"message"`
-		Status  string `json:"status"`
+	if err := h.validator.Struct(req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "Validation failed", err.Error())
+		return
 	}
-}
 
-// CreateQuickService creates a new service with auto-generated project and prod environment
-func (h *ServiceHandler) CreateQuickService(ctx context.Context, input *QuickServiceInput) (*QuickServiceOutput, error) {
-	// Create project with same name as service (or add suffix)
-	projectName, err := projects.NewProjectName(input.Body.Name)
+	// Create template name
+	templateName, err := services.NewTemplateName(req.Name)
 	if err != nil {
-		return nil, huma.Error400BadRequest("invalid project name", err)
+		utils.SendError(w, http.StatusBadRequest, "Invalid template name", err.Error())
+		return
 	}
 
-	// Create service name
-	serviceName, err := services.NewServiceName(input.Body.Name)
-	if err != nil {
-		return nil, huma.Error400BadRequest("invalid service name", err)
+	// Parse category
+	category := services.TemplateCategory(req.Category)
+
+	// Create Git URL if provided
+	var gitURL *applications.GitURL
+	if req.GitURL != "" {
+		gitURL, err = applications.NewGitURL(req.GitURL, req.GitBranch, req.ContextRoot)
+		if err != nil {
+			utils.SendError(w, http.StatusBadRequest, "Invalid Git URL", err.Error())
+			return
+		}
 	}
 
-	// Create project
-	// TODO: Get actual user ID from authentication context
-	userID, _ := users.UserIDFromString("00000000-0000-0000-0000-000000000000")
-	orgID, _ := users.OrganizationIDFromString("00000000-0000-0000-0000-000000000000")
-	description := fmt.Sprintf("Auto-generated project for %s", input.Body.Name)
-	proj := projects.NewProject(projectName, &description, userID, orgID)
-
-	// Create default prod environment
-	env := environments.NewEnvironment(environments.EnvironmentProduction, proj.ID().UUID(), "Production environment", true)
-
-	// Parse Git URL
-	gitURL, err := services.NewGitURL(input.Body.GitURL, input.Body.GitBranch, input.Body.ContextRoot)
-	if err != nil {
-		return nil, huma.Error400BadRequest("invalid git URL", err)
+	// Convert ports
+	ports := make([]services.Port, len(req.Ports))
+	for i, p := range req.Ports {
+		ports[i] = services.Port{
+			Port:     p.ContainerPort,
+			Protocol: p.Protocol,
+			Public:   p.HostPort > 0,
+		}
 	}
 
-	// Create build config
-	buildConfig := h.createBuildConfig(input.Body.BuildpackType, input.Body.BuildConfig)
+	// Convert volumes
+	volumes := make([]services.Volume, len(req.Volumes))
+	for i, v := range req.Volumes {
+		volumes[i] = services.Volume{
+			Name:      v.Name,
+			MountPath: v.ContainerPath,
+			Size:      "",
+			ReadOnly:  false,
+		}
+	}
 
-	// Create service
-	svc := services.NewService(serviceName, proj.ID().UUID(), env.ID().UUID(), gitURL, buildConfig)
+	// Create template
+	template := services.NewServiceTemplate(
+		templateName,
+		req.Description,
+		category,
+		req.Version,
+		gitURL,
+		nil,   // Build config would be set later or derived from Git URL
+		false, // Not official by default
+	)
 
 	// Set environment variables
-	for key, value := range input.Body.Environment {
-		if err := svc.SetEnvironmentVariable(key, value); err != nil {
-			return nil, huma.Error400BadRequest("invalid environment variable", err)
+	if req.Environment != nil {
+		for k, v := range req.Environment {
+			if err := template.SetEnvironmentVariable(k, v); err != nil {
+				utils.SendError(w, http.StatusBadRequest, "invalid_environment_variable", fmt.Sprintf("Invalid environment variable %s: %v", k, err))
+				return
+			}
 		}
 	}
 
-	// TODO: Save to database through service layer
-	// This would involve:
-	// 1. Saving the project
-	// 2. Saving the environment
-	// 3. Saving the service
-	// For now, we'll return a mock response
+	// Set ports and volumes
+	for _, port := range ports {
+		template.AddPort(port)
+	}
+	for _, volume := range volumes {
+		template.AddVolume(volume)
+	}
 
-	return &QuickServiceOutput{
-		Body: struct {
-			ID          string `json:"id"`
-			Name        string `json:"name"`
-			ProjectID   string `json:"project_id"`
-			ProjectName string `json:"project_name"`
-			Environment string `json:"environment"`
-			GitURL      string `json:"git_url"`
-			Status      string `json:"status"`
-			CreatedAt   string `json:"created_at"`
-		}{
-			ID:          svc.ID().String(),
-			Name:        svc.Name().String(),
-			ProjectID:   proj.ID().String(),
-			ProjectName: proj.Name().String(),
-			Environment: env.Name().String(),
-			GitURL:      gitURL.URL(),
-			Status:      svc.Status().String(),
-			CreatedAt:   svc.CreatedAt().Format("2006-01-02T15:04:05Z"),
-		},
-	}, nil
+	// Save template
+	if err := h.templateService.CreateTemplate(r.Context(), template); err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "Failed to create template", err.Error())
+		return
+	}
+
+	response := h.convertToTemplateResponse(template)
+	utils.SendJSON(w, http.StatusCreated, response)
 }
 
-// CreateService creates a new service in an existing project/environment
-func (h *ServiceHandler) CreateService(ctx context.Context, input *CreateServiceInput) (*ServiceOutput, error) {
-	// Validate project and environment exist
-	projectID, err := uuid.Parse(input.ProjectID)
+func (h *TemplateHandler) GetTemplate(w http.ResponseWriter, r *http.Request) {
+	templateIDStr := chi.URLParam(r, "id")
+	templateID, err := services.TemplateIDFromString(templateIDStr)
 	if err != nil {
-		return nil, huma.Error400BadRequest("invalid project ID", err)
+		utils.SendError(w, http.StatusBadRequest, "Invalid template ID", err.Error())
+		return
 	}
 
-	environmentID, err := uuid.Parse(input.EnvironmentID)
+	template, err := h.templateService.GetTemplate(r.Context(), templateID)
 	if err != nil {
-		return nil, huma.Error400BadRequest("invalid environment ID", err)
+		utils.SendError(w, http.StatusNotFound, "Template not found", err.Error())
+		return
 	}
 
-	// Create service name
-	serviceName, err := services.NewServiceName(input.Body.Name)
+	response := h.convertToTemplateResponse(template)
+	utils.SendJSON(w, http.StatusOK, response)
+}
+
+func (h *TemplateHandler) UpdateTemplate(w http.ResponseWriter, r *http.Request) {
+	templateIDStr := chi.URLParam(r, "id")
+	templateID, err := services.TemplateIDFromString(templateIDStr)
 	if err != nil {
-		return nil, huma.Error400BadRequest("invalid service name", err)
+		utils.SendError(w, http.StatusBadRequest, "Invalid template ID", err.Error())
+		return
 	}
 
-	// Parse Git URL
-	gitURL, err := services.NewGitURL(input.Body.GitURL, input.Body.GitBranch, input.Body.ContextRoot)
+	var req UpdateTemplateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "Invalid request body", err.Error())
+		return
+	}
+
+	if err := h.validator.Struct(req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "Validation failed", err.Error())
+		return
+	}
+
+	// Get existing template
+	template, err := h.templateService.GetTemplate(r.Context(), templateID)
 	if err != nil {
-		return nil, huma.Error400BadRequest("invalid git URL", err)
+		utils.SendError(w, http.StatusNotFound, "Template not found", err.Error())
+		return
 	}
 
-	// Create build config
-	buildConfig := h.createBuildConfig(input.Body.BuildpackType, input.Body.BuildConfig)
-
-	// Create service
-	svc := services.NewService(serviceName, projectID, environmentID, gitURL, buildConfig)
-
-	// Set environment variables
-	for key, value := range input.Body.Environment {
-		if err := svc.SetEnvironmentVariable(key, value); err != nil {
-			return nil, huma.Error400BadRequest("invalid environment variable", err)
-		}
+	// Update version if provided
+	if req.Version != "" {
+		template.UpdateVersion(req.Version)
 	}
 
-	// TODO: Save to database through service layer
-
-	return &ServiceOutput{
-		Body: struct {
-			ID            string            `json:"id"`
-			Name          string            `json:"name"`
-			ProjectID     string            `json:"project_id"`
-			EnvironmentID string            `json:"environment_id"`
-			GitURL        string            `json:"git_url"`
-			GitBranch     string            `json:"git_branch"`
-			ContextRoot   string            `json:"context_root"`
-			BuildpackType string            `json:"buildpack_type"`
-			Environment   map[string]string `json:"environment"`
-			Status        string            `json:"status"`
-			CreatedAt     string            `json:"created_at"`
-			UpdatedAt     string            `json:"updated_at"`
-		}{
-			ID:            svc.ID().String(),
-			Name:          svc.Name().String(),
-			ProjectID:     svc.ProjectID().String(),
-			EnvironmentID: svc.EnvironmentID().String(),
-			GitURL:        gitURL.URL(),
-			GitBranch:     gitURL.Branch(),
-			ContextRoot:   gitURL.ContextRoot(),
-			BuildpackType: string(buildConfig.BuildpackType()),
-			Environment:   svc.Environment(),
-			Status:        svc.Status().String(),
-			CreatedAt:     svc.CreatedAt().Format("2006-01-02T15:04:05Z"),
-			UpdatedAt:     svc.UpdatedAt().Format("2006-01-02T15:04:05Z"),
-		},
-	}, nil
-}
-
-// GetService retrieves a specific service
-func (h *ServiceHandler) GetService(ctx context.Context, input *ServiceActionInput) (*ServiceOutput, error) {
-	// TODO: Implement database lookup
-	return nil, huma.Error501NotImplemented("not yet implemented")
-}
-
-// ListServices lists services in a project/environment
-func (h *ServiceHandler) ListServices(ctx context.Context, input *struct {
-	ProjectID     string `path:"project_id"`
-	EnvironmentID string `path:"environment_id"`
-},
-) (*ListServicesOutput, error) {
-	// TODO: Implement database lookup
-	return &ListServicesOutput{
-		Body: struct {
-			Services []ServiceListItem `json:"services"`
-		}{
-			Services: []ServiceListItem{},
-		},
-	}, nil
-}
-
-// DeployService triggers deployment of a service
-func (h *ServiceHandler) DeployService(ctx context.Context, input *ServiceActionInput) (*ServiceActionOutput, error) {
-	// TODO: Implement deployment through container service
-	return &ServiceActionOutput{
-		Body: struct {
-			Message string `json:"message"`
-			Status  string `json:"status"`
-		}{
-			Message: "Service deployment started",
-			Status:  "deploying",
-		},
-	}, nil
-}
-
-// StopService stops a running service
-func (h *ServiceHandler) StopService(ctx context.Context, input *ServiceActionInput) (*ServiceActionOutput, error) {
-	// TODO: Implement stop through container service
-	return &ServiceActionOutput{
-		Body: struct {
-			Message string `json:"message"`
-			Status  string `json:"status"`
-		}{
-			Message: "Service stopped",
-			Status:  "stopped",
-		},
-	}, nil
-}
-
-// RestartService restarts a service
-func (h *ServiceHandler) RestartService(ctx context.Context, input *ServiceActionInput) (*ServiceActionOutput, error) {
-	// TODO: Implement restart through container service
-	return &ServiceActionOutput{
-		Body: struct {
-			Message string `json:"message"`
-			Status  string `json:"status"`
-		}{
-			Message: "Service restarted",
-			Status:  "running",
-		},
-	}, nil
-}
-
-// DeleteService deletes a service
-func (h *ServiceHandler) DeleteService(ctx context.Context, input *ServiceActionInput) (*ServiceActionOutput, error) {
-	// TODO: Implement delete through service layer
-	return &ServiceActionOutput{
-		Body: struct {
-			Message string `json:"message"`
-			Status  string `json:"status"`
-		}{
-			Message: "Service deleted",
-			Status:  "deleted",
-		},
-	}, nil
-}
-
-// Helper method to create build config from input
-func (h *ServiceHandler) createBuildConfig(buildpackType string, configInput *ServiceBuildConfigInput) *services.BuildConfig {
-	buildConfig := services.NewBuildConfig(services.BuildpackType(buildpackType))
-
-	if configInput == nil {
-		return buildConfig
-	}
-
-	switch buildpackType {
-	case "nixpacks":
-		if configInput.Nixpacks != nil {
-			buildConfig.SetNixpacksConfig(&services.NixpacksConfig{
-				StartCommand: configInput.Nixpacks.StartCommand,
-				BuildCommand: configInput.Nixpacks.BuildCommand,
-				Variables:    configInput.Nixpacks.Variables,
-			})
-		}
-	case "static":
-		if configInput.Static != nil {
-			buildConfig.SetStaticConfig(&services.StaticConfig{
-				BuildCommand: configInput.Static.BuildCommand,
-				OutputDir:    configInput.Static.OutputDir,
-				NginxConfig:  configInput.Static.NginxConfig,
-			})
-		}
-	case "dockerfile":
-		if configInput.Dockerfile != nil {
-			buildConfig.SetDockerfileConfig(&services.DockerfileConfig{
-				DockerfilePath: configInput.Dockerfile.DockerfilePath,
-				BuildArgs:      configInput.Dockerfile.BuildArgs,
-				Target:         configInput.Dockerfile.Target,
-			})
-		}
-	case "docker-compose":
-		if configInput.Compose != nil {
-			buildConfig.SetComposeConfig(&services.ComposeConfig{
-				ComposeFile: configInput.Compose.ComposeFile,
-				Service:     configInput.Compose.Service,
-			})
+	// Update environment variables
+	if req.Environment != nil {
+		for k, v := range req.Environment {
+			if err := template.SetEnvironmentVariable(k, v); err != nil {
+				utils.SendError(w, http.StatusBadRequest, "invalid_environment_variable", fmt.Sprintf("Invalid environment variable %s: %v", k, err))
+				return
+			}
 		}
 	}
 
-	return buildConfig
+	// Add new ports
+	if req.Ports != nil {
+		for _, p := range req.Ports {
+			port := services.Port{
+				Port:     p.ContainerPort,
+				Protocol: p.Protocol,
+				Public:   p.HostPort > 0,
+			}
+			template.AddPort(port)
+		}
+	}
+
+	// Add new volumes
+	if req.Volumes != nil {
+		for _, v := range req.Volumes {
+			volume := services.Volume{
+				Name:      v.Name,
+				MountPath: v.ContainerPath,
+				Size:      "",
+				ReadOnly:  false,
+			}
+			template.AddVolume(volume)
+		}
+	}
+
+	// Save changes
+	if err := h.templateService.UpdateTemplate(r.Context(), template); err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "Failed to update template", err.Error())
+		return
+	}
+
+	response := h.convertToTemplateResponse(template)
+	utils.SendJSON(w, http.StatusOK, response)
+}
+
+func (h *TemplateHandler) DeleteTemplate(w http.ResponseWriter, r *http.Request) {
+	templateIDStr := chi.URLParam(r, "id")
+	templateID, err := services.TemplateIDFromString(templateIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "Invalid template ID", err.Error())
+		return
+	}
+
+	if err := h.templateService.DeleteTemplate(r.Context(), templateID); err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "Failed to delete template", err.Error())
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *TemplateHandler) ListTemplates(w http.ResponseWriter, r *http.Request) {
+	category := r.URL.Query().Get("category")
+
+	var templates []*services.ServiceTemplate
+	var err error
+
+	if category != "" {
+		templateCategory := services.TemplateCategory(category)
+		templates, err = h.templateService.ListTemplatesByCategory(r.Context(), templateCategory)
+	} else {
+		templates, err = h.templateService.ListTemplates(r.Context())
+	}
+
+	if err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "Failed to list templates", err.Error())
+		return
+	}
+
+	// Convert to response format
+	response := TemplateListResponse{
+		Templates: make([]TemplateResponse, len(templates)),
+		Count:     len(templates),
+	}
+
+	for i, template := range templates {
+		response.Templates[i] = h.convertToTemplateResponse(template)
+	}
+
+	utils.SendJSON(w, http.StatusOK, response)
+}
+
+func (h *TemplateHandler) ListOfficialTemplates(w http.ResponseWriter, r *http.Request) {
+	templates, err := h.templateService.ListOfficialTemplates(r.Context())
+	if err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "Failed to list official templates", err.Error())
+		return
+	}
+
+	// Convert to response format
+	response := TemplateListResponse{
+		Templates: make([]TemplateResponse, len(templates)),
+		Count:     len(templates),
+	}
+
+	for i, template := range templates {
+		response.Templates[i] = h.convertToTemplateResponse(template)
+	}
+
+	utils.SendJSON(w, http.StatusOK, response)
+}
+
+// Deployment Handlers
+
+func (h *TemplateHandler) DeployTemplate(w http.ResponseWriter, r *http.Request) {
+	templateIDStr := chi.URLParam(r, "id")
+	templateID, err := services.TemplateIDFromString(templateIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "Invalid template ID", err.Error())
+		return
+	}
+
+	var req DeployTemplateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "Invalid request body", err.Error())
+		return
+	}
+
+	if err := h.validator.Struct(req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "Validation failed", err.Error())
+		return
+	}
+
+	projectID, err := uuid.Parse(req.ProjectID)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "Invalid project ID", err.Error())
+		return
+	}
+
+	environmentID, err := uuid.Parse(req.EnvironmentID)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "Invalid environment ID", err.Error())
+		return
+	}
+
+	// Create deployment request
+	deployReq := services.DeploymentRequest{
+		ProjectID:     projectID,
+		EnvironmentID: environmentID,
+		Name:          req.Name,
+		Environment:   req.Environment,
+		CustomConfig:  req.CustomConfig,
+	}
+
+	// Deploy the template
+	app, err := h.templateService.DeployTemplate(r.Context(), templateID, deployReq)
+	if err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "Failed to deploy template", err.Error())
+		return
+	}
+
+	response := DeploymentResponse{
+		ApplicationID: app.ID().String(),
+		Status:        "created",
+		Message:       "Application created successfully from template",
+	}
+
+	utils.SendJSON(w, http.StatusCreated, response)
+}
+
+func (h *TemplateHandler) PreviewDeployment(w http.ResponseWriter, r *http.Request) {
+	templateIDStr := chi.URLParam(r, "id")
+	templateID, err := services.TemplateIDFromString(templateIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "Invalid template ID", err.Error())
+		return
+	}
+
+	var req PreviewDeploymentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "Invalid request body", err.Error())
+		return
+	}
+
+	if err := h.validator.Struct(req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "Validation failed", err.Error())
+		return
+	}
+
+	projectID, err := uuid.Parse(req.ProjectID)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "Invalid project ID", err.Error())
+		return
+	}
+
+	environmentID, err := uuid.Parse(req.EnvironmentID)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "Invalid environment ID", err.Error())
+		return
+	}
+
+	// Create deployment request
+	deployReq := services.DeploymentRequest{
+		ProjectID:     projectID,
+		EnvironmentID: environmentID,
+		Name:          req.Name,
+		Environment:   req.Environment,
+		CustomConfig:  req.CustomConfig,
+	}
+
+	// Preview the deployment
+	preview, err := h.templateService.PreviewDeployment(r.Context(), templateID, deployReq)
+	if err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "Failed to preview deployment", err.Error())
+		return
+	}
+
+	response := DeploymentPreviewResponse{Preview: preview}
+	utils.SendJSON(w, http.StatusOK, response)
+}
+
+// Helper function to convert domain model to response DTO
+func (h *TemplateHandler) convertToTemplateResponse(template *services.ServiceTemplate) TemplateResponse {
+	return TemplateResponse{
+		ID:          template.ID().String(),
+		Name:        template.Name().String(),
+		Description: template.Description(),
+		Category:    template.Category(),
+		Version:     template.Version(),
+		GitURL:      template.GitURL(),
+		Environment: template.Environment(),
+		Ports:       template.Ports(),
+		Volumes:     template.Volumes(),
+		Official:    template.IsOfficial(),
+	}
 }

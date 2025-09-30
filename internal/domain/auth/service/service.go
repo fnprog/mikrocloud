@@ -16,6 +16,7 @@ import (
 	"github.com/mikrocloud/mikrocloud/internal/domain/auth"
 	"github.com/mikrocloud/mikrocloud/internal/domain/auth/repository"
 	"github.com/mikrocloud/mikrocloud/internal/domain/users"
+	usersRepo "github.com/mikrocloud/mikrocloud/internal/domain/users/repository"
 )
 
 // Service errors
@@ -33,6 +34,7 @@ var (
 type AuthService struct {
 	sessionRepo repository.SessionRepository
 	authRepo    repository.AuthRepository
+	usersRepo   usersRepo.Repository
 
 	// Configuration
 	jwtSecret            string
@@ -44,11 +46,13 @@ type AuthService struct {
 func NewAuthService(
 	sessionRepo repository.SessionRepository,
 	authRepo repository.AuthRepository,
+	usersRepo usersRepo.Repository,
 	jwtSecret string,
 ) *AuthService {
 	return &AuthService{
 		sessionRepo:          sessionRepo,
 		authRepo:             authRepo,
+		usersRepo:            usersRepo,
 		jwtSecret:            jwtSecret,
 		sessionDuration:      24 * time.Hour,      // 24 hours for regular sessions
 		refreshTokenDuration: 30 * 24 * time.Hour, // 30 days for refresh tokens
@@ -114,7 +118,7 @@ func (s *AuthService) Login(ctx context.Context, cmd LoginCommand) (*LoginResult
 	}
 
 	// Generate JWT token
-	token, err := s.generateJWTToken(user.ID().String())
+	token, err := s.generateJWTToken(ctx, user.ID().String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate JWT token: %w", err)
 	}
@@ -204,7 +208,7 @@ func (s *AuthService) Register(ctx context.Context, cmd RegisterCommand) (*Regis
 	}
 
 	// Generate JWT token
-	token, err := s.generateJWTToken(user.ID().String())
+	token, err := s.generateJWTToken(ctx, user.ID().String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate JWT token: %w", err)
 	}
@@ -422,14 +426,37 @@ func (s *AuthService) generateSecureToken() (string, error) {
 }
 
 // generateJWTToken generates a JWT token for the given user
-func (s *AuthService) generateJWTToken(userID string) (string, error) {
+func (s *AuthService) generateJWTToken(ctx context.Context, userID string) (string, error) {
 	now := time.Now()
+
+	// Parse user ID
+	userIDObj, err := users.UserIDFromString(userID)
+	if err != nil {
+		return "", fmt.Errorf("invalid user ID: %w", err)
+	}
+
+	// Get user's organizations to include first one as org_id in JWT
+	orgs, err := s.usersRepo.FindOrganizationsByUser(ctx, userIDObj)
+	if err != nil {
+		slog.Error("Failed to get user organizations", "error", err, "user_id", userID)
+		return "", fmt.Errorf("failed to get user organizations: %w", err)
+	}
+
+	// Use the first organization ID, or empty string if no organizations
+	var orgID string
+	if len(orgs) > 0 {
+		orgID = orgs[0].ID().String()
+		slog.Info("Found organizations for user", "user_id", userID, "org_id", orgID, "org_count", len(orgs))
+	} else {
+		slog.Warn("No organizations found for user", "user_id", userID)
+	}
 
 	token, err := jwt.NewBuilder().
 		Issuer("mikrocloud").
 		IssuedAt(now).
 		Expiration(now.Add(s.sessionDuration)).
 		Claim("user_id", userID).
+		Claim("org_id", orgID).
 		Build()
 	if err != nil {
 		return "", fmt.Errorf("failed to build JWT: %w", err)

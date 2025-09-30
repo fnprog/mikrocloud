@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
+	"github.com/mikrocloud/mikrocloud/internal/api/middleware"
 	"github.com/mikrocloud/mikrocloud/internal/domain/projects/service"
-	"github.com/mikrocloud/mikrocloud/internal/middleware"
 	"github.com/mikrocloud/mikrocloud/internal/utils"
 )
 

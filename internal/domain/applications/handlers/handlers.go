@@ -113,7 +113,7 @@ func (h *ApplicationHandler) CreateApplication(w http.ResponseWriter, r *http.Re
 		ProjectID:        projectID,
 		EnvironmentID:    environmentID,
 		DeploymentSource: req.DeploymentSource,
-		BuildpackConfig:  req.Buildpack,
+		BuildpackConfig:  convertLegacyBuildpackConfig(req.Buildpack),
 		EnvVars:          req.EnvVars,
 	}
 
@@ -131,7 +131,7 @@ func (h *ApplicationHandler) CreateApplication(w http.ResponseWriter, r *http.Re
 		EnvironmentID:    app.EnvironmentID().String(),
 		DeploymentSource: app.DeploymentSource(),
 		Domain:           app.Domain(),
-		Buildpack:        app.Buildpack(),
+		Buildpack:        convertToLegacyBuildpackConfig(app.Buildpack()),
 		EnvVars:          app.EnvVars(),
 		AutoDeploy:       app.AutoDeploy(),
 		Status:           app.Status(),
@@ -180,7 +180,7 @@ func (h *ApplicationHandler) GetApplication(w http.ResponseWriter, r *http.Reque
 		EnvironmentID:    app.EnvironmentID().String(),
 		DeploymentSource: app.DeploymentSource(),
 		Domain:           app.Domain(),
-		Buildpack:        app.Buildpack(),
+		Buildpack:        convertToLegacyBuildpackConfig(app.Buildpack()),
 		EnvVars:          app.EnvVars(),
 		AutoDeploy:       app.AutoDeploy(),
 		Status:           app.Status(),
@@ -275,7 +275,7 @@ func (h *ApplicationHandler) UpdateApplication(w http.ResponseWriter, r *http.Re
 		Description:      req.Description,
 		DeploymentSource: req.DeploymentSource,
 		Domain:           req.Domain,
-		BuildpackConfig:  req.Buildpack,
+		BuildpackConfig:  convertLegacyBuildpackConfigPtr(req.Buildpack),
 		EnvVars:          req.EnvVars,
 		AutoDeploy:       req.AutoDeploy,
 	}
@@ -294,7 +294,7 @@ func (h *ApplicationHandler) UpdateApplication(w http.ResponseWriter, r *http.Re
 		EnvironmentID:    updatedApp.EnvironmentID().String(),
 		DeploymentSource: updatedApp.DeploymentSource(),
 		Domain:           updatedApp.Domain(),
-		Buildpack:        updatedApp.Buildpack(),
+		Buildpack:        convertToLegacyBuildpackConfig(updatedApp.Buildpack()),
 		EnvVars:          updatedApp.EnvVars(),
 		AutoDeploy:       updatedApp.AutoDeploy(),
 		Status:           updatedApp.Status(),
@@ -414,4 +414,46 @@ func (h *ApplicationHandler) DeployApplication(w http.ResponseWriter, r *http.Re
 	}
 
 	utils.SendJSON(w, http.StatusOK, response)
+}
+
+// Helper functions to convert between legacy and new buildpack configs
+
+// convertLegacyBuildpackConfig converts from legacy BuildpackConfig to new BuildConfig
+func convertLegacyBuildpackConfig(legacy applications.BuildpackConfig) *applications.BuildConfig {
+	return applications.NewLegacyBuildpackConfig(legacy.Type, legacy.Config)
+}
+
+// convertLegacyBuildpackConfigPtr converts from pointer to legacy BuildpackConfig to new BuildConfig
+func convertLegacyBuildpackConfigPtr(legacy *applications.BuildpackConfig) *applications.BuildConfig {
+	if legacy == nil {
+		return nil
+	}
+	return applications.NewLegacyBuildpackConfig(legacy.Type, legacy.Config)
+}
+
+// convertToLegacyBuildpackConfig converts from new BuildConfig to legacy BuildpackConfig
+func convertToLegacyBuildpackConfig(config *applications.BuildConfig) applications.BuildpackConfig {
+	if config == nil {
+		return applications.BuildpackConfig{
+			Type:   applications.BuildpackTypeNixpacks,
+			Config: nil,
+		}
+	}
+
+	var configData interface{}
+	switch config.BuildpackType() {
+	case applications.BuildpackTypeNixpacks:
+		configData = config.NixpacksConfig()
+	case applications.BuildpackTypeStatic:
+		configData = config.StaticConfig()
+	case applications.BuildpackTypeDockerfile:
+		configData = config.DockerfileConfig()
+	case applications.BuildpackTypeDockerCompose:
+		configData = config.ComposeConfig()
+	}
+
+	return applications.BuildpackConfig{
+		Type:   config.BuildpackType(),
+		Config: configData,
+	}
 }

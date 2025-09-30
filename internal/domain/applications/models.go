@@ -23,11 +23,55 @@ const (
 	DeploymentSourceTypeUpload   DeploymentSourceType = "upload"
 )
 
+// GitRepoSource represents a Git repository source with enhanced validation
 type GitRepoSource struct {
 	URL    string `json:"url"`
 	Branch string `json:"branch"`
-	Path   string `json:"path,omitempty"`
+	Path   string `json:"path,omitempty"`  // Context root within repo
 	Token  string `json:"token,omitempty"` // For private repos
+}
+
+// GitURL is a value object for Git repository URLs with enhanced validation
+type GitURL struct {
+	value       string
+	branch      string
+	contextRoot string
+}
+
+func NewGitURL(url, branch, contextRoot string) (*GitURL, error) {
+	if url == "" {
+		return nil, fmt.Errorf("git URL cannot be empty")
+	}
+
+	if branch == "" {
+		branch = "main" // Default branch
+	}
+
+	return &GitURL{
+		value:       url,
+		branch:      branch,
+		contextRoot: contextRoot,
+	}, nil
+}
+
+func (g *GitURL) URL() string {
+	return g.value
+}
+
+func (g *GitURL) Branch() string {
+	return g.branch
+}
+
+func (g *GitURL) ContextRoot() string {
+	return g.contextRoot
+}
+
+func (g *GitURL) ToGitRepoSource() *GitRepoSource {
+	return &GitRepoSource{
+		URL:    g.value,
+		Branch: g.branch,
+		Path:   g.contextRoot,
+	}
 }
 
 type RegistrySource struct {
@@ -40,6 +84,85 @@ type UploadSource struct {
 	FilePath string `json:"file_path"`
 }
 
+// BuildConfig represents enhanced build configuration with specific buildpack configs
+type BuildConfig struct {
+	buildpackType BuildpackType
+	nixpacks      *NixpacksConfig
+	static        *StaticConfig
+	dockerfile    *DockerfileConfig
+	compose       *ComposeConfig
+}
+
+type NixpacksConfig struct {
+	StartCommand string            `json:"start_command,omitempty"`
+	BuildCommand string            `json:"build_command,omitempty"`
+	Variables    map[string]string `json:"variables,omitempty"`
+}
+
+type StaticConfig struct {
+	BuildCommand string `json:"build_command,omitempty"`
+	OutputDir    string `json:"output_dir,omitempty"`
+	NginxConfig  string `json:"nginx_config,omitempty"`
+}
+
+type DockerfileConfig struct {
+	DockerfilePath string            `json:"dockerfile_path,omitempty"`
+	BuildArgs      map[string]string `json:"build_args,omitempty"`
+	Target         string            `json:"target,omitempty"`
+}
+
+type ComposeConfig struct {
+	ComposeFile string `json:"compose_file,omitempty"`
+	Service     string `json:"service,omitempty"`
+}
+
+func NewBuildConfig(buildpackType BuildpackType) *BuildConfig {
+	return &BuildConfig{
+		buildpackType: buildpackType,
+	}
+}
+
+func (bc *BuildConfig) SetNixpacksConfig(config *NixpacksConfig) {
+	bc.buildpackType = BuildpackTypeNixpacks
+	bc.nixpacks = config
+}
+
+func (bc *BuildConfig) SetStaticConfig(config *StaticConfig) {
+	bc.buildpackType = BuildpackTypeStatic
+	bc.static = config
+}
+
+func (bc *BuildConfig) SetDockerfileConfig(config *DockerfileConfig) {
+	bc.buildpackType = BuildpackTypeDockerfile
+	bc.dockerfile = config
+}
+
+func (bc *BuildConfig) SetComposeConfig(config *ComposeConfig) {
+	bc.buildpackType = BuildpackTypeDockerCompose
+	bc.compose = config
+}
+
+func (bc *BuildConfig) BuildpackType() BuildpackType {
+	return bc.buildpackType
+}
+
+func (bc *BuildConfig) NixpacksConfig() *NixpacksConfig {
+	return bc.nixpacks
+}
+
+func (bc *BuildConfig) StaticConfig() *StaticConfig {
+	return bc.static
+}
+
+func (bc *BuildConfig) DockerfileConfig() *DockerfileConfig {
+	return bc.dockerfile
+}
+
+func (bc *BuildConfig) ComposeConfig() *ComposeConfig {
+	return bc.compose
+}
+
+// Legacy BuildpackConfig for backward compatibility
 type BuildpackConfig struct {
 	Type   BuildpackType `json:"type"`
 	Config any           `json:"config,omitempty"`
@@ -53,7 +176,7 @@ type Application struct {
 	environmentID    uuid.UUID
 	deploymentSource DeploymentSource
 	domain           string
-	buildpack        BuildpackConfig
+	buildpack        *BuildConfig
 	envVars          map[string]string
 	autoDeploy       bool
 	status           ApplicationStatus
@@ -124,7 +247,7 @@ func NewApplication(
 	description string,
 	projectID, environmentID uuid.UUID,
 	deploymentSource DeploymentSource,
-	buildpack BuildpackConfig,
+	buildpack *BuildConfig,
 ) *Application {
 	now := time.Now()
 	return &Application{
@@ -193,17 +316,48 @@ func (a *Application) Domain() string {
 }
 
 func (a *Application) BuildpackType() BuildpackType {
-	return a.buildpack.Type
+	if a.buildpack != nil {
+		return a.buildpack.BuildpackType()
+	}
+	return BuildpackTypeNixpacks // default
 }
 
 func (a *Application) Config() string {
-	if configJSON, err := json.Marshal(a.buildpack.Config); err == nil {
-		return string(configJSON)
+	// For backward compatibility, serialize the entire config
+	if a.buildpack == nil {
+		return "{}"
+	}
+
+	switch a.buildpack.BuildpackType() {
+	case BuildpackTypeNixpacks:
+		if config := a.buildpack.NixpacksConfig(); config != nil {
+			if configJSON, err := json.Marshal(config); err == nil {
+				return string(configJSON)
+			}
+		}
+	case BuildpackTypeStatic:
+		if config := a.buildpack.StaticConfig(); config != nil {
+			if configJSON, err := json.Marshal(config); err == nil {
+				return string(configJSON)
+			}
+		}
+	case BuildpackTypeDockerfile:
+		if config := a.buildpack.DockerfileConfig(); config != nil {
+			if configJSON, err := json.Marshal(config); err == nil {
+				return string(configJSON)
+			}
+		}
+	case BuildpackTypeDockerCompose:
+		if config := a.buildpack.ComposeConfig(); config != nil {
+			if configJSON, err := json.Marshal(config); err == nil {
+				return string(configJSON)
+			}
+		}
 	}
 	return "{}"
 }
 
-func (a *Application) Buildpack() BuildpackConfig {
+func (a *Application) Buildpack() *BuildConfig {
 	return a.buildpack
 }
 
@@ -277,19 +431,50 @@ func (a *Application) SetDomain(domain string) {
 }
 
 func (a *Application) SetBuildpackType(buildpackType BuildpackType) {
-	a.buildpack.Type = buildpackType
-	a.updatedAt = time.Now()
-}
-
-func (a *Application) UpdateConfig(config string) {
-	var configData interface{}
-	if err := json.Unmarshal([]byte(config), &configData); err == nil {
-		a.buildpack.Config = configData
+	if a.buildpack == nil {
+		a.buildpack = NewBuildConfig(buildpackType)
+	} else {
+		// Create new config with the new type, preserving existing config if possible
+		newConfig := NewBuildConfig(buildpackType)
+		// TODO: Add logic to preserve config when switching types if needed
+		a.buildpack = newConfig
 	}
 	a.updatedAt = time.Now()
 }
 
-func (a *Application) SetBuildpack(buildpack BuildpackConfig) {
+func (a *Application) UpdateConfig(config string) {
+	if a.buildpack == nil {
+		return
+	}
+
+	var configData interface{}
+	if err := json.Unmarshal([]byte(config), &configData); err != nil {
+		return
+	}
+
+	// Update specific config based on buildpack type
+	switch a.buildpack.BuildpackType() {
+	case BuildpackTypeNixpacks:
+		if nixpacksConfig, ok := configData.(*NixpacksConfig); ok {
+			a.buildpack.SetNixpacksConfig(nixpacksConfig)
+		}
+	case BuildpackTypeStatic:
+		if staticConfig, ok := configData.(*StaticConfig); ok {
+			a.buildpack.SetStaticConfig(staticConfig)
+		}
+	case BuildpackTypeDockerfile:
+		if dockerfileConfig, ok := configData.(*DockerfileConfig); ok {
+			a.buildpack.SetDockerfileConfig(dockerfileConfig)
+		}
+	case BuildpackTypeDockerCompose:
+		if composeConfig, ok := configData.(*ComposeConfig); ok {
+			a.buildpack.SetComposeConfig(composeConfig)
+		}
+	}
+	a.updatedAt = time.Now()
+}
+
+func (a *Application) SetBuildpack(buildpack *BuildConfig) {
 	a.buildpack = buildpack
 	a.updatedAt = time.Now()
 }
@@ -352,7 +537,7 @@ func ReconstructApplication(
 	projectID, environmentID uuid.UUID,
 	deploymentSource DeploymentSource,
 	domain string,
-	buildpack BuildpackConfig,
+	buildpack *BuildConfig,
 	envVars map[string]string,
 	autoDeploy bool,
 	status ApplicationStatus,
@@ -418,9 +603,28 @@ func NewUploadDeploymentSource(filename, filePath string) DeploymentSource {
 }
 
 // Helper functions for creating buildpack configs
-func NewBuildpackConfig(buildpackType BuildpackType, config interface{}) BuildpackConfig {
-	return BuildpackConfig{
-		Type:   buildpackType,
-		Config: config,
+func NewLegacyBuildpackConfig(buildpackType BuildpackType, config interface{}) *BuildConfig {
+	buildConfig := NewBuildConfig(buildpackType)
+
+	// Try to convert legacy config to new format
+	switch buildpackType {
+	case BuildpackTypeNixpacks:
+		if nixConfig, ok := config.(*NixpacksConfig); ok {
+			buildConfig.SetNixpacksConfig(nixConfig)
+		}
+	case BuildpackTypeStatic:
+		if staticConfig, ok := config.(*StaticConfig); ok {
+			buildConfig.SetStaticConfig(staticConfig)
+		}
+	case BuildpackTypeDockerfile:
+		if dockerConfig, ok := config.(*DockerfileConfig); ok {
+			buildConfig.SetDockerfileConfig(dockerConfig)
+		}
+	case BuildpackTypeDockerCompose:
+		if composeConfig, ok := config.(*ComposeConfig); ok {
+			buildConfig.SetComposeConfig(composeConfig)
+		}
 	}
+
+	return buildConfig
 }

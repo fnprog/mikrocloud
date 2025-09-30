@@ -35,7 +35,7 @@ type CreateApplicationCommand struct {
 	ProjectID        uuid.UUID
 	EnvironmentID    uuid.UUID
 	DeploymentSource applications.DeploymentSource
-	BuildpackConfig  applications.BuildpackConfig
+	BuildpackConfig  *applications.BuildConfig
 	EnvVars          map[string]string
 }
 
@@ -92,7 +92,7 @@ type UpdateApplicationCommand struct {
 	RepoPath         *string // For backward compatibility
 	Domain           *string
 	BuildpackType    *applications.BuildpackType // For backward compatibility
-	BuildpackConfig  *applications.BuildpackConfig
+	BuildpackConfig  *applications.BuildConfig
 	Config           *string // For backward compatibility
 	EnvVars          map[string]string
 	AutoDeploy       *bool
@@ -130,7 +130,7 @@ func (s *ApplicationService) UpdateApplication(ctx context.Context, cmd UpdateAp
 
 	// Handle buildpack updates
 	if cmd.BuildpackConfig != nil {
-		app.SetBuildpack(*cmd.BuildpackConfig)
+		app.SetBuildpack(cmd.BuildpackConfig)
 	} else {
 		// Handle backward compatibility fields
 		if cmd.BuildpackType != nil {

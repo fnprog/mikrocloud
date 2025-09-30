@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/mikrocloud/mikrocloud/internal/api/middleware"
@@ -10,24 +12,56 @@ import (
 	applicationsService "github.com/mikrocloud/mikrocloud/internal/domain/applications/service"
 	authHandlers "github.com/mikrocloud/mikrocloud/internal/domain/auth/handlers"
 	authService "github.com/mikrocloud/mikrocloud/internal/domain/auth/service"
+	databaseHandlers "github.com/mikrocloud/mikrocloud/internal/domain/databases/handlers"
+	databaseService "github.com/mikrocloud/mikrocloud/internal/domain/databases/service"
+	deploymentHandlers "github.com/mikrocloud/mikrocloud/internal/domain/deployments/handlers"
+	deploymentService "github.com/mikrocloud/mikrocloud/internal/domain/deployments/service"
 	envHandlers "github.com/mikrocloud/mikrocloud/internal/domain/environments/handlers"
 	environmentService "github.com/mikrocloud/mikrocloud/internal/domain/environments/service"
 	projectHandlers "github.com/mikrocloud/mikrocloud/internal/domain/projects/handlers"
 	projectService "github.com/mikrocloud/mikrocloud/internal/domain/projects/service"
+	serviceHandlers "github.com/mikrocloud/mikrocloud/internal/domain/services/handlers"
+	"github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
+	servicesService "github.com/mikrocloud/mikrocloud/internal/domain/services/service"
+	buildService "github.com/mikrocloud/mikrocloud/pkg/containers/build"
+	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
 )
 
 func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, tokenAuth *jwtauth.JWTAuth) error {
+	// Create container manager
+	containerManager, err := createContainerManager(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create container manager: %w", err)
+	}
+
 	// Create service instances
 	projSvc := projectService.NewProjectService(db.ProjectRepository)
-	authSvc := authService.NewAuthService(db.SessionRepository, db.AuthRepository, cfg.Auth.JWTSecret)
+	authSvc := authService.NewAuthService(db.SessionRepository, db.AuthRepository, db.UserRepository, cfg.Auth.JWTSecret)
 	envSvc := environmentService.NewEnvironmentService(db.EnvironmentRepository)
 	appSvc := applicationsService.NewApplicationService(db.ApplicationRepository)
+	dbSvc := databaseService.NewDatabaseService(db.DatabaseRepository)
+
+	// Create QuickDeployService wrapper for ApplicationService
+	quickDeployService := repository.NewQuickDeployService(db.TemplateRepository, appSvc)
+	templateSvc := servicesService.NewTemplateService(db.TemplateRepository, quickDeployService)
+
+	// Create build service
+	buildSvc := buildService.NewBuildService(containerManager, cfg.Docker.SocketPath)
+
+	// Create deployment service
+	deploymentSvc := deploymentService.NewDeploymentService(
+		db.DeploymentRepository,
+		buildSvc,
+	)
 
 	// Create handler dependencies
 	authHandler := authHandlers.NewAuthHandler(authSvc)
 	projectHandler := projectHandlers.NewProjectHandler(projSvc)
 	environmentHandler := envHandlers.NewEnvironmentHandler(envSvc)
 	applicationHandler := appHandlers.NewApplicationHandler(appSvc)
+	databaseHandler := databaseHandlers.NewDatabaseHandler(dbSvc)
+	deploymentHandler := deploymentHandlers.NewDeploymentHandler(deploymentSvc, appSvc)
+	templateHandler := serviceHandlers.NewTemplateHandler(templateSvc)
 
 	// Protected routes that require authentication
 	api.Group(func(r chi.Router) {
@@ -64,46 +98,50 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 						r.Put("/", applicationHandler.UpdateApplication)
 						r.Delete("/", applicationHandler.DeleteApplication)
 						r.Post("/deploy", applicationHandler.DeployApplication)
+
+						// Deployment routes within application
+						r.Route("/deployments", func(r chi.Router) {
+							r.Get("/", deploymentHandler.ListDeployments)
+							r.Post("/", deploymentHandler.CreateDeployment)
+							r.Route("/{deployment_id}", func(r chi.Router) {
+								r.Get("/", deploymentHandler.GetDeployment)
+								r.Post("/stop", deploymentHandler.StopDeployment)
+								r.Post("/cancel", deploymentHandler.CancelDeployment)
+								r.Get("/logs", deploymentHandler.GetDeploymentLogs)
+							})
+						})
+					})
+				})
+
+				// Database routes within project
+				r.Route("/databases", func(r chi.Router) {
+					r.Get("/", databaseHandler.ListDatabases)
+					r.Post("/", databaseHandler.CreateDatabase)
+					r.Get("/types", databaseHandler.GetDatabaseTypes)
+					r.Get("/types/{type}/config", databaseHandler.GetDefaultDatabaseConfig)
+					r.Route("/{database_id}", func(r chi.Router) {
+						r.Get("/", databaseHandler.GetDatabase)
+						r.Put("/", databaseHandler.UpdateDatabase)
+						r.Delete("/", databaseHandler.DeleteDatabase)
+						r.Post("/action", databaseHandler.DatabaseAction)
 					})
 				})
 			})
 		})
 
-		// Service routes - TODO: Implement service handlers
-		/*
-			r.Route("/services", func(r chi.Router) {
-				r.Get("/", serviceHandler.List)
-				r.Post("/", serviceHandler.Create)
-				r.Route("/{id}", func(r chi.Router) {
-					r.Get("/", serviceHandler.Get)
-					r.Put("/", serviceHandler.Update)
-					r.Delete("/", serviceHandler.Delete)
-					r.Post("/start", serviceHandler.Start)
-					r.Post("/stop", serviceHandler.Stop)
-					r.Post("/restart", serviceHandler.Restart)
-					r.Get("/logs", serviceHandler.Logs)
-					r.Get("/stats", serviceHandler.Stats)
-					r.Post("/scale", serviceHandler.Scale)
-				})
+		// Template routes
+		r.Route("/templates", func(r chi.Router) {
+			r.Get("/", templateHandler.ListTemplates)
+			r.Post("/", templateHandler.CreateTemplate)
+			r.Get("/official", templateHandler.ListOfficialTemplates)
+			r.Route("/{id}", func(r chi.Router) {
+				r.Get("/", templateHandler.GetTemplate)
+				r.Put("/", templateHandler.UpdateTemplate)
+				r.Delete("/", templateHandler.DeleteTemplate)
+				r.Post("/deploy", templateHandler.DeployTemplate)
+				r.Post("/preview", templateHandler.PreviewDeployment)
 			})
-		*/
-
-		// Deployment routes - TODO: Implement deployment handlers
-		/*
-			r.Route("/deployments", func(r chi.Router) {
-				r.Get("/", deploymentHandler.List)
-				r.Post("/", deploymentHandler.Create)
-				r.Route("/{id}", func(r chi.Router) {
-					r.Get("/", deploymentHandler.Get)
-					r.Put("/", deploymentHandler.Update)
-					r.Delete("/", deploymentHandler.Delete)
-					r.Post("/start", deploymentHandler.Start)
-					r.Post("/stop", deploymentHandler.Stop)
-					r.Post("/restart", deploymentHandler.Restart)
-					r.Get("/logs", deploymentHandler.Logs)
-				})
-			})
-		*/
+		})
 	})
 
 	// Public routes (no authentication required)
@@ -123,4 +161,15 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	})
 
 	return nil
+}
+
+func createContainerManager(cfg *config.Config) (manager.ContainerManager, error) {
+	switch cfg.Docker.Runtime {
+	case "docker":
+		return manager.NewDockerManager()
+	case "podman":
+		return manager.NewPodmanManager()
+	default:
+		return manager.NewDockerManager() // Default to Docker
+	}
 }

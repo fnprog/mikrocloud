@@ -252,20 +252,16 @@ func (r *SQLiteUserRepository) FindOrganizationBySlug(ctx context.Context, slug 
 }
 
 func (r *SQLiteUserRepository) FindOrganizationsByUser(ctx context.Context, userID users.UserID) ([]*users.Organization, error) {
-	query := sqlite.Select(
-		sm.Columns("o.id", "o.name", "o.slug", "o.description", "o.owner_id", "o.billing_email", "o.plan", "o.status", "o.created_at", "o.updated_at"),
-		sm.From("organizations o"),
-		sm.InnerJoin("organization_members om").On(sqlite.Quote("o.id").EQ(sqlite.Quote("om.organization_id"))),
-		sm.Where(sqlite.Quote("om.user_id").EQ(sqlite.Arg(userID.String()))),
-		sm.OrderBy("o.created_at").Desc(),
-	)
+	// Use direct query since bob SQL builder had quoting issues
+	queryStr := `
+		SELECT o.id, o.name, o.slug, o.description, o.owner_id, o.billing_email, o.plan, o.status, o.created_at, o.updated_at
+		FROM organizations o
+		INNER JOIN organization_members om ON o.id = om.organization_id
+		WHERE om.user_id = ?
+		ORDER BY o.created_at DESC
+	`
 
-	queryStr, args, err := query.Build(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build query: %w", err)
-	}
-
-	rows, err := r.db.QueryContext(ctx, queryStr, args...)
+	rows, err := r.db.QueryContext(ctx, queryStr, userID.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to query organizations: %w", err)
 	}

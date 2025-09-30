@@ -414,22 +414,16 @@ func (r *SQLiteApplicationRepository) mapRowToApplication(row applicationRow) (*
 
 	// Parse buildpack config from config field
 	buildpackType := applications.BuildpackType(row.BuildpackType)
-	var buildpackConfig applications.BuildpackConfig
+	var buildConfig *applications.BuildConfig
 
-	// Try to parse config as new buildpack config format
+	// Try to parse config as legacy buildpack config format
 	var parsedConfig applications.BuildpackConfig
 	if err := json.Unmarshal([]byte(row.Config), &parsedConfig); err == nil && parsedConfig.Type != "" {
-		buildpackConfig = parsedConfig
+		// Convert legacy format to new format
+		buildConfig = applications.NewLegacyBuildpackConfig(parsedConfig.Type, parsedConfig.Config)
 	} else {
-		// Fallback to legacy format - use buildpack_type and config as raw config
-		var configData interface{}
-		if err := json.Unmarshal([]byte(row.Config), &configData); err != nil {
-			configData = map[string]interface{}{}
-		}
-		buildpackConfig = applications.BuildpackConfig{
-			Type:   buildpackType,
-			Config: configData,
-		}
+		// Fallback to simple config
+		buildConfig = applications.NewBuildConfig(buildpackType)
 	}
 
 	// For now, empty env vars (we'll add this to schema later)
@@ -437,6 +431,6 @@ func (r *SQLiteApplicationRepository) mapRowToApplication(row applicationRow) (*
 
 	return applications.ReconstructApplication(
 		appID, appName, description, projectID, environmentID,
-		deploymentSource, domain, buildpackConfig, envVars,
+		deploymentSource, domain, buildConfig, envVars,
 		row.AutoDeploy, status, createdAt, updatedAt), nil
 }
