@@ -175,6 +175,7 @@ type Database struct {
 	status           DatabaseStatus
 	connectionString string
 	ports            map[string]int // map of service name to port
+	containerID      string         // container ID for deployed database
 	createdAt        time.Time
 	updatedAt        time.Time
 }
@@ -295,6 +296,10 @@ func (d *Database) UpdatedAt() time.Time {
 	return d.updatedAt
 }
 
+func (d *Database) ContainerID() string {
+	return d.containerID
+}
+
 // Setters
 func (d *Database) UpdateDescription(description string) {
 	d.description = description
@@ -321,6 +326,11 @@ func (d *Database) SetPorts(ports map[string]int) {
 	for k, v := range ports {
 		d.ports[k] = v
 	}
+	d.updatedAt = time.Now()
+}
+
+func (d *Database) SetContainerID(containerID string) {
+	d.containerID = containerID
 	d.updatedAt = time.Now()
 }
 
@@ -468,6 +478,7 @@ func ReconstructDatabase(
 	status DatabaseStatus,
 	connectionString string,
 	ports map[string]int,
+	containerID string,
 	createdAt, updatedAt time.Time,
 ) *Database {
 	if ports == nil {
@@ -484,6 +495,7 @@ func ReconstructDatabase(
 		status:           status,
 		connectionString: connectionString,
 		ports:            ports,
+		containerID:      containerID,
 		createdAt:        createdAt,
 		updatedAt:        updatedAt,
 	}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mikrocloud/mikrocloud/internal/domain/databases"
+	"github.com/mikrocloud/mikrocloud/pkg/containers/database"
 )
 
 type DatabaseRepository interface {
@@ -14,18 +15,21 @@ type DatabaseRepository interface {
 	GetByName(projectID uuid.UUID, name databases.DatabaseName) (*databases.Database, error)
 	ListByProject(projectID uuid.UUID) ([]*databases.Database, error)
 	ListByEnvironment(projectID, environmentID uuid.UUID) ([]*databases.Database, error)
+	ListAllWithContainers() ([]*databases.Database, error)
 	Update(database *databases.Database) error
 	Delete(id databases.DatabaseID) error
 	ExistsByName(projectID uuid.UUID, name databases.DatabaseName) (bool, error)
 }
 
 type DatabaseService struct {
-	repo DatabaseRepository
+	repo                DatabaseRepository
+	containerDeployment database.DatabaseDeploymentService
 }
 
-func NewDatabaseService(repo DatabaseRepository) *DatabaseService {
+func NewDatabaseService(repo DatabaseRepository, containerDeployment database.DatabaseDeploymentService) *DatabaseService {
 	return &DatabaseService{
-		repo: repo,
+		repo:                repo,
+		containerDeployment: containerDeployment,
 	}
 }
 
@@ -180,7 +184,16 @@ func (s *DatabaseService) DeleteDatabase(ctx context.Context, id databases.Datab
 		return fmt.Errorf("failed to update database status: %w", err)
 	}
 
-	// Delete the database
+	// Remove the container if it exists
+	if database.ContainerID() != "" {
+		if err := s.containerDeployment.Remove(ctx, database); err != nil {
+			// Log the error but continue with database deletion
+			// This ensures we can clean up the database record even if container removal fails
+			fmt.Printf("Warning: failed to remove database container: %v\n", err)
+		}
+	}
+
+	// Delete the database record
 	if err := s.repo.Delete(id); err != nil {
 		return fmt.Errorf("failed to delete database: %w", err)
 	}
@@ -220,9 +233,18 @@ func (s *DatabaseService) StartDatabase(ctx context.Context, id databases.Databa
 		return fmt.Errorf("failed to update database status: %w", err)
 	}
 
-	// TODO: Integrate with container manager to actually start the database container
-	// For now, we just mark it as running
+	// Deploy the database container
+	deployResult, err := s.containerDeployment.Deploy(ctx, database)
+	if err != nil {
+		// Mark as failed if deployment fails
+		database.ChangeStatus(databases.DatabaseStatusFailed)
+		_ = s.repo.Update(database)
+		return fmt.Errorf("failed to deploy database container: %w", err)
+	}
+
+	// Update database with container information
 	database.ChangeStatus(databases.DatabaseStatusRunning)
+	database.SetContainerID(deployResult.ContainerID)
 
 	if err := s.repo.Update(database); err != nil {
 		return fmt.Errorf("failed to update database status: %w", err)
@@ -241,13 +263,18 @@ func (s *DatabaseService) StopDatabase(ctx context.Context, id databases.Databas
 		return fmt.Errorf("cannot stop database: %w", err)
 	}
 
+	// Stop the container if it exists
+	if database.ContainerID() != "" {
+		if err := s.containerDeployment.Stop(ctx, database); err != nil {
+			return fmt.Errorf("failed to stop database container: %w", err)
+		}
+	}
+
 	database.ChangeStatus(databases.DatabaseStatusStopped)
 
 	if err := s.repo.Update(database); err != nil {
 		return fmt.Errorf("failed to update database status: %w", err)
 	}
-
-	// TODO: Integrate with container manager to actually stop the database container
 
 	return nil
 }

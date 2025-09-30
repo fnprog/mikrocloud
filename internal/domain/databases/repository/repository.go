@@ -16,6 +16,7 @@ type DatabaseRepository interface {
 	GetByName(projectID uuid.UUID, name databases.DatabaseName) (*databases.Database, error)
 	ListByProject(projectID uuid.UUID) ([]*databases.Database, error)
 	ListByEnvironment(projectID, environmentID uuid.UUID) ([]*databases.Database, error)
+	ListAllWithContainers() ([]*databases.Database, error)
 	Update(database *databases.Database) error
 	Delete(id databases.DatabaseID) error
 	ExistsByName(projectID uuid.UUID, name databases.DatabaseName) (bool, error)
@@ -43,8 +44,8 @@ func (r *SQLiteDatabaseRepository) Create(database *databases.Database) error {
 	query := `
 		INSERT INTO databases (
 			id, name, description, type, project_id, environment_id,
-			config, status, connection_string, ports, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			config, status, connection_string, ports, container_id, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err = r.db.Exec(
@@ -59,6 +60,7 @@ func (r *SQLiteDatabaseRepository) Create(database *databases.Database) error {
 		string(database.Status()),
 		database.ConnectionString(),
 		string(portsJSON),
+		database.ContainerID(),
 		database.CreatedAt(),
 		database.UpdatedAt(),
 	)
@@ -73,7 +75,7 @@ func (r *SQLiteDatabaseRepository) Create(database *databases.Database) error {
 func (r *SQLiteDatabaseRepository) GetByID(id databases.DatabaseID) (*databases.Database, error) {
 	query := `
 		SELECT id, name, description, type, project_id, environment_id,
-			   config, status, connection_string, ports, created_at, updated_at
+			   config, status, connection_string, ports, container_id, created_at, updated_at
 		FROM databases
 		WHERE id = ?
 	`
@@ -85,7 +87,7 @@ func (r *SQLiteDatabaseRepository) GetByID(id databases.DatabaseID) (*databases.
 func (r *SQLiteDatabaseRepository) GetByName(projectID uuid.UUID, name databases.DatabaseName) (*databases.Database, error) {
 	query := `
 		SELECT id, name, description, type, project_id, environment_id,
-			   config, status, connection_string, ports, created_at, updated_at
+			   config, status, connection_string, ports, container_id, created_at, updated_at
 		FROM databases
 		WHERE project_id = ? AND name = ?
 	`
@@ -97,7 +99,7 @@ func (r *SQLiteDatabaseRepository) GetByName(projectID uuid.UUID, name databases
 func (r *SQLiteDatabaseRepository) ListByProject(projectID uuid.UUID) ([]*databases.Database, error) {
 	query := `
 		SELECT id, name, description, type, project_id, environment_id,
-			   config, status, connection_string, ports, created_at, updated_at
+			   config, status, connection_string, ports, container_id, created_at, updated_at
 		FROM databases
 		WHERE project_id = ?
 		ORDER BY name ASC
@@ -115,7 +117,7 @@ func (r *SQLiteDatabaseRepository) ListByProject(projectID uuid.UUID) ([]*databa
 func (r *SQLiteDatabaseRepository) ListByEnvironment(projectID, environmentID uuid.UUID) ([]*databases.Database, error) {
 	query := `
 		SELECT id, name, description, type, project_id, environment_id,
-			   config, status, connection_string, ports, created_at, updated_at
+			   config, status, connection_string, ports, container_id, created_at, updated_at
 		FROM databases
 		WHERE project_id = ? AND environment_id = ?
 		ORDER BY name ASC
@@ -124,6 +126,24 @@ func (r *SQLiteDatabaseRepository) ListByEnvironment(projectID, environmentID uu
 	rows, err := r.db.Query(query, projectID.String(), environmentID.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to list databases by environment: %w", err)
+	}
+	defer rows.Close()
+
+	return r.scanDatabases(rows)
+}
+
+func (r *SQLiteDatabaseRepository) ListAllWithContainers() ([]*databases.Database, error) {
+	query := `
+		SELECT id, name, description, type, project_id, environment_id,
+			   config, status, connection_string, ports, container_id, created_at, updated_at
+		FROM databases
+		WHERE container_id != '' AND container_id IS NOT NULL
+		ORDER BY name ASC
+	`
+
+	rows, err := r.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list databases with containers: %w", err)
 	}
 	defer rows.Close()
 
@@ -144,7 +164,7 @@ func (r *SQLiteDatabaseRepository) Update(database *databases.Database) error {
 	query := `
 		UPDATE databases
 		SET name = ?, description = ?, type = ?, config = ?, status = ?,
-		    connection_string = ?, ports = ?, updated_at = ?
+		    connection_string = ?, ports = ?, container_id = ?, updated_at = ?
 		WHERE id = ?
 	`
 
@@ -157,6 +177,7 @@ func (r *SQLiteDatabaseRepository) Update(database *databases.Database) error {
 		string(database.Status()),
 		database.ConnectionString(),
 		string(portsJSON),
+		database.ContainerID(),
 		database.UpdatedAt(),
 		database.ID().String(),
 	)
@@ -213,12 +234,13 @@ func (r *SQLiteDatabaseRepository) scanDatabase(row *sql.Row) (*databases.Databa
 	var (
 		id, name, description, dbType, projectID, environmentID string
 		configJSON, status, connectionString, portsJSON         string
+		containerID                                             string
 		createdAt, updatedAt                                    string
 	)
 
 	err := row.Scan(
 		&id, &name, &description, &dbType, &projectID, &environmentID,
-		&configJSON, &status, &connectionString, &portsJSON, &createdAt, &updatedAt,
+		&configJSON, &status, &connectionString, &portsJSON, &containerID, &createdAt, &updatedAt,
 	)
 
 	if err != nil {
@@ -230,7 +252,7 @@ func (r *SQLiteDatabaseRepository) scanDatabase(row *sql.Row) (*databases.Databa
 
 	return r.buildDatabaseFromRow(
 		id, name, description, dbType, projectID, environmentID,
-		configJSON, status, connectionString, portsJSON, createdAt, updatedAt,
+		configJSON, status, connectionString, portsJSON, containerID, createdAt, updatedAt,
 	)
 }
 
@@ -241,12 +263,13 @@ func (r *SQLiteDatabaseRepository) scanDatabases(rows *sql.Rows) ([]*databases.D
 		var (
 			id, name, description, dbType, projectID, environmentID string
 			configJSON, status, connectionString, portsJSON         string
+			containerID                                             string
 			createdAt, updatedAt                                    string
 		)
 
 		err := rows.Scan(
 			&id, &name, &description, &dbType, &projectID, &environmentID,
-			&configJSON, &status, &connectionString, &portsJSON, &createdAt, &updatedAt,
+			&configJSON, &status, &connectionString, &portsJSON, &containerID, &createdAt, &updatedAt,
 		)
 
 		if err != nil {
@@ -255,7 +278,7 @@ func (r *SQLiteDatabaseRepository) scanDatabases(rows *sql.Rows) ([]*databases.D
 
 		database, err := r.buildDatabaseFromRow(
 			id, name, description, dbType, projectID, environmentID,
-			configJSON, status, connectionString, portsJSON, createdAt, updatedAt,
+			configJSON, status, connectionString, portsJSON, containerID, createdAt, updatedAt,
 		)
 
 		if err != nil {
@@ -274,7 +297,7 @@ func (r *SQLiteDatabaseRepository) scanDatabases(rows *sql.Rows) ([]*databases.D
 
 func (r *SQLiteDatabaseRepository) buildDatabaseFromRow(
 	idStr, nameStr, description, dbTypeStr, projectIDStr, environmentIDStr,
-	configJSON, statusStr, connectionString, portsJSON, createdAtStr, updatedAtStr string,
+	configJSON, statusStr, connectionString, portsJSON, containerID, createdAtStr, updatedAtStr string,
 ) (*databases.Database, error) {
 	// Parse IDs
 	databaseID, err := databases.DatabaseIDFromString(idStr)
@@ -332,6 +355,7 @@ func (r *SQLiteDatabaseRepository) buildDatabaseFromRow(
 		databases.DatabaseStatus(statusStr),
 		connectionString,
 		ports,
+		containerID,
 		createdAt,
 		updatedAt,
 	), nil

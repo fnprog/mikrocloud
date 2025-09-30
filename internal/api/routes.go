@@ -1,7 +1,10 @@
 package api
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
@@ -24,6 +27,7 @@ import (
 	"github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
 	servicesService "github.com/mikrocloud/mikrocloud/internal/domain/services/service"
 	buildService "github.com/mikrocloud/mikrocloud/pkg/containers/build"
+	databaseContainers "github.com/mikrocloud/mikrocloud/pkg/containers/database"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
 )
 
@@ -39,7 +43,17 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	authSvc := authService.NewAuthService(db.SessionRepository, db.AuthRepository, db.UserRepository, cfg.Auth.JWTSecret)
 	envSvc := environmentService.NewEnvironmentService(db.EnvironmentRepository)
 	appSvc := applicationsService.NewApplicationService(db.ApplicationRepository)
-	dbSvc := databaseService.NewDatabaseService(db.DatabaseRepository)
+
+	// Create database container deployment service
+	dbImageResolver := databaseContainers.NewDefaultImageResolver()
+	dbConfigBuilder := databaseContainers.NewDefaultContainerConfigBuilder(dbImageResolver)
+	dbDeploymentSvc := databaseContainers.NewDatabaseDeploymentService(containerManager, dbImageResolver, dbConfigBuilder)
+	dbSvc := databaseService.NewDatabaseService(db.DatabaseRepository, dbDeploymentSvc)
+
+	// Create and start database status sync service
+	logger := slog.Default()
+	statusSyncSvc := databaseService.NewStatusSyncService(dbSvc, containerManager, logger, 30*time.Second)
+	go statusSyncSvc.Start(context.Background())
 
 	// Create QuickDeployService wrapper for ApplicationService
 	quickDeployService := repository.NewQuickDeployService(db.TemplateRepository, appSvc)
@@ -59,7 +73,7 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	projectHandler := projectHandlers.NewProjectHandler(projSvc)
 	environmentHandler := envHandlers.NewEnvironmentHandler(envSvc)
 	applicationHandler := appHandlers.NewApplicationHandler(appSvc)
-	databaseHandler := databaseHandlers.NewDatabaseHandler(dbSvc)
+	databaseHandler := databaseHandlers.NewDatabaseHandler(dbSvc, containerManager)
 	deploymentHandler := deploymentHandlers.NewDeploymentHandler(deploymentSvc, appSvc)
 	templateHandler := serviceHandlers.NewTemplateHandler(templateSvc)
 
@@ -124,6 +138,7 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 						r.Put("/", databaseHandler.UpdateDatabase)
 						r.Delete("/", databaseHandler.DeleteDatabase)
 						r.Post("/action", databaseHandler.DatabaseAction)
+						r.Get("/logs", databaseHandler.GetDatabaseLogs)
 					})
 				})
 			})

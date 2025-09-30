@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -11,17 +12,20 @@ import (
 	"github.com/mikrocloud/mikrocloud/internal/domain/databases"
 	"github.com/mikrocloud/mikrocloud/internal/domain/databases/service"
 	"github.com/mikrocloud/mikrocloud/internal/utils"
+	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
 )
 
 type DatabaseHandler struct {
-	dbService *service.DatabaseService
-	validator *validator.Validate
+	dbService        *service.DatabaseService
+	containerManager manager.ContainerManager
+	validator        *validator.Validate
 }
 
-func NewDatabaseHandler(dbService *service.DatabaseService) *DatabaseHandler {
+func NewDatabaseHandler(dbService *service.DatabaseService, containerManager manager.ContainerManager) *DatabaseHandler {
 	return &DatabaseHandler{
-		dbService: dbService,
-		validator: validator.New(),
+		dbService:        dbService,
+		containerManager: containerManager,
+		validator:        validator.New(),
 	}
 }
 
@@ -567,4 +571,69 @@ func (h *DatabaseHandler) GetDefaultDatabaseConfig(w http.ResponseWriter, r *htt
 	}
 
 	utils.SendJSON(w, http.StatusOK, config)
+}
+
+// GetDatabaseLogs streams logs from a database container
+func (h *DatabaseHandler) GetDatabaseLogs(w http.ResponseWriter, r *http.Request) {
+	// Get database ID from URL
+	databaseIDStr := chi.URLParam(r, "database_id")
+	databaseID, err := databases.DatabaseIDFromString(databaseIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_database_id", "Invalid database ID")
+		return
+	}
+
+	// Get project ID from URL for validation
+	projectIDStr := chi.URLParam(r, "project_id")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_project_id", "Invalid project ID")
+		return
+	}
+
+	// First verify the database exists and belongs to the project
+	database, err := h.dbService.GetDatabase(r.Context(), databaseID)
+	if err != nil {
+		utils.SendError(w, http.StatusNotFound, "database_not_found", "Database not found")
+		return
+	}
+
+	if database.ProjectID() != projectID {
+		utils.SendError(w, http.StatusNotFound, "database_not_found", "Database not found in project")
+		return
+	}
+
+	// Check if database has a container
+	if database.ContainerID() == "" {
+		utils.SendError(w, http.StatusBadRequest, "no_container", "Database has no running container")
+		return
+	}
+
+	// Get follow parameter (default to false)
+	follow := r.URL.Query().Get("follow") == "true"
+
+	// Stream logs from container
+	logStream, err := h.containerManager.StreamLogs(r.Context(), database.ContainerID(), follow)
+	if err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "logs_failed", "Failed to get container logs: "+err.Error())
+		return
+	}
+	defer logStream.Close()
+
+	// Set appropriate headers for streaming
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	if follow {
+		w.Header().Set("Transfer-Encoding", "chunked")
+	}
+
+	// Copy logs to response
+	_, err = io.Copy(w, logStream)
+	if err != nil {
+		// Log error but don't send HTTP error since we've already started writing
+		// This is common when client disconnects from a streaming endpoint
+		return
+	}
 }
