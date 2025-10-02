@@ -20,18 +20,21 @@ import (
 	"github.com/mikrocloud/mikrocloud/internal/api"
 	"github.com/mikrocloud/mikrocloud/internal/config"
 	"github.com/mikrocloud/mikrocloud/internal/database"
+	"github.com/mikrocloud/mikrocloud/internal/domain/proxy"
+	proxyContainers "github.com/mikrocloud/mikrocloud/pkg/containers/proxy"
 )
 
 type Server struct {
-	config    *config.Config
-	db        *database.Database
-	router    *chi.Mux
-	staticFS  fs.FS
-	tokenAuth *jwtauth.JWTAuth
+	config     *config.Config
+	db         *database.Database
+	router     *chi.Mux
+	staticFS   fs.FS
+	tokenAuth  *jwtauth.JWTAuth
+	traefikSvc *proxyContainers.TraefikService
 }
 
 func New(cfg *config.Config, staticFS fs.FS) *Server {
-	db, err := database.New(cfg.Database.URL)
+	db, err := database.New(cfg)
 	if err != nil {
 		slog.Error("Failed to initialize database", "error", err)
 		os.Exit(1)
@@ -81,9 +84,27 @@ func New(cfg *config.Config, staticFS fs.FS) *Server {
 }
 
 func (s *Server) Start(ctx context.Context) error {
-	// Setup routes
-	s.setupAPIRoutes()
+	// Setup routes and get Traefik service
+	if err := s.setupAPIRoutes(ctx); err != nil {
+		return fmt.Errorf("failed to setup API routes: %w", err)
+	}
 	s.setupStaticRoutes()
+
+	// Start Traefik service if available
+	if s.traefikSvc != nil {
+		slog.Info("Starting Traefik reverse proxy service")
+
+		// Create default global configuration for Traefik
+		globalConfig := proxy.NewTraefikGlobalConfig()
+
+		if err := s.traefikSvc.Start(ctx, globalConfig); err != nil {
+			slog.Error("Failed to start Traefik service", "error", err)
+			// Don't fail the server if Traefik fails to start
+			// Just log the error and continue
+		} else {
+			slog.Info("Traefik service started successfully")
+		}
+	}
 
 	addr := fmt.Sprintf("%s:%d", s.config.Server.Host, s.config.Server.Port)
 
@@ -116,6 +137,14 @@ func (s *Server) Start(ctx context.Context) error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
+		// Stop Traefik service first
+		if s.traefikSvc != nil {
+			slog.Info("Stopping Traefik service")
+			if err := s.traefikSvc.Stop(shutdownCtx); err != nil {
+				slog.Error("Error stopping Traefik service", "error", err)
+			}
+		}
+
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			return fmt.Errorf("server shutdown error: %w", err)
 		}
@@ -125,10 +154,20 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 }
 
-func (s *Server) setupAPIRoutes() {
+func (s *Server) setupAPIRoutes(ctx context.Context) error {
+	var traefikSvc *proxyContainers.TraefikService
+	var err error
+
 	s.router.Route("/api", func(r chi.Router) {
-		api.SetupRoutes(r, s.db, s.config, s.tokenAuth)
+		traefikSvc, _, err = api.SetupRoutes(r, s.db, s.config, s.tokenAuth, ctx)
 	})
+
+	if err != nil {
+		return err
+	}
+
+	s.traefikSvc = traefikSvc
+	return nil
 }
 
 func (s *Server) setupStaticRoutes() {

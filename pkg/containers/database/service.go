@@ -36,6 +36,11 @@ func (s *Service) Deploy(ctx context.Context, database *databases.Database) (*De
 		return nil, fmt.Errorf("failed to build container config: %w", err)
 	}
 
+	// Pull the image if not present
+	if err := s.containerManager.PullImage(ctx, config.Image); err != nil {
+		return nil, fmt.Errorf("failed to pull image: %w", err)
+	}
+
 	// Convert to manager.ContainerConfig
 	containerConfig := manager.ContainerConfig{
 		Image:         config.Image,

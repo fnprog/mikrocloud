@@ -12,6 +12,7 @@ type ContainerManager interface {
 	Stop(ctx context.Context, containerID string) error
 	Restart(ctx context.Context, containerID string) error
 	Delete(ctx context.Context, containerID string) error
+	Wait(ctx context.Context, containerID string) (int64, error)
 
 	// Logging
 	StreamLogs(ctx context.Context, containerID string, follow bool) (io.ReadCloser, error)
@@ -33,6 +34,7 @@ type ContainerConfig struct {
 	Environment   map[string]string
 	Volumes       map[string]string // host:container
 	Networks      []string
+	NetworkMode   string // Network mode: "bridge", "host", "none", or container:<name|id>
 	RestartPolicy string
 	WorkingDir    string
 	Command       []string

@@ -81,6 +81,68 @@ type DatabaseTypesResponse struct {
 	Types []databases.DatabaseType `json:"types"`
 }
 
+func maskDatabaseConfig(config databases.DatabaseConfig) databases.DatabaseConfig {
+	masked := config
+
+	if config.PostgreSQL != nil {
+		pgCopy := *config.PostgreSQL
+		pgCopy.Password = "********"
+		masked.PostgreSQL = &pgCopy
+	}
+
+	if config.MySQL != nil {
+		mysqlCopy := *config.MySQL
+		mysqlCopy.Password = "********"
+		mysqlCopy.RootPassword = "********"
+		masked.MySQL = &mysqlCopy
+	}
+
+	if config.MariaDB != nil {
+		mariadbCopy := *config.MariaDB
+		mariadbCopy.Password = "********"
+		mariadbCopy.RootPassword = "********"
+		masked.MariaDB = &mariadbCopy
+	}
+
+	if config.Redis != nil {
+		redisCopy := *config.Redis
+		if redisCopy.Password != "" {
+			redisCopy.Password = "********"
+		}
+		masked.Redis = &redisCopy
+	}
+
+	if config.KeyDB != nil {
+		keydbCopy := *config.KeyDB
+		if keydbCopy.Password != "" {
+			keydbCopy.Password = "********"
+		}
+		masked.KeyDB = &keydbCopy
+	}
+
+	if config.Dragonfly != nil {
+		dragonflyCopy := *config.Dragonfly
+		if dragonflyCopy.Password != "" {
+			dragonflyCopy.Password = "********"
+		}
+		masked.Dragonfly = &dragonflyCopy
+	}
+
+	if config.MongoDB != nil {
+		mongodbCopy := *config.MongoDB
+		mongodbCopy.Password = "********"
+		masked.MongoDB = &mongodbCopy
+	}
+
+	if config.ClickHouse != nil {
+		clickhouseCopy := *config.ClickHouse
+		clickhouseCopy.Password = "********"
+		masked.ClickHouse = &clickhouseCopy
+	}
+
+	return masked
+}
+
 // CreateDatabase creates a new database in a project
 func (h *DatabaseHandler) CreateDatabase(w http.ResponseWriter, r *http.Request) {
 	var req CreateDatabaseRequest
@@ -140,7 +202,7 @@ func (h *DatabaseHandler) CreateDatabase(w http.ResponseWriter, r *http.Request)
 		Type:             database.Type(),
 		ProjectID:        database.ProjectID().String(),
 		EnvironmentID:    database.EnvironmentID().String(),
-		Config:           database.Config(),
+		Config:           maskDatabaseConfig(database.Config()),
 		Status:           database.Status(),
 		ConnectionString: database.ConnectionString(),
 		Ports:            database.Ports(),
@@ -188,7 +250,7 @@ func (h *DatabaseHandler) GetDatabase(w http.ResponseWriter, r *http.Request) {
 		Type:             database.Type(),
 		ProjectID:        database.ProjectID().String(),
 		EnvironmentID:    database.EnvironmentID().String(),
-		Config:           database.Config(),
+		Config:           maskDatabaseConfig(database.Config()),
 		Status:           database.Status(),
 		ConnectionString: database.ConnectionString(),
 		Ports:            database.Ports(),
@@ -201,7 +263,6 @@ func (h *DatabaseHandler) GetDatabase(w http.ResponseWriter, r *http.Request) {
 
 // ListDatabases lists all databases in a project
 func (h *DatabaseHandler) ListDatabases(w http.ResponseWriter, r *http.Request) {
-	// Get project ID from URL
 	projectIDStr := chi.URLParam(r, "project_id")
 	projectID, err := uuid.Parse(projectIDStr)
 	if err != nil {
@@ -209,13 +270,12 @@ func (h *DatabaseHandler) ListDatabases(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Check for environment filter
 	environmentIDStr := r.URL.Query().Get("environment_id")
 	var databases []*databases.Database
 
 	if environmentIDStr != "" {
-		environmentID, err := uuid.Parse(environmentIDStr)
-		if err != nil {
+		environmentID, parseErr := uuid.Parse(environmentIDStr)
+		if parseErr != nil {
 			utils.SendError(w, http.StatusBadRequest, "invalid_environment_id", "Invalid environment ID")
 			return
 		}
@@ -319,7 +379,7 @@ func (h *DatabaseHandler) UpdateDatabase(w http.ResponseWriter, r *http.Request)
 		Type:             updatedDatabase.Type(),
 		ProjectID:        updatedDatabase.ProjectID().String(),
 		EnvironmentID:    updatedDatabase.EnvironmentID().String(),
-		Config:           updatedDatabase.Config(),
+		Config:           maskDatabaseConfig(updatedDatabase.Config()),
 		Status:           updatedDatabase.Status(),
 		ConnectionString: updatedDatabase.ConnectionString(),
 		Ports:            updatedDatabase.Ports(),
@@ -441,7 +501,7 @@ func (h *DatabaseHandler) DatabaseAction(w http.ResponseWriter, r *http.Request)
 		Type:             updatedDatabase.Type(),
 		ProjectID:        updatedDatabase.ProjectID().String(),
 		EnvironmentID:    updatedDatabase.EnvironmentID().String(),
-		Config:           updatedDatabase.Config(),
+		Config:           maskDatabaseConfig(updatedDatabase.Config()),
 		Status:           updatedDatabase.Status(),
 		ConnectionString: updatedDatabase.ConnectionString(),
 		Ports:            updatedDatabase.Ports(),
@@ -493,7 +553,7 @@ func (h *DatabaseHandler) GetDatabaseByName(w http.ResponseWriter, r *http.Reque
 		Type:             database.Type(),
 		ProjectID:        database.ProjectID().String(),
 		EnvironmentID:    database.EnvironmentID().String(),
-		Config:           database.Config(),
+		Config:           maskDatabaseConfig(database.Config()),
 		Status:           database.Status(),
 		ConnectionString: database.ConnectionString(),
 		Ports:            database.Ports(),
@@ -570,7 +630,7 @@ func (h *DatabaseHandler) GetDefaultDatabaseConfig(w http.ResponseWriter, r *htt
 		}
 	}
 
-	utils.SendJSON(w, http.StatusOK, config)
+	utils.SendJSON(w, http.StatusOK, maskDatabaseConfig(config))
 }
 
 // GetDatabaseLogs streams logs from a database container
@@ -618,7 +678,9 @@ func (h *DatabaseHandler) GetDatabaseLogs(w http.ResponseWriter, r *http.Request
 		utils.SendError(w, http.StatusInternalServerError, "logs_failed", "Failed to get container logs: "+err.Error())
 		return
 	}
-	defer logStream.Close()
+	defer func() {
+		_ = logStream.Close()
+	}()
 
 	// Set appropriate headers for streaming
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")

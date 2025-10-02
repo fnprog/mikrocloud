@@ -27,6 +27,10 @@ func NewMetricID() MetricID {
 	return MetricID{value: uuid.New().String()}
 }
 
+func MetricIDFromString(id string) MetricID {
+	return MetricID{value: id}
+}
+
 func (id MetricID) String() string {
 	return id.value
 }

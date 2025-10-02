@@ -105,6 +105,14 @@ func (p *PodmanManager) Delete(ctx context.Context, containerID string) error {
 	return nil
 }
 
+func (p *PodmanManager) Wait(ctx context.Context, containerID string) (int64, error) {
+	exitCode, err := containers.Wait(p.connCtx, containerID, nil)
+	if err != nil {
+		return -1, fmt.Errorf("error waiting for container: %w", err)
+	}
+	return int64(exitCode), nil
+}
+
 func (p *PodmanManager) StreamLogs(ctx context.Context, containerID string, follow bool) (io.ReadCloser, error) {
 	timestamps := true
 	since := ""

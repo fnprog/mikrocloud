@@ -4,112 +4,135 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
-	"path/filepath"
 
-	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/exp/slog"
 
+	analyticsRepo "github.com/mikrocloud/mikrocloud/internal/domain/analytics/repository"
 	applicationsRepo "github.com/mikrocloud/mikrocloud/internal/domain/applications/repository"
 	authRepo "github.com/mikrocloud/mikrocloud/internal/domain/auth/repository"
 	databasesRepo "github.com/mikrocloud/mikrocloud/internal/domain/databases/repository"
 	deploymentsRepo "github.com/mikrocloud/mikrocloud/internal/domain/deployments/repository"
 	environmentsRepo "github.com/mikrocloud/mikrocloud/internal/domain/environments/repository"
+	logsRepo "github.com/mikrocloud/mikrocloud/internal/domain/logs/repository"
 	projectsRepo "github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
+	proxyRepo "github.com/mikrocloud/mikrocloud/internal/domain/proxy/repository"
 	servicesRepo "github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
 	usersRepo "github.com/mikrocloud/mikrocloud/internal/domain/users/repository"
+
+	"github.com/mikrocloud/mikrocloud/internal/config"
+	analyticsdb "github.com/mikrocloud/mikrocloud/internal/database/analytics"
+	maindb "github.com/mikrocloud/mikrocloud/internal/database/main"
+	queuedb "github.com/mikrocloud/mikrocloud/internal/database/queue"
 )
 
 type Database struct {
-	db                    *sql.DB
-	ProjectRepository     projectsRepo.Repository
-	ApplicationRepository applicationsRepo.Repository
-	DatabaseRepository    databasesRepo.DatabaseRepository
-	EnvironmentRepository environmentsRepo.Repository
-	TemplateRepository    servicesRepo.TemplateRepository
-	UserRepository        usersRepo.Repository
-	SessionRepository     authRepo.SessionRepository
-	AuthRepository        authRepo.AuthRepository
-	DeploymentRepository  deploymentsRepo.DeploymentRepository
+	mainDB      maindb.MainDatabase
+	analyticsDB analyticsdb.AnalyticsDatabase
+	queueDB     queuedb.QueueDatabase
+
+	ProjectRepository       projectsRepo.Repository
+	ApplicationRepository   applicationsRepo.Repository
+	DatabaseRepository      databasesRepo.DatabaseRepository
+	EnvironmentRepository   environmentsRepo.Repository
+	TemplateRepository      servicesRepo.TemplateRepository
+	UserRepository          usersRepo.Repository
+	SessionRepository       authRepo.SessionRepository
+	AuthRepository          authRepo.AuthRepository
+	DeploymentRepository    deploymentsRepo.DeploymentRepository
+	ProxyRepository         proxyRepo.ProxyRepository
+	TraefikConfigRepository proxyRepo.TraefikConfigRepository
+	MetricRepository        analyticsRepo.MetricRepository
+	LogRepository           logsRepo.LogRepository
 }
 
-func New(databaseURL string) (*Database, error) {
-	// Ensure data directory exists
-	if err := ensureDataDir(databaseURL); err != nil {
-		return nil, fmt.Errorf("failed to create data directory: %w", err)
-	}
-
-	db, err := sql.Open("sqlite3", databaseURL)
+func New(cfg *config.Config) (*Database, error) {
+	// Initialize main database factory and create database
+	mainFactory := maindb.NewDatabaseFactory()
+	mainDB, err := mainFactory.Create(maindb.DatabaseType(cfg.Database.Type), cfg.Database.URL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
+		return nil, fmt.Errorf("failed to initialize main database: %w", err)
 	}
 
-	// Configure SQLite connection
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(25)
-
-	// Test the connection
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+	// Initialize analytics database factory and create database
+	analyticsFactory := analyticsdb.NewAnalyticsFactory()
+	analyticsDB, err := analyticsFactory.Create(analyticsdb.DatabaseType(cfg.Analytics.Type), cfg.Analytics.URL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize analytics database: %w", err)
 	}
 
-	// Enable foreign keys and WAL mode for better performance
-	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
-		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
-	}
-	if _, err := db.Exec("PRAGMA journal_mode = WAL"); err != nil {
-		return nil, fmt.Errorf("failed to set WAL mode: %w", err)
+	// Initialize queue database factory and create database
+	queueFactory := queuedb.NewQueueFactory()
+	queueDB, err := queueFactory.Create(queuedb.DatabaseType(cfg.Queue.Type), cfg.Queue.URL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize queue database: %w", err)
 	}
 
-	slog.Info("SQLite database connection established", "path", databaseURL)
+	slog.Info("Multi-database system initialized",
+		"main_db", cfg.Database.Type,
+		"analytics_db", cfg.Analytics.Type,
+		"queue_db", cfg.Queue.Type)
 
-	// Initialize repositories
-	projectRepo := projectsRepo.NewSQLiteProjectRepository(db)
-	applicationRepo := applicationsRepo.NewSQLiteApplicationRepository(db)
-	databaseRepo := databasesRepo.NewSQLiteDatabaseRepository(db)
-	environmentRepo := environmentsRepo.NewSQLiteEnvironmentRepository(db)
-	templateRepo := servicesRepo.NewSQLiteTemplateRepository(db)
-	userRepo := usersRepo.NewSQLiteUserRepository(db)
-	sessionRepo := authRepo.NewSQLiteSessionRepository(db)
-	authRepository := authRepo.NewSQLiteAuthRepository(db)
-	deploymentRepo := deploymentsRepo.NewSQLiteDeploymentRepository(db)
+	// Create analytics metric repository
+	var metricRepo analyticsRepo.MetricRepository
+	var logRepo logsRepo.LogRepository
+	if sqlDB, ok := analyticsDB.DB().(*sql.DB); ok {
+		metricRepo = analyticsRepo.NewSQLiteMetricRepository(sqlDB)
+		logRepo = logsRepo.NewAnalyticsLogRepository(sqlDB)
+	} else {
+		return nil, fmt.Errorf("analytics database does not provide SQL DB interface")
+	}
 
 	return &Database{
-		db:                    db,
-		ProjectRepository:     projectRepo,
-		ApplicationRepository: applicationRepo,
-		DatabaseRepository:    databaseRepo,
-		EnvironmentRepository: environmentRepo,
-		TemplateRepository:    templateRepo,
-		UserRepository:        userRepo,
-		SessionRepository:     sessionRepo,
-		AuthRepository:        authRepository,
-		DeploymentRepository:  deploymentRepo,
+		mainDB:                  mainDB,
+		analyticsDB:             analyticsDB,
+		queueDB:                 queueDB,
+		ProjectRepository:       mainDB.ProjectRepository(),
+		ApplicationRepository:   mainDB.ApplicationRepository(),
+		DatabaseRepository:      mainDB.DatabaseRepository(),
+		EnvironmentRepository:   mainDB.EnvironmentRepository(),
+		TemplateRepository:      mainDB.TemplateRepository(),
+		UserRepository:          mainDB.UserRepository(),
+		SessionRepository:       mainDB.SessionRepository(),
+		AuthRepository:          mainDB.AuthRepository(),
+		DeploymentRepository:    mainDB.DeploymentRepository(),
+		ProxyRepository:         mainDB.ProxyRepository(),
+		TraefikConfigRepository: mainDB.TraefikConfigRepository(),
+		MetricRepository:        metricRepo,
+		LogRepository:           logRepo,
 	}, nil
 }
 
 func (db *Database) Close() {
-	if err := db.db.Close(); err != nil {
-		slog.Error("Error closing database", "error", err)
-	} else {
-		slog.Info("Database connection closed")
+	if err := db.mainDB.Close(); err != nil {
+		slog.Error("Error closing main database", "error", err)
 	}
+	if err := db.analyticsDB.Close(); err != nil {
+		slog.Error("Error closing analytics database", "error", err)
+	}
+	if err := db.queueDB.Close(); err != nil {
+		slog.Error("Error closing queue database", "error", err)
+	}
+	slog.Info("All database connections closed")
 }
 
 func (db *Database) DB() *sql.DB {
-	return db.db
+	return db.mainDB.DB()
 }
 
 // Health check method
 func (db *Database) Ping(ctx context.Context) error {
-	return db.db.PingContext(ctx)
+	return db.mainDB.Ping(ctx)
 }
 
-// ensureDataDir creates the directory for the SQLite database if it doesn't exist
-func ensureDataDir(dbPath string) error {
-	dir := filepath.Dir(dbPath)
-	if dir == "." || dir == "/" {
-		return nil // Current directory or root, no need to create
-	}
-	return os.MkdirAll(dir, 0755)
+// Access to specialized databases
+func (db *Database) MainDB() maindb.MainDatabase {
+	return db.mainDB
+}
+
+func (db *Database) AnalyticsDB() analyticsdb.AnalyticsDatabase {
+	return db.analyticsDB
+}
+
+func (db *Database) QueueDB() queuedb.QueueDatabase {
+	return db.queueDB
 }

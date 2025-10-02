@@ -3,6 +3,7 @@ package build
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
@@ -69,6 +70,11 @@ func (bs *BuildService) createBuildHelper(ctx context.Context, image, containerN
 		bs.generateBuildScript(commands, request),
 	}
 
+	// Pull the build helper image if not present
+	if err := bs.containerManager.PullImage(ctx, image); err != nil {
+		return &BuildResult{Success: false, Error: fmt.Sprintf("failed to pull build helper image: %v", err)}, nil
+	}
+
 	containerConfig := manager.ContainerConfig{
 		Image:       image,
 		Name:        containerName,
@@ -91,19 +97,41 @@ func (bs *BuildService) createBuildHelper(ctx context.Context, image, containerN
 		return &BuildResult{Success: false, Error: fmt.Sprintf("failed to start build: %v", err)}, nil
 	}
 
-	// Stream and capture build logs
+	// Stream and capture build logs in a separate goroutine
 	logStream, err := bs.containerManager.StreamLogs(ctx, containerID, true)
 	if err != nil {
 		return &BuildResult{Success: false, Error: fmt.Sprintf("failed to get build logs: %v", err)}, nil
 	}
 	defer logStream.Close()
 
-	// TODO: Capture logs and determine success/failure from exit code
-	// For now, assume success
+	// Capture logs
+	logBytes, err := io.ReadAll(logStream)
+	if err != nil {
+		return &BuildResult{Success: false, Error: fmt.Sprintf("failed to read build logs: %v", err)}, nil
+	}
+
+	// Wait for container to finish and get exit code
+	exitCode, err := bs.containerManager.Wait(ctx, containerID)
+	if err != nil {
+		return &BuildResult{
+			Success:   false,
+			Error:     fmt.Sprintf("failed to wait for container: %v", err),
+			BuildLogs: string(logBytes),
+		}, nil
+	}
+
+	// Determine success based on exit code
+	success := exitCode == 0
+	errorMsg := ""
+	if !success {
+		errorMsg = fmt.Sprintf("build failed with exit code %d", exitCode)
+	}
+
 	return &BuildResult{
-		Success:   true,
+		Success:   success,
 		ImageTag:  request.ImageTag,
-		BuildLogs: "Build completed successfully",
+		BuildLogs: string(logBytes),
+		Error:     errorMsg,
 	}, nil
 }
 

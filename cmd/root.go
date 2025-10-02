@@ -93,37 +93,82 @@ var versionCmd = &cobra.Command{
 
 var migrateCmd = &cobra.Command{
 	Use:   "migrate",
-	Short: "Run database migrations",
+	Short: "Run database migrations for all database systems",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		// Ensure database directory exists
-		dbDir := filepath.Dir(cfg.Database.URL)
-		if err := ensureDir(dbDir); err != nil {
-			return fmt.Errorf("failed to create database directory: %w", err)
+		// Migrate main database
+		if err := migrateMainDatabase(cfg); err != nil {
+			return fmt.Errorf("failed to migrate main database: %w", err)
 		}
 
-		// Open database connection
-		db, err := sql.Open("sqlite3", cfg.Database.URL)
-		if err != nil {
-			return fmt.Errorf("failed to open database: %w", err)
-		}
-		defer db.Close()
-
-		// Set up goose
-		goose.SetDialect("sqlite3")
-
-		// Run migrations from embedded migrations directory
-		if err := goose.Up(db, "./migrations"); err != nil {
-			return fmt.Errorf("failed to run migrations: %w", err)
+		// Migrate analytics database
+		if err := migrateAnalyticsDatabase(cfg); err != nil {
+			return fmt.Errorf("failed to migrate analytics database: %w", err)
 		}
 
-		slog.Info("Database migrations completed successfully", "database", cfg.Database.URL)
+		// Queue database doesn't typically need migrations for Redis/Dragonfly
+		slog.Info("Queue database initialized", "type", cfg.Queue.Type, "url", cfg.Queue.URL)
+
+		slog.Info("All database migrations completed successfully")
 		return nil
 	},
+}
+
+func migrateMainDatabase(cfg *config.Config) error {
+	// Ensure database directory exists
+	dbDir := filepath.Dir(cfg.Database.URL)
+	if err := ensureDir(dbDir); err != nil {
+		return fmt.Errorf("failed to create main database directory: %w", err)
+	}
+
+	// Open database connection
+	db, err := sql.Open("sqlite3", cfg.Database.URL)
+	if err != nil {
+		return fmt.Errorf("failed to open main database: %w", err)
+	}
+	defer db.Close()
+
+	// Set up goose for main database
+	goose.SetDialect("sqlite3")
+
+	// Run migrations from main migrations directory
+	if err := goose.Up(db, "./migrations/main"); err != nil {
+		return fmt.Errorf("failed to run main database migrations: %w", err)
+	}
+
+	slog.Info("Main database migrations completed successfully", "database", cfg.Database.URL)
+	return nil
+}
+
+func migrateAnalyticsDatabase(cfg *config.Config) error {
+	// Ensure database directory exists
+	dbDir := filepath.Dir(cfg.Analytics.URL)
+	if err := ensureDir(dbDir); err != nil {
+		return fmt.Errorf("failed to create analytics database directory: %w", err)
+	}
+
+	// Open analytics database connection
+	// For now, using SQLite fallback - will update when DuckDB is fixed
+	db, err := sql.Open("sqlite3", cfg.Analytics.URL)
+	if err != nil {
+		return fmt.Errorf("failed to open analytics database: %w", err)
+	}
+	defer db.Close()
+
+	// Set up goose for analytics database
+	goose.SetDialect("sqlite3")
+
+	// Run migrations from analytics migrations directory
+	if err := goose.Up(db, "./migrations/analytics"); err != nil {
+		return fmt.Errorf("failed to run analytics database migrations: %w", err)
+	}
+
+	slog.Info("Analytics database migrations completed successfully", "database", cfg.Analytics.URL)
+	return nil
 }
 
 func ensureDir(dir string) error {

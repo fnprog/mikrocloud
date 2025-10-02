@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -21,21 +22,28 @@ import (
 	deploymentService "github.com/mikrocloud/mikrocloud/internal/domain/deployments/service"
 	envHandlers "github.com/mikrocloud/mikrocloud/internal/domain/environments/handlers"
 	environmentService "github.com/mikrocloud/mikrocloud/internal/domain/environments/service"
+	maintenanceHandlers "github.com/mikrocloud/mikrocloud/internal/domain/maintenance/handlers"
 	projectHandlers "github.com/mikrocloud/mikrocloud/internal/domain/projects/handlers"
 	projectService "github.com/mikrocloud/mikrocloud/internal/domain/projects/service"
+	proxyHandlers "github.com/mikrocloud/mikrocloud/internal/domain/proxy/handlers"
+	proxyService "github.com/mikrocloud/mikrocloud/internal/domain/proxy/service"
 	serviceHandlers "github.com/mikrocloud/mikrocloud/internal/domain/services/handlers"
 	"github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
 	servicesService "github.com/mikrocloud/mikrocloud/internal/domain/services/service"
 	buildService "github.com/mikrocloud/mikrocloud/pkg/containers/build"
 	databaseContainers "github.com/mikrocloud/mikrocloud/pkg/containers/database"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
+	proxyContainers "github.com/mikrocloud/mikrocloud/pkg/containers/proxy"
 )
 
-func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, tokenAuth *jwtauth.JWTAuth) error {
+func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, tokenAuth *jwtauth.JWTAuth, ctx context.Context) (*proxyContainers.TraefikService, *databaseService.StatusSyncService, error) {
+	// Apply CORS middleware
+	api.Use(middleware.CORS(cfg.Server.AllowedOrigins))
+
 	// Create container manager
 	containerManager, err := createContainerManager(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to create container manager: %w", err)
+		return nil, nil, fmt.Errorf("failed to create container manager: %w", err)
 	}
 
 	// Create service instances
@@ -50,10 +58,10 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	dbDeploymentSvc := databaseContainers.NewDatabaseDeploymentService(containerManager, dbImageResolver, dbConfigBuilder)
 	dbSvc := databaseService.NewDatabaseService(db.DatabaseRepository, dbDeploymentSvc)
 
-	// Create and start database status sync service
+	// Create database status sync service (will be started by server with proper context)
 	logger := slog.Default()
 	statusSyncSvc := databaseService.NewStatusSyncService(dbSvc, containerManager, logger, 30*time.Second)
-	go statusSyncSvc.Start(context.Background())
+	go statusSyncSvc.Start(ctx)
 
 	// Create QuickDeployService wrapper for ApplicationService
 	quickDeployService := repository.NewQuickDeployService(db.TemplateRepository, appSvc)
@@ -68,6 +76,11 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 		buildSvc,
 	)
 
+	// Create proxy services
+	proxySvc := proxyService.New(db.ProxyRepository, db.TraefikConfigRepository)
+	traefikConfigDir := filepath.Join(cfg.Server.DataDir, "traefik")
+	traefikSvc := proxyContainers.NewTraefikService(containerManager, traefikConfigDir, cfg.Docker.NetworkMode)
+
 	// Create handler dependencies
 	authHandler := authHandlers.NewAuthHandler(authSvc)
 	projectHandler := projectHandlers.NewProjectHandler(projSvc)
@@ -76,6 +89,15 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	databaseHandler := databaseHandlers.NewDatabaseHandler(dbSvc, containerManager)
 	deploymentHandler := deploymentHandlers.NewDeploymentHandler(deploymentSvc, appSvc)
 	templateHandler := serviceHandlers.NewTemplateHandler(templateSvc)
+	proxyHandler := proxyHandlers.NewProxyHandler(proxySvc)
+	maintenanceHandler := maintenanceHandlers.NewMaintenanceHandler(
+		db.ProjectRepository,
+		db.ApplicationRepository,
+		db.DatabaseRepository,
+		db.TemplateRepository,
+		db.DB(),
+		containerManager,
+	)
 
 	// Protected routes that require authentication
 	api.Group(func(r chi.Router) {
@@ -141,6 +163,17 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 						r.Get("/logs", databaseHandler.GetDatabaseLogs)
 					})
 				})
+
+				// Proxy routes within project
+				r.Route("/proxy", func(r chi.Router) {
+					r.Get("/", proxyHandler.ListProxyConfigs)
+					r.Post("/", proxyHandler.CreateProxyConfig)
+					r.Route("/{config_id}", func(r chi.Router) {
+						r.Get("/", proxyHandler.GetProxyConfig)
+						r.Put("/", proxyHandler.UpdateProxyConfig)
+						r.Delete("/", proxyHandler.DeleteProxyConfig)
+					})
+				})
 			})
 		})
 
@@ -175,7 +208,25 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 		})
 	})
 
-	return nil
+	// Maintenance routes (protected)
+	api.Route("/maintenance", func(r chi.Router) {
+		r.Use(jwtauth.Verifier(tokenAuth))
+		r.Use(jwtauth.Authenticator(tokenAuth))
+
+		r.Get("/health", maintenanceHandler.HealthCheck)
+		r.Get("/status", maintenanceHandler.SystemStatus)
+		r.Get("/resources", maintenanceHandler.GetResources)
+		r.Get("/info", maintenanceHandler.SystemInfo)
+
+		r.Route("/domains", func(r chi.Router) {
+			r.Get("/", maintenanceHandler.ListDomains)
+			r.Post("/", maintenanceHandler.AddDomain)
+			r.Delete("/{domain_id}", maintenanceHandler.RemoveDomain)
+			r.Post("/{domain_id}/ssl", maintenanceHandler.EnableSSL)
+		})
+	})
+
+	return traefikSvc, statusSyncSvc, nil
 }
 
 func createContainerManager(cfg *config.Config) (manager.ContainerManager, error) {

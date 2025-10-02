@@ -44,6 +44,19 @@ func (d *DockerManager) Delete(ctx context.Context, containerID string) error {
 	})
 }
 
+func (d *DockerManager) Wait(ctx context.Context, containerID string) (int64, error) {
+	statusCh, errCh := d.client.ContainerWait(ctx, containerID, container.WaitConditionNotRunning)
+	select {
+	case err := <-errCh:
+		if err != nil {
+			return -1, fmt.Errorf("error waiting for container: %w", err)
+		}
+	case status := <-statusCh:
+		return status.StatusCode, nil
+	}
+	return 0, nil
+}
+
 func (d *DockerManager) StreamLogs(ctx context.Context, containerID string, follow bool) (io.ReadCloser, error) {
 	return d.client.ContainerLogs(ctx, containerID, container.LogsOptions{
 		ShowStdout: true,
@@ -93,6 +106,7 @@ func (d *DockerManager) Create(ctx context.Context, config ContainerConfig) (str
 		RestartPolicy: container.RestartPolicy{Name: container.RestartPolicyMode(config.RestartPolicy)},
 		AutoRemove:    config.AutoRemove,
 		Privileged:    config.Privileged,
+		NetworkMode:   container.NetworkMode(config.NetworkMode),
 	}
 
 	networkConfig := &network.NetworkingConfig{}

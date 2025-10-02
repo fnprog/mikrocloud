@@ -87,11 +87,11 @@ func (s *DeploymentService) CreateAndExecuteDeployment(ctx context.Context, cmd 
 		return nil, fmt.Errorf("failed to create deployment: %w", err)
 	}
 
-	// Start the build process in the background
+	// Start the build process in the background with inherited context
 	go func() {
-		if err := s.executeBuildAndDeploy(context.Background(), deployment.ID(), appService); err != nil {
-			// Log error and mark deployment as failed
-			s.FailDeployment(context.Background(), deployment.ID(), err.Error())
+		bgCtx := context.WithoutCancel(ctx)
+		if err := s.executeBuildAndDeploy(bgCtx, deployment.ID(), appService); err != nil {
+			s.FailDeployment(bgCtx, deployment.ID(), err.Error())
 		}
 	}()
 
@@ -150,13 +150,20 @@ func (s *DeploymentService) executeBuildAndDeploy(ctx context.Context, deploymen
 
 	// Set image information
 	if buildResult.ImageTag != "" {
-		// Note: BuildResult doesn't have ImageDigest field yet, using ImageTag for now
-		// TODO: Add ImageDigest field to BuildResult when container registry integration is added
+		if err := s.SetImageDigest(ctx, deploymentID, buildResult.ImageTag); err != nil {
+			return fmt.Errorf("failed to set image digest: %w", err)
+		}
 	}
 
-	// TODO: Integrate with container orchestration to deploy the built image
-	// For now, we'll simulate a successful deployment
-	s.AppendDeployLogs(ctx, deploymentID, "Deployment completed successfully")
+	// TODO: Implement actual container deployment orchestration
+	// This requires integration with ContainerManager to:
+	// 1. Create container from built image with proper config (ports, env vars, volumes, networks)
+	// 2. Start the container
+	// 3. Update deployment with container ID
+	// 4. Monitor container health
+	// 5. Update proxy/ingress rules for routing
+	// For now, we'll mark deployment as successful but not actually running
+	s.AppendDeployLogs(ctx, deploymentID, "Build completed successfully. Container deployment orchestration not yet implemented.")
 
 	// Complete deploy phase
 	if err := s.CompleteDeploy(ctx, deploymentID); err != nil {
