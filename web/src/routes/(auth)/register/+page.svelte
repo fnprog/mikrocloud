@@ -3,6 +3,8 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import Logo from '$lib/components/logo/logo.svelte';
+	import { authApi, type ApiError } from '$lib/api';
+	import { authStore } from '$lib/stores/auth.svelte';
 
 	let name = $state('');
 	let email = $state('');
@@ -28,10 +30,12 @@
 		error = '';
 
 		try {
-			await new Promise((resolve) => setTimeout(resolve, 1500));
-			goto('/login');
+			const response = await authApi.register({ name, email, password });
+			authStore.setUser(response.user);
+			goto('/dashboard');
 		} catch (err) {
-			error = 'Registration failed. Please try again.';
+			const apiError = err as ApiError;
+			error = apiError.message || 'Registration failed. Please try again.';
 		} finally {
 			isLoading = false;
 		}
@@ -67,6 +71,10 @@
 			</div>
 
 			<form onsubmit={handleSubmit} class="space-y-5">
+				{#if error}
+					<div class="text-red-500 text-sm">{error}</div>
+				{/if}
+
 				<div>
 					<label for="name" class="block text-sm mb-2">Your name</label>
 					<Input id="name" type="text" bind:value={name} required autocomplete="name" />
@@ -119,7 +127,7 @@
 							Creating account...
 						</div>
 					{:else}
-						Login
+						Sign up
 					{/if}
 				</Button>
 			</form>

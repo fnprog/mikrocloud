@@ -23,7 +23,7 @@
 				$isScrolled ? 'h-0 opacity-0' : 'h-14 opacity-100'
 			)}
 		>
-			<div class="w-[44px] flex-shrink-0 hidden md:block"></div>
+			<div class="w-[25px] flex-shrink-0 hidden md:block"></div>
 
 			<button
 				on:click={() => (switcherOpen = true)}
@@ -49,28 +49,26 @@
 				</svg>
 			</button>
 
-			<div class="w-px h-6 bg-border"></div>
-
-			<button
-				class="flex items-center gap-2 text-sm hover:bg-muted px-2 py-1 rounded-md transition-colors"
-			>
-				<div class="flex items-center gap-2">
-					<Avatar.Root>
-						<Avatar.Image src="https://github.com/shadcn.png" alt="@shadcn" />
-						<Avatar.Fallback>CN</Avatar.Fallback>
-					</Avatar.Root>
-					<span class="font-medium">skiper-ui-demo</span>
-				</div>
-				<svg width="12" height="12" viewBox="0 0 12 12" fill="none" class="text-muted-foreground">
-					<path
-						d="M3 4.5L6 7.5L9 4.5"
-						stroke="currentColor"
-						stroke-width="1.5"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-					/>
-				</svg>
-			</button>
+			<!-- <button -->
+			<!-- 	class="flex items-center gap-2 text-sm hover:bg-muted px-2 py-1 rounded-md transition-colors" -->
+			<!-- > -->
+			<!-- 	<div class="flex items-center gap-2"> -->
+			<!-- 		<Avatar.Root> -->
+			<!-- 			<Avatar.Image src="https://github.com/shadcn.png" alt="@shadcn" /> -->
+			<!-- 			<Avatar.Fallback>CN</Avatar.Fallback> -->
+			<!-- 		</Avatar.Root> -->
+			<!-- 		<span class="font-medium">skiper-ui-demo</span> -->
+			<!-- 	</div> -->
+			<!-- 	<svg width="12" height="12" viewBox="0 0 12 12" fill="none" class="text-muted-foreground"> -->
+			<!-- 		<path -->
+			<!-- 			d="M3 4.5L6 7.5L9 4.5" -->
+			<!-- 			stroke="currentColor" -->
+			<!-- 			stroke-width="1.5" -->
+			<!-- 			stroke-linecap="round" -->
+			<!-- 			stroke-linejoin="round" -->
+			<!-- 		/> -->
+			<!-- 	</svg> -->
+			<!-- </button> -->
 			<div class="ml-auto">
 				<UserMenu />
 			</div>

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import SearchForm from './ProjectSearch.svelte';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb/index.js';
-	import LogoFull from '$lib/components/logo/LogoFull.svelte';
+	import LogoFull from '$lib/components/logo/logo-full.svelte';
 </script>
 
 <header class="bg-[#1c1b23] text-white sticky top-0 z-50 flex w-full items-center">

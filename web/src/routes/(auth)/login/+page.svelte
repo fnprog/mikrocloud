@@ -3,6 +3,8 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input/index';
 	import Logo from '$lib/components/logo/logo.svelte';
+	import { authApi, type ApiError } from '$lib/api';
+	import { authStore } from '$lib/stores/auth.svelte';
 
 	let email = $state('');
 	let password = $state('');
@@ -21,15 +23,12 @@
 		error = '';
 
 		try {
-			await new Promise((resolve) => setTimeout(resolve, 1500));
-
-			if (email === 'demo@example.com' && password === 'password') {
-				goto('/dashboard');
-			} else {
-				error = 'Invalid email or password';
-			}
+			const response = await authApi.login({ email, password });
+			authStore.setUser(response.user);
+			goto('/dashboard');
 		} catch (err) {
-			error = 'An error occurred. Please try again.';
+			const apiError = err as ApiError;
+			error = apiError.message || 'An error occurred. Please try again.';
 		} finally {
 			isLoading = false;
 		}
@@ -60,6 +59,10 @@
 			<h1 class="text-2xl font-semibold text-center text-white">Login to mikrocloud</h1>
 
 			<form onsubmit={handleSubmit} class="space-y-5">
+				{#if error}
+					<div class="text-red-500 text-sm text-center">{error}</div>
+				{/if}
+
 				<Input type="email" bind:value={email} placeholder="email" required autocomplete="email" />
 
 				<Input

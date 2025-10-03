@@ -1,14 +1,16 @@
 <script lang="ts">
 	let { children } = $props();
+
+	import { NavBarBottom } from '$lib/components/ui/navbar';
+
+	const tabs = [
+		{ name: 'Overview', href: 'dashboard' },
+		{ name: 'Shared Variables', href: 'shared-vars' },
+		{ name: 'Settings', href: 'settings' }
+	];
 </script>
 
-<nav class="flex items-center space-x-8 text-sm">
-	<a href="/dashboard" class="text-white border-b-2 border-white pb-3">Overview</a>
-	<a href="/dashboard/projects" class="text-gray-400 hover:text-white pb-3">Projects</a>
-	<a href="/dashboard/monitoring" class="text-gray-400 hover:text-white pb-3">Monitoring</a>
-	<a href="/dashboard/settings" class="text-gray-400 hover:text-white pb-3">Settings</a>
-</nav>
-
-<div class="p-6">
+<NavBarBottom {tabs} />
+<div class="p-6 pt-[104px]">
 	{@render children()}
 </div>

@@ -145,40 +145,6 @@
 		</div>
 
 		<div>
-			<h2 class="text-lg font-semibold mb-4">Projects</h2>
-			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-				{#each projects as project (project.id)}
-					<div
-						class="bg-white/5 border border-white/10 rounded-lg p-4 hover:bg-white/10 transition-colors cursor-pointer"
-						onclick={() => goToProject(project.id)}
-					>
-						<div class="flex items-center justify-between mb-8">
-							<div class="flex items-center space-x-2">
-								<Globe class="w-4 h-4 text-gray-400" />
-								<span class="text-sm">{project.name}</span>
-							</div>
-							<button class="text-gray-400 hover:text-white" onclick={(e) => e.stopPropagation()}>
-								<Ellipsis class="w-5 h-5" />
-							</button>
-						</div>
-						<div class="flex items-center justify-between">
-							<span class="text-xs text-gray-500">Last deploy : {project.lastDeploy}</span>
-							<div class="flex items-center space-x-1">
-								{#each project.icons as icon}
-									<div
-										class="w-6 h-6 bg-white/10 rounded-full flex items-center justify-center text-xs"
-									>
-										{icon}
-									</div>
-								{/each}
-							</div>
-						</div>
-					</div>
-				{/each}
-			</div>
-		</div>
-
-		<div>
 			<h2 class="text-lg font-semibold mb-4">Servers</h2>
 			<div class="bg-white/5 border border-white/10 rounded-lg p-4">
 				{#each servers as server (server.id)}
