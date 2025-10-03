@@ -39,9 +39,8 @@ type RegisterRequest struct {
 
 // AuthResponse represents the authentication response
 type AuthResponse struct {
-	Token        string `json:"token"`
-	RefreshToken string `json:"refresh_token,omitempty"`
-	User         User   `json:"user"`
+	Token string `json:"token"`
+	User  User   `json:"user"`
 }
 
 // User represents user data in responses
@@ -83,9 +82,18 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    result.RefreshToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   60 * 60 * 24 * 7,
+	})
+
 	response := AuthResponse{
-		Token:        result.Token,
-		RefreshToken: result.RefreshToken,
+		Token: result.Token,
 		User: User{
 			ID:    result.User.ID().String(),
 			Name:  result.User.Name(),
@@ -178,6 +186,16 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   -1,
+	})
+
 	response := utils.SuccessResponse{
 		Message: "Successfully logged out",
 	}
@@ -187,22 +205,19 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 
 // RefreshToken refreshes an expired token
 func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
-	type RefreshTokenRequest struct {
-		RefreshToken string `json:"refresh_token" validate:"required"`
-	}
-
-	var req RefreshTokenRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.SendError(w, http.StatusBadRequest, "invalid_json", "Invalid JSON format")
+	cookie, err := r.Cookie("refresh_token")
+	if err != nil {
+		utils.SendError(w, http.StatusUnauthorized, "missing_refresh_token", "Refresh token cookie not found")
 		return
 	}
 
-	if err := h.validator.Struct(&req); err != nil {
-		utils.SendError(w, http.StatusBadRequest, "validation_error", err.Error())
+	refreshToken := cookie.Value
+	if refreshToken == "" {
+		utils.SendError(w, http.StatusUnauthorized, "invalid_refresh_token", "Refresh token is empty")
 		return
 	}
 
-	result, err := h.authService.RefreshToken(r.Context(), req.RefreshToken)
+	result, err := h.authService.RefreshToken(r.Context(), refreshToken)
 	if err != nil {
 		switch err {
 		case service.ErrInvalidToken:
@@ -213,14 +228,22 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    result.RefreshToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   60 * 60 * 24 * 7,
+	})
+
 	type RefreshTokenResponse struct {
-		Token        string `json:"token"`
-		RefreshToken string `json:"refresh_token"`
+		Token string `json:"token"`
 	}
 
 	response := RefreshTokenResponse{
-		Token:        result.Token,
-		RefreshToken: result.RefreshToken,
+		Token: result.Token,
 	}
 
 	utils.SendJSON(w, http.StatusOK, response)

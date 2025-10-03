@@ -5,7 +5,6 @@ go 1.24.0
 toolchain go1.24.6
 
 require (
-
 	// Docker & Container Management
 	github.com/docker/docker v28.4.0+incompatible
 	github.com/go-chi/chi/v5 v5.0.12

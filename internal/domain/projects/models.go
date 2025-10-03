@@ -35,6 +35,14 @@ func ProjectIDFromUUID(id uuid.UUID) ProjectID {
 	return ProjectID{value: id}
 }
 
+func ProjectIDFromString(id string) (ProjectID, error) {
+	parsedID, err := uuid.Parse(id)
+	if err != nil {
+		return ProjectID{}, fmt.Errorf("invalid project ID: %w", err)
+	}
+	return ProjectID{value: parsedID}, nil
+}
+
 func (id ProjectID) String() string {
 	return id.value.String()
 }

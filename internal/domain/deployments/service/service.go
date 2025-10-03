@@ -3,11 +3,13 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/mikrocloud/mikrocloud/internal/domain/applications"
 	"github.com/mikrocloud/mikrocloud/internal/domain/deployments"
 	"github.com/mikrocloud/mikrocloud/internal/domain/users"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/build"
+	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
 )
 
 type DeploymentRepository interface {
@@ -30,14 +32,16 @@ type ApplicationService interface {
 }
 
 type DeploymentService struct {
-	repo         DeploymentRepository
-	buildService BuildService
+	repo             DeploymentRepository
+	buildService     BuildService
+	containerManager manager.ContainerManager
 }
 
-func NewDeploymentService(repo DeploymentRepository, buildService BuildService) *DeploymentService {
+func NewDeploymentService(repo DeploymentRepository, buildService BuildService, containerManager manager.ContainerManager) *DeploymentService {
 	return &DeploymentService{
-		repo:         repo,
-		buildService: buildService,
+		repo:             repo,
+		buildService:     buildService,
+		containerManager: containerManager,
 	}
 }
 
@@ -155,15 +159,11 @@ func (s *DeploymentService) executeBuildAndDeploy(ctx context.Context, deploymen
 		}
 	}
 
-	// TODO: Implement actual container deployment orchestration
-	// This requires integration with ContainerManager to:
-	// 1. Create container from built image with proper config (ports, env vars, volumes, networks)
-	// 2. Start the container
-	// 3. Update deployment with container ID
-	// 4. Monitor container health
-	// 5. Update proxy/ingress rules for routing
-	// For now, we'll mark deployment as successful but not actually running
-	s.AppendDeployLogs(ctx, deploymentID, "Build completed successfully. Container deployment orchestration not yet implemented.")
+	// Deploy the container
+	if err := s.deployContainer(ctx, deploymentID, deployment, app, buildResult.ImageTag); err != nil {
+		s.AppendDeployLogs(ctx, deploymentID, fmt.Sprintf("Container deployment failed: %v", err))
+		return fmt.Errorf("container deployment failed: %w", err)
+	}
 
 	// Complete deploy phase
 	if err := s.CompleteDeploy(ctx, deploymentID); err != nil {
@@ -491,11 +491,66 @@ func (s *DeploymentService) ListDeploymentsByStatus(ctx context.Context, status 
 	return deployments, nil
 }
 
+func (s *DeploymentService) deployContainer(ctx context.Context, deploymentID deployments.DeploymentID, deployment *deployments.Deployment, app *applications.Application, imageTag string) error {
+	s.AppendDeployLogs(ctx, deploymentID, "Starting container deployment...")
+
+	containerName := fmt.Sprintf("%s-%s", app.Name().String(), deployment.DeploymentNumber())
+	containerName = strings.ToLower(strings.ReplaceAll(containerName, " ", "-"))
+
+	ports := make(map[string]string)
+	ports["80"] = "8080"
+
+	containerConfig := manager.ContainerConfig{
+		Image:         imageTag,
+		Name:          containerName,
+		Ports:         ports,
+		Environment:   app.EnvVars(),
+		Networks:      []string{"mikrocloud"},
+		RestartPolicy: "unless-stopped",
+		AutoRemove:    false,
+	}
+
+	s.AppendDeployLogs(ctx, deploymentID, fmt.Sprintf("Creating container: %s from image: %s", containerName, imageTag))
+
+	containerID, err := s.containerManager.Create(ctx, containerConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create container: %w", err)
+	}
+
+	s.AppendDeployLogs(ctx, deploymentID, fmt.Sprintf("Container created with ID: %s", containerID))
+
+	if err := s.SetContainerID(ctx, deploymentID, containerID); err != nil {
+		return fmt.Errorf("failed to update deployment with container ID: %w", err)
+	}
+
+	s.AppendDeployLogs(ctx, deploymentID, "Starting container...")
+
+	if err := s.containerManager.Start(ctx, containerID); err != nil {
+		return fmt.Errorf("failed to start container: %w", err)
+	}
+
+	containerInfo, err := s.containerManager.Inspect(ctx, containerID)
+	if err != nil {
+		s.AppendDeployLogs(ctx, deploymentID, "Warning: Failed to inspect container, but it may be running")
+	} else {
+		s.AppendDeployLogs(ctx, deploymentID, fmt.Sprintf("Container started successfully. State: %s, Status: %s", containerInfo.State, containerInfo.Status))
+	}
+
+	s.AppendDeployLogs(ctx, deploymentID, "Container deployment completed successfully")
+	return nil
+}
+
 func (s *DeploymentService) DeleteDeployment(ctx context.Context, id deployments.DeploymentID) error {
-	// Check if deployment exists
-	_, err := s.repo.GetByID(ctx, id)
+	deployment, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("deployment not found: %w", err)
+	}
+
+	if deployment.ContainerID() != "" {
+		if err := s.containerManager.Stop(ctx, deployment.ContainerID()); err != nil {
+		}
+		if err := s.containerManager.Delete(ctx, deployment.ContainerID()); err != nil {
+		}
 	}
 
 	if err := s.repo.Delete(ctx, id); err != nil {

@@ -16,6 +16,9 @@ import (
 type Repository interface {
 	Save(ctx context.Context, user *users.User) error
 	SaveOrganization(ctx context.Context, org *users.Organization) error
+	AddOrganizationMember(ctx context.Context, orgID users.OrganizationID, userID users.UserID, role string, invitedBy *users.UserID) error
+	AddUserRole(ctx context.Context, userID users.UserID, roleID string, grantedBy *users.UserID) error
+	FindRoleByName(ctx context.Context, roleName string) (string, error)
 	FindByID(ctx context.Context, id users.UserID) (*users.User, error)
 	FindByEmail(ctx context.Context, email users.Email) (*users.User, error)
 	FindByUsername(ctx context.Context, username string) (*users.User, error)
@@ -429,6 +432,54 @@ func (r *SQLiteUserRepository) OrganizationExists(ctx context.Context, slug stri
 	}
 
 	return count > 0, nil
+}
+
+func (r *SQLiteUserRepository) AddOrganizationMember(ctx context.Context, orgID users.OrganizationID, userID users.UserID, role string, invitedBy *users.UserID) error {
+	memberID := users.NewOrganizationID()
+
+	var invitedByStr sql.NullString
+	if invitedBy != nil {
+		invitedByStr = sql.NullString{String: invitedBy.String(), Valid: true}
+	}
+
+	queryStr := `INSERT INTO organization_members (id, organization_id, user_id, role, invited_by, joined_at) VALUES (?, ?, ?, ?, ?, ?)`
+	_, err := r.db.ExecContext(ctx, queryStr, memberID.String(), orgID.String(), userID.String(), role, invitedByStr, time.Now().Format(time.RFC3339))
+	if err != nil {
+		return fmt.Errorf("failed to add organization member: %w", err)
+	}
+
+	return nil
+}
+
+func (r *SQLiteUserRepository) AddUserRole(ctx context.Context, userID users.UserID, roleID string, grantedBy *users.UserID) error {
+	userRoleID := users.NewUserID()
+
+	var grantedByStr sql.NullString
+	if grantedBy != nil {
+		grantedByStr = sql.NullString{String: grantedBy.String(), Valid: true}
+	}
+
+	queryStr := `INSERT INTO user_roles (id, user_id, role_id, granted_by, granted_at) VALUES (?, ?, ?, ?, ?)`
+	_, err := r.db.ExecContext(ctx, queryStr, userRoleID.String(), userID.String(), roleID, grantedByStr, time.Now().Format(time.RFC3339))
+	if err != nil {
+		return fmt.Errorf("failed to add user role: %w", err)
+	}
+
+	return nil
+}
+
+func (r *SQLiteUserRepository) FindRoleByName(ctx context.Context, roleName string) (string, error) {
+	var roleID string
+	queryStr := `SELECT id FROM roles WHERE name = ?`
+	err := r.db.QueryRowContext(ctx, queryStr, roleName).Scan(&roleID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", fmt.Errorf("role not found: %s", roleName)
+		}
+		return "", fmt.Errorf("failed to find role by name: %w", err)
+	}
+
+	return roleID, nil
 }
 
 type userRow struct {

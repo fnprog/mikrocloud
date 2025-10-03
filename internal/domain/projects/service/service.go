@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/mikrocloud/mikrocloud/internal/domain/environments"
+	envRepo "github.com/mikrocloud/mikrocloud/internal/domain/environments/repository"
 	"github.com/mikrocloud/mikrocloud/internal/domain/projects"
 	"github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
 	"github.com/mikrocloud/mikrocloud/internal/domain/users"
@@ -12,12 +14,14 @@ import (
 // ProjectService handles projects-related business operations
 type ProjectService struct {
 	projectRepo repository.Repository
+	envRepo     envRepo.Repository
 }
 
 // NewProjectService creates a new projects service
-func NewProjectService(projectRepo repository.Repository) *ProjectService {
+func NewProjectService(projectRepo repository.Repository, envRepo envRepo.Repository) *ProjectService {
 	return &ProjectService{
 		projectRepo: projectRepo,
+		envRepo:     envRepo,
 	}
 }
 
@@ -65,6 +69,17 @@ func (s *ProjectService) CreateProject(ctx context.Context, cmd CreateProjectCom
 		return nil, fmt.Errorf("failed to save projects: %w", err)
 	}
 
+	// Create default "production" environment for the project
+	envName, err := environments.NewEnvironmentName("production")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create default environment name: %w", err)
+	}
+
+	env := environments.NewEnvironment(envName, proj.ID().UUID(), "Default production environment", true)
+	if err := s.envRepo.Save(ctx, env); err != nil {
+		return nil, fmt.Errorf("failed to create default environment: %w", err)
+	}
+
 	return proj, nil
 }
 
@@ -75,12 +90,12 @@ func (s *ProjectService) ListProjects(ctx context.Context) ([]*projects.Project,
 
 // GetProject retrieves a projects by ID
 func (s *ProjectService) GetProject(ctx context.Context, id string) (*projects.Project, error) {
-	projectID, err := projects.NewProjectName(id) // Assuming we're using name as ID for simplicity
+	projectID, err := projects.ProjectIDFromString(id)
 	if err != nil {
 		return nil, fmt.Errorf("invalid projects identifier: %w", err)
 	}
 
-	return s.projectRepo.FindByName(ctx, projectID)
+	return s.projectRepo.FindByID(ctx, projectID)
 }
 
 // GetProjectByName retrieves a projects by name

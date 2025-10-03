@@ -47,9 +47,9 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	}
 
 	// Create service instances
-	projSvc := projectService.NewProjectService(db.ProjectRepository)
-	authSvc := authService.NewAuthService(db.SessionRepository, db.AuthRepository, db.UserRepository, cfg.Auth.JWTSecret)
 	envSvc := environmentService.NewEnvironmentService(db.EnvironmentRepository)
+	projSvc := projectService.NewProjectService(db.ProjectRepository, db.EnvironmentRepository)
+	authSvc := authService.NewAuthService(db.SessionRepository, db.AuthRepository, db.UserRepository, cfg.Auth.JWTSecret)
 	appSvc := applicationsService.NewApplicationService(db.ApplicationRepository)
 
 	// Create database container deployment service
@@ -74,6 +74,7 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	deploymentSvc := deploymentService.NewDeploymentService(
 		db.DeploymentRepository,
 		buildSvc,
+		containerManager,
 	)
 
 	// Create proxy services

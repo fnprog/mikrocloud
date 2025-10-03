@@ -166,18 +166,48 @@ func (h *MaintenanceHandler) SystemInfo(w http.ResponseWriter, r *http.Request) 
 	utils.SendJSON(w, http.StatusOK, resp)
 }
 
+type DomainListResponse struct {
+	Domains []DomainInfo `json:"domains"`
+	Total   int          `json:"total"`
+}
+
+type DomainInfo struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Verified    bool   `json:"verified"`
+	SSLEnabled  bool   `json:"ssl_enabled"`
+	SSLExpiry   string `json:"ssl_expiry,omitempty"`
+	ServiceID   string `json:"service_id,omitempty"`
+	ServiceName string `json:"service_name,omitempty"`
+	CreatedAt   string `json:"created_at"`
+}
+
+type AddDomainRequest struct {
+	Name      string `json:"name"`
+	ServiceID string `json:"service_id,omitempty"`
+}
+
+type EnableSSLRequest struct {
+	Provider string `json:"provider"`
+	Email    string `json:"email,omitempty"`
+}
+
 func (h *MaintenanceHandler) ListDomains(w http.ResponseWriter, r *http.Request) {
-	utils.SendError(w, http.StatusNotImplemented, "not_implemented", "Domain management not yet implemented")
+	resp := DomainListResponse{
+		Domains: []DomainInfo{},
+		Total:   0,
+	}
+	utils.SendJSON(w, http.StatusOK, resp)
 }
 
 func (h *MaintenanceHandler) AddDomain(w http.ResponseWriter, r *http.Request) {
-	utils.SendError(w, http.StatusNotImplemented, "not_implemented", "Domain management not yet implemented")
+	utils.SendError(w, http.StatusNotImplemented, "not_implemented", "Domain management infrastructure not yet available. Database schema and repositories need to be created first.")
 }
 
 func (h *MaintenanceHandler) RemoveDomain(w http.ResponseWriter, r *http.Request) {
-	utils.SendError(w, http.StatusNotImplemented, "not_implemented", "Domain management not yet implemented")
+	utils.SendError(w, http.StatusNotImplemented, "not_implemented", "Domain management infrastructure not yet available. Database schema and repositories need to be created first.")
 }
 
 func (h *MaintenanceHandler) EnableSSL(w http.ResponseWriter, r *http.Request) {
-	utils.SendError(w, http.StatusNotImplemented, "not_implemented", "SSL management not yet implemented")
+	utils.SendError(w, http.StatusNotImplemented, "not_implemented", "SSL management infrastructure not yet available. Domain tables and certificate management need to be implemented first.")
 }

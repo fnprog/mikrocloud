@@ -9,6 +9,7 @@ import (
 
 	"github.com/mikrocloud/mikrocloud/internal/domain/proxy"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
+	"gopkg.in/yaml.v3"
 )
 
 type TraefikService struct {
@@ -363,7 +364,7 @@ func (ts *TraefikService) writeGlobalConfig(globalConfig *proxy.TraefikGlobalCon
 		API: APIConfig{
 			Dashboard: globalConfig.API().Dashboard(),
 			Debug:     globalConfig.API().Debug(),
-			Insecure:  true, // For development
+			Insecure:  true,
 		},
 		Log: LogConfig{
 			Level: "INFO",
@@ -373,7 +374,7 @@ func (ts *TraefikService) writeGlobalConfig(globalConfig *proxy.TraefikGlobalCon
 		},
 	}
 
-	configBytes, err := json.MarshalIndent(config, "", "  ")
+	configBytes, err := yaml.Marshal(config)
 	if err != nil {
 		return fmt.Errorf("failed to marshal global config: %w", err)
 	}

@@ -207,6 +207,13 @@ func (s *AuthService) Register(ctx context.Context, cmd RegisterCommand) (*Regis
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
+	// If this is the first user, set up default organization and admin role
+	if isFirstUser {
+		if err := s.setupFirstUser(ctx, user); err != nil {
+			return nil, fmt.Errorf("failed to set up first user: %w", err)
+		}
+	}
+
 	// Generate JWT token
 	token, err := s.generateJWTToken(ctx, user.ID().String())
 	if err != nil {
@@ -468,4 +475,31 @@ func (s *AuthService) generateJWTToken(ctx context.Context, userID string) (stri
 	}
 
 	return string(signed), nil
+}
+
+func (s *AuthService) setupFirstUser(ctx context.Context, user *users.User) error {
+	org := users.NewOrganization(
+		user.Name(),
+		user.Name(),
+		user.ID(),
+	)
+
+	if err := s.usersRepo.SaveOrganization(ctx, org); err != nil {
+		return fmt.Errorf("failed to create default organization: %w", err)
+	}
+
+	if err := s.usersRepo.AddOrganizationMember(ctx, org.ID(), user.ID(), "owner", nil); err != nil {
+		return fmt.Errorf("failed to add user to organization: %w", err)
+	}
+
+	adminRoleID, err := s.usersRepo.FindRoleByName(ctx, "admin")
+	if err != nil {
+		return fmt.Errorf("failed to find admin role: %w", err)
+	}
+
+	if err := s.usersRepo.AddUserRole(ctx, user.ID(), adminRoleID, nil); err != nil {
+		return fmt.Errorf("failed to assign admin role: %w", err)
+	}
+
+	return nil
 }
