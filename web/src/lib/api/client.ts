@@ -10,22 +10,33 @@ interface ErrorResponse {
 }
 
 export class ApiClient {
-	private async request<T>(
-		endpoint: string,
-		options: RequestInit = {}
-	): Promise<T> {
+	get baseURL(): string {
+		return '/api';
+	}
+
+	getHeaders(): HeadersInit {
 		const token = localStorage.getItem('auth_token');
-		
 		const headers: HeadersInit = {
 			'Content-Type': 'application/json',
-			...options.headers,
 		};
 
 		if (token) {
 			headers['Authorization'] = `Bearer ${token}`;
 		}
 
-		const response = await fetch(`/api${endpoint}`, {
+		return headers;
+	}
+
+	private async request<T>(
+		endpoint: string,
+		options: RequestInit = {}
+	): Promise<T> {
+		const headers: HeadersInit = {
+			...this.getHeaders(),
+			...options.headers,
+		};
+
+		const response = await fetch(`${this.baseURL}${endpoint}`, {
 			...options,
 			headers,
 			credentials: 'include',

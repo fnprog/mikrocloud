@@ -58,6 +58,7 @@
 		"@icons-pack/svelte-simple-icons": "^6.4.0",
 		"@tanstack/svelte-query": "^5.83.1",
 		"@xyflow/svelte": "^1.2.2",
-		"lucide-svelte": "^0.535.0"
+		"lucide-svelte": "^0.535.0",
+		"svelte-sonner": "^1.0.5"
 	}
 }

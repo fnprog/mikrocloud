@@ -1,13 +1,21 @@
 <script lang="ts">
+	import { page } from '$app/stores';
 	let { children } = $props();
 	import { NavBarBottom } from '$lib/components/ui/navbar';
 
-	const tabs = [
-		{ name: 'Configuration', href: '/dashboard' },
-		{ name: 'Logs', href: '/dashboard/projects' },
-		{ name: 'Terminal', href: '/dashboard/analytics' },
-		{ name: 'DB Studio', href: '/dashboard/settings' }
-	];
+	const projectId = $derived($page.params.id);
+	const envId = $derived($page.params.env_id);
+	const resId = $derived($page.params.res_id);
+
+	const tabs = $derived([
+		{
+			name: 'Configuration',
+			href: `/dashboard/project/${projectId}/${envId}/db/${resId}/overview`
+		},
+		{ name: 'Logs', href: `/dashboard/project/${projectId}/${envId}/db/${resId}/logs` },
+		{ name: 'Terminal', href: `/dashboard/project/${projectId}/${envId}/db/${resId}/terminal` },
+		{ name: 'DB Studio', href: `/dashboard/project/${projectId}/${envId}/db/${resId}/studio` }
+	]);
 </script>
 
 <main>

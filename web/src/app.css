@@ -7,43 +7,53 @@
 
 :root {
   --radius: 0rem;
-  --background: oklch(0.1591 0 0);
-  --foreground: oklch(100 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-new: oklch(0.1913 0 0);
+  
+  /* Bases */
+  --background: oklch(0.14 0 0);
+  --foreground: oklch(0.98 0 0);
 
-  --secondary-foreground-new: oklch(0.3979 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --input-new: oklch(0.3979 0 0);
+  /* Surfaces */
+  --card: oklch(0.17 0 0);            /* slightly lighter than bg */
+  --card-foreground: oklch(0.92 0 0); /* softer white */
+  --popover: oklch(0.17 0 0);
+  --popover-foreground: oklch(0.92 0 0);
 
+  
+  --primary: oklch(0.28 0 0);         /* mid-gray, distinct */
+  --primary-foreground: oklch(0.98 0 0);
 
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --secondary: oklch(0.23 0 0);
+  --secondary-foreground: oklch(0.74 0 0); /* softer light gray for contrast */
+
+  --muted: oklch(0.20 0 0);
+  --muted-foreground: oklch(0.65 0 0);
+  
+  --accent: oklch(0.24 0 0);
+  --accent-foreground: oklch(0.92 0 0);
+  
+  --destructive: oklch(0.55 0.22 27.3); /* muted red */
+  --destructive-foreground: oklch(0.98 0 0);
+
+  --border: oklch(0.26 0 0);
+  --input: oklch(0.26 0 0);
+  --ring: oklch(0.50 0 0);
+ 
+  /* Charts (keep slight hues for distinction) */
+  --chart-1: oklch(0.60 0.18 40);
+  --chart-2: oklch(0.58 0.10 185);
+  --chart-3: oklch(0.40 0.07 230);
+  --chart-4: oklch(0.80 0.15 85);
+  --chart-5: oklch(0.72 0.16 70);
+
+  /* Sidebar */
+  --sidebar: oklch(0.16 0 0);
+  --sidebar-foreground: oklch(0.92 0 0);
+  --sidebar-primary: oklch(0.28 0 0);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.22 0 0);
+  --sidebar-accent-foreground: oklch(0.92 0 0);
+  --sidebar-border: oklch(0.26 0 0);
+  --sidebar-ring: oklch(0.50 0 0);
 }
 
 .dark {
@@ -85,32 +95,43 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
+  
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  
   --color-secondary: var(--secondary);
   --color-secondary-new: var(--secondary-new);
+  
   --color-secondary-foreground: var(--secondary-foreground-new);
   --color-secondary-foreground-new: var(--secondary-foreground-new);
+  
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  
   --color-destructive: var(--destructive);
+  --color-foreground: var(--destructive-foreground);
+  
   --color-border: var(--border);
   --color-input: var(--input);
-  --color-input-new: var(--input-new);
   --color-ring: var(--ring);
+
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);

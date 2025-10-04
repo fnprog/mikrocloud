@@ -3,8 +3,9 @@
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
-	import { createQuery } from '@tanstack/svelte-query';
+	import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
 	import { databasesApi } from '$lib/api/databases';
+	import { toast } from 'svelte-sonner';
 	import {
 		ArrowLeft,
 		Database as DatabaseIcon,
@@ -24,6 +25,8 @@
 	const envId = $derived($page.params.env_id);
 	const resId = $derived($page.params.res_id);
 
+	const queryClient = useQueryClient();
+
 	const databaseQuery = createQuery({
 		queryKey: ['database', projectId, resId],
 		queryFn: () => databasesApi.get(projectId, resId),
@@ -31,6 +34,43 @@
 	});
 
 	const database = $derived($databaseQuery.data);
+
+	const startMutation = createMutation({
+		mutationFn: () => databasesApi.start(projectId, resId),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['database', projectId, resId] });
+			toast.success('Database started successfully');
+		},
+		onError: (error: Error) => {
+			toast.error(`Failed to start database: ${error.message}`);
+		}
+	});
+
+	const stopMutation = createMutation({
+		mutationFn: () => databasesApi.stop(projectId, resId),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['database', projectId, resId] });
+			toast.success('Database stopped successfully');
+		},
+		onError: (error: Error) => {
+			toast.error(`Failed to stop database: ${error.message}`);
+		}
+	});
+
+	const restartMutation = createMutation({
+		mutationFn: () => databasesApi.restart(projectId, resId),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['database', projectId, resId] });
+			toast.success('Database restarted successfully');
+		},
+		onError: (error: Error) => {
+			toast.error(`Failed to restart database: ${error.message}`);
+		}
+	});
+
+	const isAnyActionPending = $derived(
+		$startMutation.isPending || $stopMutation.isPending || $restartMutation.isPending
+	);
 
 	function getStatusBadgeVariant(
 		status: string
@@ -80,21 +120,36 @@
 				</div>
 
 				<div class="flex gap-2">
-					{#if database.status === 'stopped' || 'created'}
-						<Button variant="outline" size="sm">
+					{#if database.status === 'stopped' || database.status === 'created'}
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={isAnyActionPending}
+							onclick={() => $startMutation.mutate()}
+						>
 							<Play class="mr-2 h-4 w-4" />
-							Start
+							{$startMutation.isPending ? 'Starting...' : 'Start'}
 						</Button>
 					{:else if database.status === 'running'}
-						<Button variant="outline" size="sm">
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={isAnyActionPending}
+							onclick={() => $stopMutation.mutate()}
+						>
 							<Square class="mr-2 h-4 w-4" />
-							Stop
+							{$stopMutation.isPending ? 'Stopping...' : 'Stop'}
 						</Button>
 					{/if}
 					{#if database.status !== 'created'}
-						<Button variant="outline" size="sm">
-							<RefreshCw class="mr-2 h-4 w-4" />
-							Restart
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={isAnyActionPending}
+							onclick={() => $restartMutation.mutate()}
+						>
+							<RefreshCw class="mr-2 h-4 w-4 {$restartMutation.isPending ? 'animate-spin' : ''}" />
+							{$restartMutation.isPending ? 'Restarting...' : 'Restart'}
 						</Button>
 					{/if}
 				</div>

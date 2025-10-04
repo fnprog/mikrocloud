@@ -20,6 +20,9 @@ importers:
       lucide-svelte:
         specifier: ^0.535.0
         version: 0.535.0(svelte@5.37.1)
+      svelte-sonner:
+        specifier: ^1.0.5
+        version: 1.0.5(svelte@5.37.1)
     devDependencies:
       '@eslint/compat':
         specifier: ^1.2.5
@@ -1526,6 +1529,11 @@ packages:
   run-parallel@1.2.0:
     resolution: {integrity: sha512-5l4VyZR86LZ/lDxZTR6jqL8AFE2S0IFLMP26AbjsLVADxHdhB/c0GUsH+y39UfCi3dzz8OlQuPmnaJOMoDHQBA==}
 
+  runed@0.28.0:
+    resolution: {integrity: sha512-k2xx7RuO9hWcdd9f+8JoBeqWtYrm5CALfgpkg2YDB80ds/QE4w0qqu34A7fqiAwiBBSBQOid7TLxwxVC27ymWQ==}
+    peerDependencies:
+      svelte: ^5.7.0
+
   runed@0.29.2:
     resolution: {integrity: sha512-0cq6cA6sYGZwl/FvVqjx9YN+1xEBu9sDDyuWdDW1yWX7JF2wmvmVKfH+hVCZs+csW+P3ARH92MjI3H9QTagOQA==}
     peerDependencies:
@@ -1603,6 +1611,11 @@ packages:
     peerDependenciesMeta:
       svelte:
         optional: true
+
+  svelte-sonner@1.0.5:
+    resolution: {integrity: sha512-9dpGPFqKb/QWudYqGnEz93vuY+NgCEvyNvxoCLMVGw6sDN/3oVeKV1xiEirW2E1N3vJEyj5imSBNOGltQHA7mg==}
+    peerDependencies:
+      svelte: ^5.0.0
 
   svelte-toolbelt@0.10.5:
     resolution: {integrity: sha512-8e+eWTgxw1aiLxhDE8Rb1X6AoLitqpJz+WhAul2W7W58C8KoLoJQf1TgQdFPBiCPJ0Jg5y0Zi1uyua9em4VS0w==}
@@ -3120,6 +3133,11 @@ snapshots:
     dependencies:
       queue-microtask: 1.2.3
 
+  runed@0.28.0(svelte@5.37.1):
+    dependencies:
+      esm-env: 1.2.2
+      svelte: 5.37.1
+
   runed@0.29.2(svelte@5.37.1):
     dependencies:
       esm-env: 1.2.2
@@ -3193,6 +3211,11 @@ snapshots:
       postcss-scss: 4.0.9(postcss@8.5.6)
       postcss-selector-parser: 7.1.0
     optionalDependencies:
+      svelte: 5.37.1
+
+  svelte-sonner@1.0.5(svelte@5.37.1):
+    dependencies:
+      runed: 0.28.0(svelte@5.37.1)
       svelte: 5.37.1
 
   svelte-toolbelt@0.10.5(svelte@5.37.1):

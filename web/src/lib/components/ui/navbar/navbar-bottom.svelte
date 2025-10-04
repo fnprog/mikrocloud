@@ -52,7 +52,7 @@
 
 <div
 	class={cn(
-		'sticky left-0 right-0 z-40 bg-secondary-new border-b border-secondary-foreground-new transition-all duration-300',
+		'sticky left-0 right-0 z-40 bg-card border-b border-input transition-all duration-300',
 		$isScrolled ? 'top-0' : 'top-14'
 	)}
 >

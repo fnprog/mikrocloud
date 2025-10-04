@@ -34,7 +34,7 @@
 	};
 </script>
 
-<button type="button" class="w-full text-left" onclick={onclick}>
+<button type="button" class="w-full text-left" {onclick}>
 	<Card class="group relative p-4 transition-shadow hover:shadow-md">
 		<div class="flex items-start justify-between">
 			<div class="flex-1">
