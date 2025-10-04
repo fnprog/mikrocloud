@@ -61,7 +61,7 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	dbImageResolver := databaseContainers.NewDefaultImageResolver()
 	dbConfigBuilder := databaseContainers.NewDefaultContainerConfigBuilder(dbImageResolver)
 	dbDeploymentSvc := databaseContainers.NewDatabaseDeploymentService(containerManager, dbImageResolver, dbConfigBuilder, diskSvc)
-	dbSvc := databaseService.NewDatabaseService(db.DatabaseRepository, dbDeploymentSvc)
+	dbSvc := databaseService.NewDatabaseService(db.DatabaseRepository, dbDeploymentSvc, diskSvc)
 
 	// Create database status sync service (will be started by server with proper context)
 	logger := slog.Default()

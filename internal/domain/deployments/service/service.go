@@ -494,7 +494,7 @@ func (s *DeploymentService) ListDeploymentsByStatus(ctx context.Context, status 
 func (s *DeploymentService) deployContainer(ctx context.Context, deploymentID deployments.DeploymentID, deployment *deployments.Deployment, app *applications.Application, imageTag string) error {
 	s.AppendDeployLogs(ctx, deploymentID, "Starting container deployment...")
 
-	containerName := fmt.Sprintf("%s-%s", app.Name().String(), deployment.DeploymentNumber())
+	containerName := fmt.Sprintf("%s-%d", app.Name().String(), deployment.DeploymentNumber())
 	containerName = strings.ToLower(strings.ReplaceAll(containerName, " ", "-"))
 
 	ports := make(map[string]string)

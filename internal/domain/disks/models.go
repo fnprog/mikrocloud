@@ -64,18 +64,18 @@ type DiskSize struct {
 }
 
 func NewDiskSize(sizeInBytes int64) (DiskSize, error) {
-	if sizeInBytes <= 0 {
-		return DiskSize{}, fmt.Errorf("disk size must be positive")
+	if sizeInBytes < 0 {
+		return DiskSize{}, fmt.Errorf("disk size cannot be negative")
 	}
-	if sizeInBytes < 1024*1024 { // Minimum 1MB
-		return DiskSize{}, fmt.Errorf("disk size must be at least 1MB")
+	if sizeInBytes > 0 && sizeInBytes < 1024*1024 { // Minimum 1MB if not unlimited
+		return DiskSize{}, fmt.Errorf("disk size must be at least 1MB or 0 for unlimited")
 	}
 	return DiskSize{bytes: sizeInBytes}, nil
 }
 
 func NewDiskSizeFromGB(sizeInGB int) (DiskSize, error) {
-	if sizeInGB <= 0 {
-		return DiskSize{}, fmt.Errorf("disk size must be positive")
+	if sizeInGB < 0 {
+		return DiskSize{}, fmt.Errorf("disk size cannot be negative")
 	}
 	return DiskSize{bytes: int64(sizeInGB) * 1024 * 1024 * 1024}, nil
 }
@@ -93,6 +93,9 @@ func (s DiskSize) GB() int64 {
 }
 
 func (s DiskSize) String() string {
+	if s.bytes == 0 {
+		return "unlimited"
+	}
 	if s.bytes >= 1024*1024*1024 {
 		return fmt.Sprintf("%.1fGB", float64(s.bytes)/(1024*1024*1024))
 	}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mikrocloud/mikrocloud/internal/domain/databases"
+	"github.com/mikrocloud/mikrocloud/internal/domain/disks"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/database"
 )
 
@@ -21,15 +22,22 @@ type DatabaseRepository interface {
 	ExistsByName(projectID uuid.UUID, name databases.DatabaseName) (bool, error)
 }
 
+type DiskService interface {
+	CreateDisk(ctx context.Context, name disks.DiskName, projectID uuid.UUID, size disks.DiskSize, mountPath string, filesystem disks.Filesystem, persistent bool) (*disks.Disk, error)
+	AttachDisk(ctx context.Context, diskID disks.DiskID, serviceID uuid.UUID) error
+}
+
 type DatabaseService struct {
 	repo                DatabaseRepository
 	containerDeployment database.DatabaseDeploymentService
+	diskService         DiskService
 }
 
-func NewDatabaseService(repo DatabaseRepository, containerDeployment database.DatabaseDeploymentService) *DatabaseService {
+func NewDatabaseService(repo DatabaseRepository, containerDeployment database.DatabaseDeploymentService, diskService DiskService) *DatabaseService {
 	return &DatabaseService{
 		repo:                repo,
 		containerDeployment: containerDeployment,
+		diskService:         diskService,
 	}
 }
 
@@ -233,6 +241,14 @@ func (s *DatabaseService) StartDatabase(ctx context.Context, id databases.Databa
 		return fmt.Errorf("failed to update database status: %w", err)
 	}
 
+	// Create and attach default disk for persistent storage databases if disk service is available
+	if s.diskService != nil && s.requiresPersistentStorage(database.Type()) {
+		if err := s.createDefaultDisk(ctx, database); err != nil {
+			// Log error but don't fail the deployment
+			fmt.Printf("Warning: failed to create default disk for database %s: %v\n", database.ID(), err)
+		}
+	}
+
 	// Deploy the database container
 	deployResult, err := s.containerDeployment.Deploy(ctx, database)
 	if err != nil {
@@ -405,6 +421,75 @@ func (s *DatabaseService) ValidateDatabaseConfig(dbType databases.DatabaseType, 
 		}
 	default:
 		return fmt.Errorf("unsupported database type: %s", dbType)
+	}
+
+	return nil
+}
+
+func (s *DatabaseService) requiresPersistentStorage(dbType databases.DatabaseType) bool {
+	switch dbType {
+	case databases.DatabaseTypePostgreSQL,
+		databases.DatabaseTypeMySQL,
+		databases.DatabaseTypeMariaDB,
+		databases.DatabaseTypeMongoDB,
+		databases.DatabaseTypeClickHouse:
+		return true
+	case databases.DatabaseTypeRedis,
+		databases.DatabaseTypeKeyDB,
+		databases.DatabaseTypeDragonfly:
+		return false
+	default:
+		return false
+	}
+}
+
+func (s *DatabaseService) createDefaultDisk(ctx context.Context, database *databases.Database) error {
+	var mountPath string
+	switch database.Type() {
+	case databases.DatabaseTypePostgreSQL:
+		mountPath = "/var/lib/postgresql/data"
+	case databases.DatabaseTypeMySQL:
+		mountPath = "/var/lib/mysql"
+	case databases.DatabaseTypeMariaDB:
+		mountPath = "/var/lib/mysql"
+	case databases.DatabaseTypeMongoDB:
+		mountPath = "/data/db"
+	case databases.DatabaseTypeClickHouse:
+		mountPath = "/var/lib/clickhouse"
+	default:
+		return fmt.Errorf("unsupported database type for disk creation: %s", database.Type())
+	}
+
+	diskName, err := disks.NewDiskName(fmt.Sprintf("%s-data", database.Name().String()))
+	if err != nil {
+		return fmt.Errorf("failed to create disk name: %w", err)
+	}
+
+	diskSize, err := disks.NewDiskSizeFromGB(0)
+	if err != nil {
+		return fmt.Errorf("failed to create disk size: %w", err)
+	}
+
+	disk, err := s.diskService.CreateDisk(
+		ctx,
+		diskName,
+		database.ProjectID(),
+		diskSize,
+		mountPath,
+		disks.FilesystemExt4,
+		true,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create disk: %w", err)
+	}
+
+	serviceID, err := uuid.Parse(database.ID().String())
+	if err != nil {
+		return fmt.Errorf("failed to parse database ID: %w", err)
+	}
+
+	if err := s.diskService.AttachDisk(ctx, disk.ID(), serviceID); err != nil {
+		return fmt.Errorf("failed to attach disk: %w", err)
 	}
 
 	return nil
