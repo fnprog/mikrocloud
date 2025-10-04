@@ -6,11 +6,13 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Badge } from '$lib/components/ui/badge';
 	import { HardDrive, Plus, Trash2 } from 'lucide-svelte';
-	import { createQuery } from '@tanstack/svelte-query';
+	import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { databasesApi } from '$lib/api/databases';
+	import { disksApi, type CreateDiskRequest } from '$lib/api/disks';
 
 	const projectId = $derived($page.params.id);
 	const resId = $derived($page.params.res_id);
+	const queryClient = useQueryClient();
 
 	const databaseQuery = createQuery({
 		queryKey: ['database', projectId, resId],
@@ -18,11 +20,66 @@
 		enabled: !!projectId && !!resId
 	});
 
-	const database = $derived($databaseQuery.data);
+	const disksQuery = createQuery({
+		queryKey: ['disks', projectId],
+		queryFn: () => disksApi.list(projectId),
+		enabled: !!projectId
+	});
 
-	const mountedVolumes = $state([
-		{ id: '1', name: '/var/lib/postgresql/data', size: '10 GB', used: '2.3 GB' }
-	]);
+	const deleteMutation = createMutation({
+		mutationFn: (diskId: string) => disksApi.delete(projectId, diskId),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['disks', projectId] });
+		}
+	});
+
+	const detachMutation = createMutation({
+		mutationFn: (diskId: string) => disksApi.detach(projectId, diskId),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['disks', projectId] });
+		}
+	});
+
+	const createMutation_ = createMutation({
+		mutationFn: async (data: CreateDiskRequest) => {
+			const disk = await disksApi.create(projectId, data);
+			await disksApi.attach(projectId, disk.id, { service_id: resId });
+			return disk;
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['disks', projectId] });
+			mountPath = '';
+			volumeSize = '';
+		}
+	});
+
+	const database = $derived($databaseQuery.data);
+	const allDisks = $derived($disksQuery.data ?? []);
+	const mountedVolumes = $derived(allDisks.filter(disk => disk.service_id === resId));
+
+	let mountPath = $state('');
+	let volumeSize = $state('');
+
+	function handleSubmit(e: Event) {
+		e.preventDefault();
+		if (!mountPath || !volumeSize) return;
+
+		const data: CreateDiskRequest = {
+			name: `${database?.name || 'db'}-storage-${Date.now()}`,
+			size_gb: parseInt(volumeSize),
+			mount_path: mountPath,
+			filesystem: 'ext4',
+			persistent: true
+		};
+
+		createMutation_.mutate(data);
+	}
+
+	function handleDetach(diskId: string) {
+		if (confirm('Are you sure you want to detach this volume?')) {
+			detachMutation.mutate(diskId);
+		}
+	}
 </script>
 
 	<div class="space-y-6">
@@ -40,7 +97,11 @@
 		</CardHeader>
 		<CardContent>
 			<div class="space-y-4">
-				{#if mountedVolumes.length === 0}
+				{#if $disksQuery.isLoading}
+					<div class="text-center py-8 text-muted-foreground">
+						<p>Loading volumes...</p>
+					</div>
+				{:else if mountedVolumes.length === 0}
 					<div class="text-center py-8 text-muted-foreground">
 						<HardDrive class="mx-auto h-12 w-12 mb-2 opacity-50" />
 						<p>No persistent volumes mounted</p>
@@ -52,15 +113,20 @@
 								<div class="flex items-center gap-3">
 									<HardDrive class="h-5 w-5 text-muted-foreground" />
 									<div>
-										<p class="font-medium">{volume.name}</p>
+										<p class="font-medium">{volume.mount_path}</p>
 										<p class="text-sm text-muted-foreground">
-											{volume.used} / {volume.size} used
+											{volume.size_gb} GB • {volume.filesystem}
 										</p>
 									</div>
 								</div>
 								<div class="flex items-center gap-2">
-									<Badge variant="secondary">Active</Badge>
-									<Button variant="ghost" size="icon">
+									<Badge variant="secondary">{volume.status}</Badge>
+									<Button 
+										variant="ghost" 
+										size="icon"
+										onclick={() => handleDetach(volume.id)}
+										disabled={$detachMutation.isPending}
+									>
 										<Trash2 class="h-4 w-4" />
 									</Button>
 								</div>
@@ -78,7 +144,7 @@
 			<CardDescription>Mount a new persistent volume to this database</CardDescription>
 		</CardHeader>
 		<CardContent>
-			<form class="space-y-4">
+			<form class="space-y-4" onsubmit={handleSubmit}>
 				<div class="grid gap-4 sm:grid-cols-2">
 					<div class="space-y-2">
 						<Label for="mount-path">Mount Path</Label>
@@ -86,6 +152,7 @@
 							id="mount-path"
 							placeholder="/data"
 							type="text"
+							bind:value={mountPath}
 						/>
 					</div>
 					<div class="space-y-2">
@@ -95,12 +162,17 @@
 							placeholder="10"
 							type="number"
 							min="1"
+							bind:value={volumeSize}
 						/>
 					</div>
 				</div>
-				<Button type="submit" class="w-full sm:w-auto">
+				<Button 
+					type="submit" 
+					class="w-full sm:w-auto"
+					disabled={$createMutation_.isPending || !mountPath || !volumeSize}
+				>
 					<Plus class="h-4 w-4 mr-2" />
-					Add Volume
+					{$createMutation_.isPending ? 'Adding...' : 'Add Volume'}
 				</Button>
 			</form>
 		</CardContent>

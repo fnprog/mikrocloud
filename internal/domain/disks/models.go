@@ -138,6 +138,13 @@ func NewDiskBackupID() DiskBackupID {
 	return DiskBackupID{value: uuid.New().String()}
 }
 
+func DiskBackupIDFromString(s string) (DiskBackupID, error) {
+	if s == "" {
+		return DiskBackupID{}, fmt.Errorf("disk backup ID cannot be empty")
+	}
+	return DiskBackupID{value: s}, nil
+}
+
 func (id DiskBackupID) String() string {
 	return id.value
 }

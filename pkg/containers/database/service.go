@@ -5,26 +5,34 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/mikrocloud/mikrocloud/internal/domain/databases"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
 )
+
+type DiskService interface {
+	GetDiskMounts(ctx context.Context, serviceID uuid.UUID) (map[string]string, error)
+}
 
 // Service implementation
 type Service struct {
 	containerManager manager.ContainerManager
 	imageResolver    DatabaseImageResolver
 	configBuilder    ContainerConfigBuilder
+	diskService      DiskService
 }
 
 func NewDatabaseDeploymentService(
 	containerManager manager.ContainerManager,
 	imageResolver DatabaseImageResolver,
 	configBuilder ContainerConfigBuilder,
+	diskService DiskService,
 ) DatabaseDeploymentService {
 	return &Service{
 		containerManager: containerManager,
 		imageResolver:    imageResolver,
 		configBuilder:    configBuilder,
+		diskService:      diskService,
 	}
 }
 
@@ -41,13 +49,27 @@ func (s *Service) Deploy(ctx context.Context, database *databases.Database) (*De
 		return nil, fmt.Errorf("failed to pull image: %w", err)
 	}
 
+	// Get disk mounts if available
+	volumes := config.Volumes
+	if s.diskService != nil {
+		dbUUID, err := uuid.Parse(database.ID().String())
+		if err == nil {
+			diskMounts, err := s.diskService.GetDiskMounts(ctx, dbUUID)
+			if err == nil {
+				for hostPath, containerPath := range diskMounts {
+					volumes[hostPath] = containerPath
+				}
+			}
+		}
+	}
+
 	// Convert to manager.ContainerConfig
 	containerConfig := manager.ContainerConfig{
 		Image:         config.Image,
 		Name:          config.ContainerName,
 		Ports:         map[string]string{config.Port: config.Port},
 		Environment:   config.Environment,
-		Volumes:       config.Volumes,
+		Volumes:       volumes,
 		RestartPolicy: "unless-stopped",
 		Command:       config.Command,
 	}
@@ -131,6 +153,22 @@ func (s *Service) Remove(ctx context.Context, database *databases.Database) erro
 	}
 
 	return fmt.Errorf("container %s not found", containerName)
+}
+
+// Restart recreates and restarts a database container with updated configuration
+func (s *Service) Restart(ctx context.Context, database *databases.Database) error {
+	// Remove the existing container
+	if err := s.Remove(ctx, database); err != nil {
+		return fmt.Errorf("failed to remove container: %w", err)
+	}
+
+	// Redeploy with updated configuration (including disk mounts)
+	_, err := s.Deploy(ctx, database)
+	if err != nil {
+		return fmt.Errorf("failed to redeploy container: %w", err)
+	}
+
+	return nil
 }
 
 // GetStatus returns the current status of a database container

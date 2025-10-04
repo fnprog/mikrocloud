@@ -4,6 +4,7 @@ import { projectsApi as projects } from './projects';
 import { environmentsApi as environments } from './environments';
 import { applicationsApi as applications } from './applications';
 import { databasesApi as databases } from './databases';
+import { disksApi as disks } from './disks';
 import { templatesApi as templates } from './templates';
 
 export { client as apiClient };
@@ -12,6 +13,7 @@ export { projects as projectsApi };
 export { environments as environmentsApi };
 export { applications as applicationsApi };
 export { databases as databasesApi };
+export { disks as disksApi };
 export { templates as templatesApi };
 
 export type { User, LoginRequest, RegisterRequest, AuthResponse } from './auth';
@@ -19,6 +21,7 @@ export type { Project, CreateProjectRequest } from './projects';
 export type { Environment, CreateEnvironmentRequest } from './environments';
 export type { Application, CreateApplicationRequest, ApplicationStatus } from './applications';
 export type { Database, CreateDatabaseRequest, DatabaseType, DatabaseStatus } from './databases';
+export type { Disk, CreateDiskRequest, ResizeDiskRequest, AttachDiskRequest } from './disks';
 export type { ServiceTemplate, DeployTemplateRequest } from './templates';
 export type { ApiError } from './client';
 
@@ -63,6 +66,17 @@ export const createDatabase = (
 	data: import('./databases').CreateDatabaseRequest
 ) => databases.create(projectId, data);
 export const deleteDatabase = (projectId: string, id: string) => databases.delete(projectId, id);
+
+export const listDisks = (projectId: string) => disks.list(projectId);
+export const getDisk = (projectId: string, diskId: string) => disks.get(projectId, diskId);
+export const createDisk = (projectId: string, data: import('./disks').CreateDiskRequest) =>
+	disks.create(projectId, data);
+export const resizeDisk = (projectId: string, diskId: string, data: import('./disks').ResizeDiskRequest) =>
+	disks.resize(projectId, diskId, data);
+export const deleteDisk = (projectId: string, diskId: string) => disks.delete(projectId, diskId);
+export const attachDisk = (projectId: string, diskId: string, data: import('./disks').AttachDiskRequest) =>
+	disks.attach(projectId, diskId, data);
+export const detachDisk = (projectId: string, diskId: string) => disks.detach(projectId, diskId);
 
 export const listTemplates = (category?: string) => templates.list(category);
 export const getTemplate = (id: string) => templates.get(id);

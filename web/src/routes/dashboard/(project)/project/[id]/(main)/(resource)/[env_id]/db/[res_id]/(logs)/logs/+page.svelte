@@ -69,10 +69,10 @@
 		}
 	}
 
-	function startLogStreaming() {
+	async function startLogStreaming() {
 		if (!projectId || !resId) return;
 
-		stopStreaming = databasesApi.streamLogs(
+		stopStreaming = await databasesApi.streamLogs(
 			projectId,
 			resId,
 			true,

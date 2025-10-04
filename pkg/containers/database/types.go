@@ -20,6 +20,9 @@ type DatabaseDeploymentService interface {
 	// Remove removes a database container completely
 	Remove(ctx context.Context, database *databases.Database) error
 
+	// Restart recreates and restarts a database container with updated configuration
+	Restart(ctx context.Context, database *databases.Database) error
+
 	// GetStatus returns the current status of a database container
 	GetStatus(ctx context.Context, database *databases.Database) (*ContainerStatus, error)
 

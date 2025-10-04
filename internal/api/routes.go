@@ -20,6 +20,8 @@ import (
 	databaseService "github.com/mikrocloud/mikrocloud/internal/domain/databases/service"
 	deploymentHandlers "github.com/mikrocloud/mikrocloud/internal/domain/deployments/handlers"
 	deploymentService "github.com/mikrocloud/mikrocloud/internal/domain/deployments/service"
+	diskHandlers "github.com/mikrocloud/mikrocloud/internal/domain/disks/handlers"
+	diskService "github.com/mikrocloud/mikrocloud/internal/domain/disks/service"
 	envHandlers "github.com/mikrocloud/mikrocloud/internal/domain/environments/handlers"
 	environmentService "github.com/mikrocloud/mikrocloud/internal/domain/environments/service"
 	maintenanceHandlers "github.com/mikrocloud/mikrocloud/internal/domain/maintenance/handlers"
@@ -52,10 +54,13 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	authSvc := authService.NewAuthService(db.SessionRepository, db.AuthRepository, db.UserRepository, cfg.Auth.JWTSecret)
 	appSvc := applicationsService.NewApplicationService(db.ApplicationRepository)
 
+	// Create disk service (needed by database deployment service)
+	diskSvc := diskService.NewDiskService(db.DiskRepository, db.DiskBackupRepository)
+
 	// Create database container deployment service
 	dbImageResolver := databaseContainers.NewDefaultImageResolver()
 	dbConfigBuilder := databaseContainers.NewDefaultContainerConfigBuilder(dbImageResolver)
-	dbDeploymentSvc := databaseContainers.NewDatabaseDeploymentService(containerManager, dbImageResolver, dbConfigBuilder)
+	dbDeploymentSvc := databaseContainers.NewDatabaseDeploymentService(containerManager, dbImageResolver, dbConfigBuilder, diskSvc)
 	dbSvc := databaseService.NewDatabaseService(db.DatabaseRepository, dbDeploymentSvc)
 
 	// Create database status sync service (will be started by server with proper context)
@@ -91,6 +96,7 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	deploymentHandler := deploymentHandlers.NewDeploymentHandler(deploymentSvc, appSvc)
 	templateHandler := serviceHandlers.NewTemplateHandler(templateSvc)
 	proxyHandler := proxyHandlers.NewProxyHandler(proxySvc)
+	diskHandler := diskHandlers.NewDiskHandler(diskSvc, dbSvc, dbDeploymentSvc)
 	maintenanceHandler := maintenanceHandlers.NewMaintenanceHandler(
 		db.ProjectRepository,
 		db.ApplicationRepository,
@@ -173,6 +179,19 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 						r.Get("/", proxyHandler.GetProxyConfig)
 						r.Put("/", proxyHandler.UpdateProxyConfig)
 						r.Delete("/", proxyHandler.DeleteProxyConfig)
+					})
+				})
+
+				// Disk routes within project
+				r.Route("/disks", func(r chi.Router) {
+					r.Get("/", diskHandler.ListDisks)
+					r.Post("/", diskHandler.CreateDisk)
+					r.Route("/{disk_id}", func(r chi.Router) {
+						r.Get("/", diskHandler.GetDisk)
+						r.Put("/resize", diskHandler.ResizeDisk)
+						r.Delete("/", diskHandler.DeleteDisk)
+						r.Post("/attach", diskHandler.AttachDisk)
+						r.Post("/detach", diskHandler.DetachDisk)
 					})
 				})
 			})

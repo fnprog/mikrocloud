@@ -24,6 +24,23 @@ func NewDiskService(
 	}
 }
 
+// GetDiskMounts returns all disk mounts for a service formatted for container volumes
+func (s *DiskService) GetDiskMounts(ctx context.Context, serviceID uuid.UUID) (map[string]string, error) {
+	disks, err := s.diskRepo.GetByServiceID(ctx, serviceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get disks for service: %w", err)
+	}
+
+	volumes := make(map[string]string)
+	for _, disk := range disks {
+		// Format: /var/lib/mikrocloud/volumes/<disk-id>:/mount/path
+		hostPath := fmt.Sprintf("/var/lib/mikrocloud/volumes/%s", disk.ID())
+		volumes[hostPath] = disk.MountPath()
+	}
+
+	return volumes, nil
+}
+
 func (s *DiskService) CreateDisk(
 	ctx context.Context,
 	name disks.DiskName,
