@@ -2,15 +2,16 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { Button } from '$lib/components/ui/button';
-	import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '$lib/components/ui/card';
+	import {
+		Card,
+		CardContent,
+		CardDescription,
+		CardHeader,
+		CardTitle
+	} from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import {
-		Select,
-		SelectContent,
-		SelectItem,
-		SelectTrigger
-	} from '$lib/components/ui/select';
+	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
 	import { applicationsApi, type CreateApplicationRequest } from '$lib/api/applications';
 	import SourceTypeSelector from '$lib/components/applications/source-type-selector.svelte';
 	import GitConfigForm from '$lib/components/applications/git-config-form.svelte';
@@ -113,10 +114,6 @@
 </script>
 
 <div class="container mx-auto max-w-4xl py-8 px-4">
-	<Button variant="ghost" onclick={() => goto(`/dashboard/project/${projectId}`)} class="mb-6">
-		<ArrowLeft class="h-4 w-4 mr-2" />
-		Back to project
-	</Button>
 
 	<div class="space-y-8">
 		<div>
@@ -146,13 +143,13 @@
 					<GitConfigForm
 						provider={gitProvider}
 						onProviderChange={(p) => (gitProvider = p)}
-						repository={repository}
+						{repository}
 						onRepositoryChange={(r) => (repository = r)}
-						branch={branch}
+						{branch}
 						onBranchChange={(b) => (branch = b)}
-						autoDeploy={autoDeploy}
+						{autoDeploy}
 						onAutoDeployChange={(a) => (autoDeploy = a)}
-						isPrivate={isPrivate}
+						{isPrivate}
 						onIsPrivateChange={(p) => (isPrivate = p)}
 					/>
 				</CardContent>
@@ -167,7 +164,7 @@
 					<BuildTypeSelector
 						selected={buildType}
 						onSelect={(type) => (buildType = type)}
-						publishDirectory={publishDirectory}
+						{publishDirectory}
 						onPublishDirectoryChange={(dir) => (publishDirectory = dir)}
 					/>
 				</CardContent>
@@ -182,9 +179,9 @@
 					<DockerConfigForm
 						type={dockerType}
 						onTypeChange={(t) => (dockerType = t)}
-						dockerfileContent={dockerfileContent}
+						{dockerfileContent}
 						onDockerfileChange={(c) => (dockerfileContent = c)}
-						composeContent={composeContent}
+						{composeContent}
 						onComposeChange={(c) => (composeContent = c)}
 					/>
 				</CardContent>
@@ -193,7 +190,8 @@
 			<Card>
 				<CardHeader>
 					<CardTitle>Upload file</CardTitle>
-					<CardDescription>Upload a zipped archive containing your application code</CardDescription>
+					<CardDescription>Upload a zipped archive containing your application code</CardDescription
+					>
 				</CardHeader>
 				<CardContent>
 					<div class="space-y-2">
@@ -226,7 +224,7 @@
 					<BuildTypeSelector
 						selected={buildType}
 						onSelect={(type) => (buildType = type)}
-						publishDirectory={publishDirectory}
+						{publishDirectory}
 						onPublishDirectoryChange={(dir) => (publishDirectory = dir)}
 					/>
 				</CardContent>
@@ -241,12 +239,7 @@
 			<CardContent class="space-y-4">
 				<div class="space-y-2">
 					<Label for="app-name">Application name</Label>
-					<Input
-						id="app-name"
-						placeholder="my-app"
-						bind:value={appName}
-						required
-					/>
+					<Input id="app-name" placeholder="my-app" bind:value={appName} required />
 				</div>
 
 				<div class="space-y-2">
@@ -278,7 +271,13 @@
 		<div class="flex gap-4">
 			<Button
 				onclick={handleSubmit}
-				disabled={!appName || (sourceType === 'git' ? !repository : sourceType === 'docker' ? (!dockerfileContent && !composeContent) : !zipFile) || $createMutation_.isPending}
+				disabled={!appName ||
+					(sourceType === 'git'
+						? !repository
+						: sourceType === 'docker'
+							? !dockerfileContent && !composeContent
+							: !zipFile) ||
+					$createMutation_.isPending}
 				class="flex-1"
 			>
 				{#if $createMutation_.isPending}

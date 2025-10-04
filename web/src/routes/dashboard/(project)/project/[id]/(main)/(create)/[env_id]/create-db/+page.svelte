@@ -15,6 +15,7 @@
 	import DragonflyForm from '$lib/components/databases/dragonfly-form.svelte';
 	import MongodbForm from '$lib/components/databases/mongodb-form.svelte';
 	import ClickhouseForm from '$lib/components/databases/clickhouse-form.svelte';
+
 	import { createMutation } from '@tanstack/svelte-query';
 	import {
 		databasesApi,
@@ -29,6 +30,7 @@
 		type MongoDBConfig,
 		type ClickHouseConfig
 	} from '$lib/api/databases';
+
 	import { ArrowLeft } from 'lucide-svelte';
 
 	const projectId = $derived(page.params.id);
@@ -160,10 +162,6 @@
 
 <div class="container max-w-5xl py-8">
 	<div class="mb-6">
-		<Button variant="ghost" onclick={handleBack} class="mb-4">
-			<ArrowLeft class="mr-2 h-4 w-4" />
-			Back
-		</Button>
 		<h1 class="text-3xl font-bold">Create Database</h1>
 		<p class="text-muted-foreground">Add a new database to your project</p>
 	</div>
