@@ -215,22 +215,22 @@
 	<title>Database Studio</title>
 </svelte:head>
 
-<div class="flex h-screen bg-gray-50">
-	<div class="w-64 bg-white border-r border-gray-200 flex flex-col">
-		<div class="p-4 border-b border-gray-200">
+<div class="flex h-screen bg-background">
+	<div class="w-64 bg-card border-r border-border flex flex-col">
+		<div class="p-4 border-b border-border">
 			<div class="flex items-center space-x-2">
-				<Database class="w-5 h-5 text-blue-600" />
-				<h2 class="font-semibold text-gray-900">Database</h2>
+				<Database class="w-5 h-5 text-primary" />
+				<h2 class="font-semibold text-foreground">Database</h2>
 			</div>
 			{#if $infoQuery.data}
-				<p class="text-xs text-gray-500 mt-1">{$infoQuery.data.version}</p>
+				<p class="text-xs text-muted-foreground mt-1">{$infoQuery.data.version}</p>
 			{/if}
 		</div>
 
-		<div class="p-3 border-b border-gray-200">
-			<Label class="text-xs text-gray-600 mb-1.5 block">Schema</Label>
+		<div class="p-3 border-b border-border">
+			<Label class="text-xs text-muted-foreground mb-1.5 block">Schema</Label>
 			{#if $schemasQuery.isLoading}
-				<div class="text-xs text-gray-500">Loading...</div>
+				<div class="text-xs text-muted-foreground">Loading...</div>
 			{:else if $schemasQuery.data && $schemasQuery.data.length > 0}
 				<Select
 					selected={{ value: selectedSchema, label: selectedSchema }}
@@ -248,28 +248,28 @@
 					</SelectContent>
 				</Select>
 			{:else}
-				<div class="text-xs text-gray-500">No schemas</div>
+				<div class="text-xs text-muted-foreground">No schemas</div>
 			{/if}
 		</div>
 
-		<div class="px-4 py-2 border-b border-gray-100">
-			<h3 class="text-xs font-medium text-gray-600 uppercase">Tables</h3>
+		<div class="px-4 py-2 border-b border-border">
+			<h3 class="text-xs font-medium text-muted-foreground uppercase">Tables</h3>
 		</div>
 
 		<div class="flex-1 overflow-y-auto">
 			{#if $tablesQuery.isLoading}
-				<div class="p-4 text-sm text-gray-500">Loading tables...</div>
+				<div class="p-4 text-sm text-muted-foreground">Loading tables...</div>
 			{:else if $tablesQuery.error}
-				<div class="p-4 text-sm text-red-600">Failed to load tables</div>
+				<div class="p-4 text-sm text-destructive">Failed to load tables</div>
 			{:else if $tablesQuery.data}
 				<div class="p-2">
 					{#each $tablesQuery.data as table}
 						<button
 							onclick={() => selectTable(table)}
-							class="w-full text-left px-3 py-2 rounded text-sm hover:bg-gray-100 transition-colors {selectedTable ===
+							class="w-full text-left px-3 py-2 rounded text-sm hover:bg-accent transition-colors {selectedTable ===
 							table
-								? 'bg-blue-50 text-blue-700 font-medium'
-								: 'text-gray-700'}"
+								? 'bg-accent text-accent-foreground font-medium'
+								: 'text-foreground'}"
 						>
 							<div class="flex items-center space-x-2">
 								<Table2 class="w-4 h-4" />
@@ -281,7 +281,7 @@
 			{/if}
 		</div>
 
-		<div class="p-4 border-t border-gray-200">
+		<div class="p-4 border-t border-border">
 			<Button
 				onclick={() => (showSqlEditor = !showSqlEditor)}
 				class="w-full"
@@ -294,22 +294,22 @@
 	</div>
 
 	<div class="flex-1 flex flex-col">
-		<div class="bg-white border-b border-gray-200 p-4">
+		<div class="bg-card border-b border-border p-4">
 			<div class="flex items-center justify-between">
 				<div>
 					{#if selectedTable}
-						<h1 class="text-xl font-semibold text-gray-900">{selectedTable}</h1>
+						<h1 class="text-xl font-semibold text-foreground">{selectedTable}</h1>
 						{#if $schemaQuery.data}
-							<p class="text-sm text-gray-500 mt-1">
+							<p class="text-sm text-muted-foreground mt-1">
 								{$schemaQuery.data.columns.length} columns · {$dataQuery.data?.total_rows ?? 0} rows
 							</p>
 						{/if}
 					{:else if showSqlEditor}
-						<h1 class="text-xl font-semibold text-gray-900">SQL Editor</h1>
-						<p class="text-sm text-gray-500 mt-1">Execute custom SQL queries</p>
+						<h1 class="text-xl font-semibold text-foreground">SQL Editor</h1>
+						<p class="text-sm text-muted-foreground mt-1">Execute custom SQL queries</p>
 					{:else}
-						<h1 class="text-xl font-semibold text-gray-900">Database Studio</h1>
-						<p class="text-sm text-gray-500 mt-1">Select a table to view its data</p>
+						<h1 class="text-xl font-semibold text-foreground">Database Studio</h1>
+						<p class="text-sm text-muted-foreground mt-1">Select a table to view its data</p>
 					{/if}
 				</div>
 				<div class="flex space-x-2">
@@ -342,7 +342,7 @@
 					<CardContent class="space-y-4">
 						<div>
 							<Label for="sql-query">Query</Label>
-							<div class="mt-2 border border-gray-200 rounded-md overflow-hidden">
+							<div class="mt-2 border border-border rounded-md overflow-hidden">
 								<MonacoEditor bind:value={sqlQuery} language="sql" height="300px" theme="vs-light" />
 							</div>
 						</div>
@@ -358,41 +358,41 @@
 						</div>
 
 						{#if queryError}
-							<div class="p-4 bg-red-50 border border-red-200 rounded-md">
-								<p class="text-sm text-red-800">{queryError}</p>
+							<div class="p-4 bg-destructive/10 border border-destructive/50 rounded-md">
+								<p class="text-sm text-destructive">{queryError}</p>
 							</div>
 						{/if}
 
 						{#if queryResult}
 							<div class="mt-4">
 								<div class="flex items-center justify-between mb-2">
-									<h3 class="text-sm font-medium text-gray-900">Query Result</h3>
-									<span class="text-xs text-gray-500">
+									<h3 class="text-sm font-medium text-foreground">Query Result</h3>
+									<span class="text-xs text-muted-foreground">
 										{queryResult.rows.length} rows · {queryResult.execution_time_ms}ms
 									</span>
 								</div>
-								<div class="border border-gray-200 rounded-md overflow-x-auto">
+								<div class="border border-border rounded-md overflow-x-auto">
 									<table class="w-full text-sm">
-										<thead class="bg-gray-50 border-b border-gray-200">
+										<thead class="bg-muted/50 border-b border-border">
 											<tr>
 												{#each queryResult.columns as column}
-													<th class="px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase">
+													<th class="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">
 														{column}
 													</th>
 												{/each}
 											</tr>
 										</thead>
-										<tbody class="divide-y divide-gray-200">
+										<tbody class="divide-y divide-border">
 											{#each queryResult.rows as row}
-												<tr class="hover:bg-gray-50">
+												<tr class="hover:bg-accent/50">
 													{#each queryResult.columns as column}
-														<td class="px-3 py-2 text-gray-900">
+														<td class="px-3 py-2 text-foreground">
 															{#if row[column] === null}
-																<span class="text-gray-400 italic">null</span>
+																<span class="text-muted-foreground italic">null</span>
 															{:else if typeof row[column] === 'boolean'}
-																<span class="text-purple-600">{row[column]}</span>
+																<span class="text-purple-500">{row[column]}</span>
 															{:else if typeof row[column] === 'number'}
-																<span class="text-blue-600">{row[column]}</span>
+																<span class="text-blue-500">{row[column]}</span>
 															{:else}
 																<span>{row[column]}</span>
 															{/if}
@@ -409,9 +409,9 @@
 				</Card>
 			{:else if selectedTable}
 				{#if $dataQuery.isLoading}
-					<div class="text-center py-12 text-gray-500">Loading data...</div>
+					<div class="text-center py-12 text-muted-foreground">Loading data...</div>
 				{:else if $dataQuery.error}
-					<div class="text-center py-12 text-red-600">Failed to load data</div>
+					<div class="text-center py-12 text-destructive">Failed to load data</div>
 				{:else if $dataQuery.data && $schemaQuery.data && columns.length > 0}
 					<DataTable 
 						data={tableData}
@@ -424,9 +424,9 @@
 				{/if}
 			{:else}
 				<div class="text-center py-12">
-					<Database class="w-16 h-16 mx-auto text-gray-400 mb-4" />
-					<h3 class="text-lg font-medium text-gray-900 mb-2">No Table Selected</h3>
-					<p class="text-gray-500">Select a table from the sidebar to view its data</p>
+					<Database class="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+					<h3 class="text-lg font-medium text-foreground mb-2">No Table Selected</h3>
+					<p class="text-muted-foreground">Select a table from the sidebar to view its data</p>
 				</div>
 			{/if}
 		</div>
@@ -445,10 +445,10 @@
 					<div>
 						<Label for={`insert-${column.name}`}>
 							{column.name}
-							<span class="text-xs text-gray-500 ml-2">
+							<span class="text-xs text-muted-foreground ml-2">
 								{column.type}
 								{#if column.nullable}
-									<span class="text-gray-400">(nullable)</span>
+									<span class="text-muted-foreground/80">(nullable)</span>
 								{/if}
 							</span>
 						</Label>
@@ -486,10 +486,10 @@
 					<div>
 						<Label for={`edit-${column.name}`}>
 							{column.name}
-							<span class="text-xs text-gray-500 ml-2">
+							<span class="text-xs text-muted-foreground ml-2">
 								{column.type}
 								{#if column.nullable}
-									<span class="text-gray-400">(nullable)</span>
+									<span class="text-muted-foreground/80">(nullable)</span>
 								{/if}
 							</span>
 						</Label>
@@ -525,15 +525,15 @@
 			{#if selectedRow && $schemaQuery.data}
 				<div class="space-y-2">
 					{#each $schemaQuery.data.columns as column}
-						<div class="flex justify-between py-2 border-b border-gray-200">
-							<span class="font-medium text-gray-700">{column.name}</span>
-							<span class="text-gray-900">
+						<div class="flex justify-between py-2 border-b border-border">
+							<span class="font-medium text-foreground">{column.name}</span>
+							<span class="text-foreground">
 								{#if selectedRow[column.name] === null}
-									<span class="text-gray-400 italic">null</span>
+									<span class="text-muted-foreground italic">null</span>
 								{:else if typeof selectedRow[column.name] === 'boolean'}
-									<span class="text-purple-600">{selectedRow[column.name]}</span>
+									<span class="text-purple-500">{selectedRow[column.name]}</span>
 								{:else if typeof selectedRow[column.name] === 'number'}
-									<span class="text-blue-600">{selectedRow[column.name]}</span>
+									<span class="text-blue-500">{selectedRow[column.name]}</span>
 								{:else}
 									{selectedRow[column.name]}
 								{/if}

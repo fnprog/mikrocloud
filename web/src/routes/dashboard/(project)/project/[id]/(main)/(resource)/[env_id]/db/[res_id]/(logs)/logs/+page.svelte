@@ -92,15 +92,15 @@
 	function getLevelColor(level: string) {
 		switch (level) {
 			case 'error':
-				return 'text-red-600 bg-red-50';
+				return 'text-red-400 bg-red-950/50 dark:text-red-400 dark:bg-red-950/50';
 			case 'warn':
-				return 'text-yellow-600 bg-yellow-50';
+				return 'text-yellow-400 bg-yellow-950/50 dark:text-yellow-400 dark:bg-yellow-950/50';
 			case 'info':
-				return 'text-blue-600 bg-blue-50';
+				return 'text-blue-400 bg-blue-950/50 dark:text-blue-400 dark:bg-blue-950/50';
 			case 'debug':
-				return 'text-gray-600 bg-gray-50';
+				return 'text-gray-400 bg-gray-800/50 dark:text-gray-400 dark:bg-gray-800/50';
 			default:
-				return 'text-gray-600 bg-gray-50';
+				return 'text-gray-400 bg-gray-800/50 dark:text-gray-400 dark:bg-gray-800/50';
 		}
 	}
 
@@ -195,12 +195,12 @@
 			</div>
 		</div>
 
-		<Card class="h-[calc(100vh-300px)]">
+		<Card class="h-[calc(100vh-300px)] bg-card border-border">
 			<CardContent class="p-0 h-full">
-				<div bind:this={logContainer} class="h-full overflow-auto text-green-400 font-mono text-sm">
+				<div bind:this={logContainer} class="h-full overflow-auto bg-background font-mono text-sm">
 					<div class="p-4 space-y-1">
 						{#if filteredLogs.length === 0}
-							<div class="flex items-center justify-center h-full text-gray-500">
+							<div class="flex items-center justify-center h-full text-muted-foreground">
 								<p>
 									No logs yet. {isStreaming
 										? 'Waiting for logs...'
@@ -209,8 +209,8 @@
 							</div>
 						{:else}
 							{#each filteredLogs as log (log.id)}
-								<div class="flex items-start space-x-4 py-1 hover:bg-gray-800 px-2 rounded">
-									<span class="text-gray-500 text-xs w-32 flex-shrink-0 mt-0.5">
+								<div class="flex items-start space-x-4 py-1 hover:bg-accent/50 px-2 rounded transition-colors">
+									<span class="text-muted-foreground text-xs w-32 flex-shrink-0 mt-0.5">
 										{log.timestamp}
 									</span>
 									<Badge
@@ -219,10 +219,10 @@
 									>
 										{log.level.toUpperCase()}
 									</Badge>
-									<span class="text-blue-400 text-xs w-20 flex-shrink-0 mt-0.5">
+									<span class="text-primary text-xs w-20 flex-shrink-0 mt-0.5">
 										[{log.source}]
 									</span>
-									<span class="text-gray-300 flex-1 break-all">
+									<span class="text-foreground flex-1 break-all">
 										{log.message}
 									</span>
 								</div>
@@ -231,8 +231,8 @@
 
 						{#if isStreaming}
 							<div class="flex items-center space-x-2 py-2 px-2">
-								<div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-								<span class="text-gray-500 text-xs">Live streaming...</span>
+								<div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+								<span class="text-muted-foreground text-xs">Live streaming...</span>
 							</div>
 						{/if}
 					</div>
