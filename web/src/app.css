@@ -3,7 +3,7 @@
 
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant light (&:is(.light *));
 
 :root {
   --radius: 0rem;
@@ -56,7 +56,7 @@
   --sidebar-ring: oklch(0.50 0 0);
 }
 
-.dark {
+.light {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);

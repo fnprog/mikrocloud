@@ -6,6 +6,7 @@ import { applicationsApi as applications } from './applications';
 import { databasesApi as databases } from './databases';
 import { disksApi as disks } from './disks';
 import { templatesApi as templates } from './templates';
+import { studioApi as studio } from './studio';
 
 export { client as apiClient };
 export { auth as authApi };
@@ -15,6 +16,7 @@ export { applications as applicationsApi };
 export { databases as databasesApi };
 export { disks as disksApi };
 export { templates as templatesApi };
+export { studio as studioApi };
 
 export type { User, LoginRequest, RegisterRequest, AuthResponse } from './auth';
 export type { Project, CreateProjectRequest } from './projects';
@@ -24,6 +26,7 @@ export type { Database, CreateDatabaseRequest, DatabaseType, DatabaseStatus } fr
 export type { Disk, CreateDiskRequest, ResizeDiskRequest, AttachDiskRequest } from './disks';
 export type { ServiceTemplate, DeployTemplateRequest } from './templates';
 export type { ApiError } from './client';
+export type { Column, TableSchema, QueryResult, TableDataResult, Filter, Sort, DatabaseInfo, TableDataOptions, ExecuteQueryRequest, InsertRowRequest, UpdateRowRequest, DeleteRowRequest } from './studio';
 
 export const getProject = (id: string) => projects.get(id);
 export const listProjects = () => projects.list();
@@ -80,5 +83,5 @@ export const detachDisk = (projectId: string, diskId: string) => disks.detach(pr
 
 export const listTemplates = (category?: string) => templates.list(category);
 export const getTemplate = (id: string) => templates.get(id);
-export const deployTemplate = (data: import('./templates').DeployTemplateRequest) =>
-	templates.deploy(data);
+export const deployTemplate = (templateId: string, data: import('./templates').DeployTemplateRequest) =>
+	templates.deploy(templateId, data);

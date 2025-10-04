@@ -40,11 +40,12 @@
 	function parseLogLine(line: string): Omit<LogEntry, 'id'> | null {
 		const timestampRegex = /^(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2})/;
 		const levelRegex = /(ERROR|WARN|INFO|DEBUG)/i;
-		
-		const timestamp = timestampRegex.exec(line)?.[1] || new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+		const timestamp =
+			timestampRegex.exec(line)?.[1] || new Date().toISOString().replace('T', ' ').slice(0, 19);
 		const levelMatch = levelRegex.exec(line);
 		const level = levelMatch ? levelMatch[1].toLowerCase() : 'info';
-		
+
 		const source = database?.type || 'database';
 		const message = line.replace(timestampRegex, '').replace(levelRegex, '').trim() || line;
 
@@ -60,7 +61,7 @@
 		const parsed = parseLogLine(line);
 		if (parsed) {
 			logs = [...logs, { ...parsed, id: logId++ }];
-			
+
 			if (autoScroll && logContainer) {
 				setTimeout(() => {
 					logContainer.scrollTop = logContainer.scrollHeight;
@@ -114,7 +115,9 @@
 	}
 
 	function downloadLogs() {
-		const logText = logs.map(log => `${log.timestamp} [${log.level.toUpperCase()}] [${log.source}] ${log.message}`).join('\n');
+		const logText = logs
+			.map((log) => `${log.timestamp} [${log.level.toUpperCase()}] [${log.source}] ${log.message}`)
+			.join('\n');
 		const blob = new Blob([logText], { type: 'text/plain' });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
@@ -194,11 +197,15 @@
 
 		<Card class="h-[calc(100vh-300px)]">
 			<CardContent class="p-0 h-full">
-				<div bind:this={logContainer} class="h-full overflow-auto bg-gray-900 text-green-400 font-mono text-sm">
+				<div bind:this={logContainer} class="h-full overflow-auto text-green-400 font-mono text-sm">
 					<div class="p-4 space-y-1">
 						{#if filteredLogs.length === 0}
 							<div class="flex items-center justify-center h-full text-gray-500">
-								<p>No logs yet. {isStreaming ? 'Waiting for logs...' : 'Start streaming to see logs.'}</p>
+								<p>
+									No logs yet. {isStreaming
+										? 'Waiting for logs...'
+										: 'Start streaming to see logs.'}
+								</p>
 							</div>
 						{:else}
 							{#each filteredLogs as log (log.id)}

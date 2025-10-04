@@ -93,6 +93,7 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	environmentHandler := envHandlers.NewEnvironmentHandler(envSvc)
 	applicationHandler := appHandlers.NewApplicationHandler(appSvc)
 	databaseHandler := databaseHandlers.NewDatabaseHandler(dbSvc, containerManager)
+	studioHandler := databaseHandlers.NewStudioHandler(dbSvc)
 	deploymentHandler := deploymentHandlers.NewDeploymentHandler(deploymentSvc, appSvc)
 	templateHandler := serviceHandlers.NewTemplateHandler(templateSvc)
 	proxyHandler := proxyHandlers.NewProxyHandler(proxySvc)
@@ -170,6 +171,20 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 						r.Post("/action", databaseHandler.DatabaseAction)
 						r.Get("/logs", databaseHandler.GetDatabaseLogs)
 						r.Get("/terminal", databaseHandler.HandleTerminal)
+
+						// Database studio routes
+						r.Route("/studio", func(r chi.Router) {
+							r.Get("/info", studioHandler.GetDatabaseInfo)
+							r.Get("/schemas", studioHandler.ListSchemas)
+							r.Get("/tables", studioHandler.ListTables)
+							r.Get("/tables/{table_name}/schema", studioHandler.GetTableSchema)
+							r.Get("/tables/{table_name}/data", studioHandler.GetTableData)
+							r.Post("/tables/{table_name}/data", studioHandler.GetTableData)
+							r.Post("/query", studioHandler.ExecuteQuery)
+							r.Post("/tables/{table_name}/rows", studioHandler.InsertRow)
+							r.Put("/tables/{table_name}/rows", studioHandler.UpdateRow)
+							r.Delete("/tables/{table_name}/rows", studioHandler.DeleteRow)
+						})
 					})
 				})
 

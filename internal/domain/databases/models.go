@@ -419,7 +419,7 @@ func (d *Database) GenerateConnectionString() string {
 	switch d.dbType {
 	case DatabaseTypePostgreSQL:
 		if cfg := d.config.PostgreSQL; cfg != nil {
-			return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s",
+			return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable",
 				cfg.Username, cfg.Password, "localhost", cfg.Port, cfg.DatabaseName)
 		}
 	case DatabaseTypeMySQL:
