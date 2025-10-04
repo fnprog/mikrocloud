@@ -198,3 +198,60 @@ func (d *DockerManager) BuildImage(ctx context.Context, buildConfig BuildConfig)
 	// For now, this is a placeholder
 	return fmt.Errorf("docker build not yet implemented")
 }
+
+func (d *DockerManager) ExecInteractive(ctx context.Context, containerID string, cmd []string, stdin io.Reader, stdout, stderr io.Writer, resize <-chan TerminalSize) error {
+	execConfig := container.ExecOptions{
+		AttachStdin:  true,
+		AttachStdout: true,
+		AttachStderr: true,
+		Tty:          true,
+		Cmd:          cmd,
+	}
+
+	execIDResp, err := d.client.ContainerExecCreate(ctx, containerID, execConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create exec: %w", err)
+	}
+
+	resp, err := d.client.ContainerExecAttach(ctx, execIDResp.ID, container.ExecStartOptions{
+		Tty: true,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to attach to exec: %w", err)
+	}
+	defer resp.Close()
+
+	errChan := make(chan error, 3)
+
+	go func() {
+		_, err := io.Copy(resp.Conn, stdin)
+		errChan <- err
+	}()
+
+	go func() {
+		_, err := io.Copy(stdout, resp.Reader)
+		errChan <- err
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case size, ok := <-resize:
+				if !ok {
+					return
+				}
+				if err := d.client.ContainerExecResize(ctx, execIDResp.ID, container.ResizeOptions{
+					Height: size.Height,
+					Width:  size.Width,
+				}); err != nil {
+					errChan <- fmt.Errorf("failed to resize terminal: %w", err)
+					return
+				}
+			}
+		}
+	}()
+
+	return <-errChan
+}

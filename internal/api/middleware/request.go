@@ -53,6 +53,18 @@ func GetOrgID(r *http.Request) string {
 	return v
 }
 
+func WebSocketTokenInjector() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token := r.URL.Query().Get("token")
+			if token != "" {
+				r.Header.Set("Authorization", "Bearer "+token)
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

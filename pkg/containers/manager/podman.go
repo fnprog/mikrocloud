@@ -513,6 +513,56 @@ func (p *PodmanManager) Exec(ctx context.Context, containerID string, cmd []stri
 	return nil
 }
 
+func (p *PodmanManager) ExecInteractive(ctx context.Context, containerID string, cmd []string, stdin io.Reader, stdout, stderr io.Writer, resize <-chan TerminalSize) error {
+	createConfig := &handlers.ExecCreateConfig{
+		ExecOptions: container.ExecOptions{
+			Cmd:          cmd,
+			Tty:          true,
+			AttachStdin:  true,
+			AttachStdout: true,
+			AttachStderr: true,
+		},
+	}
+
+	sessionID, err := containers.ExecCreate(p.connCtx, containerID, createConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create exec session: %w", err)
+	}
+
+	startOptions := &containers.ExecStartAndAttachOptions{}
+
+	errChan := make(chan error, 2)
+
+	go func() {
+		err := containers.ExecStartAndAttach(p.connCtx, sessionID, startOptions)
+		errChan <- err
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case size, ok := <-resize:
+				if !ok {
+					return
+				}
+				height := int(size.Height)
+				width := int(size.Width)
+				resizeOptions := &containers.ResizeExecTTYOptions{}
+				resizeOptions.WithHeight(height)
+				resizeOptions.WithWidth(width)
+				if err := containers.ResizeExecTTY(p.connCtx, sessionID, resizeOptions); err != nil {
+					errChan <- fmt.Errorf("failed to resize terminal: %w", err)
+					return
+				}
+			}
+		}
+	}()
+
+	return <-errChan
+}
+
 // Helper method to close the connection
 func (p *PodmanManager) Close() error {
 	// The bindings don't provide an explicit close method

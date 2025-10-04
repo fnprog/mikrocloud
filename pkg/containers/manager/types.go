@@ -17,6 +17,9 @@ type ContainerManager interface {
 	// Logging
 	StreamLogs(ctx context.Context, containerID string, follow bool) (io.ReadCloser, error)
 
+	// Exec operations
+	ExecInteractive(ctx context.Context, containerID string, cmd []string, stdin io.Reader, stdout, stderr io.Writer, resize <-chan TerminalSize) error
+
 	// Container management
 	Create(ctx context.Context, config ContainerConfig) (string, error)
 	List(ctx context.Context) ([]ContainerInfo, error)
@@ -50,6 +53,11 @@ type ContainerInfo struct {
 	State  string
 	Status string
 	Ports  map[string]string
+}
+
+type TerminalSize struct {
+	Height uint
+	Width  uint
 }
 
 type BuildConfig struct {

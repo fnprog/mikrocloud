@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"github.com/mikrocloud/mikrocloud/internal/domain/databases"
 	"github.com/mikrocloud/mikrocloud/internal/domain/databases/service"
 	"github.com/mikrocloud/mikrocloud/internal/utils"
@@ -698,4 +699,148 @@ func (h *DatabaseHandler) GetDatabaseLogs(w http.ResponseWriter, r *http.Request
 		// This is common when client disconnects from a streaming endpoint
 		return
 	}
+}
+
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+type TerminalMessage struct {
+	Type string `json:"type"`
+	Data string `json:"data"`
+	Rows uint   `json:"rows,omitempty"`
+	Cols uint   `json:"cols,omitempty"`
+}
+
+func (h *DatabaseHandler) HandleTerminal(w http.ResponseWriter, r *http.Request) {
+	databaseIDStr := chi.URLParam(r, "database_id")
+	databaseID, err := databases.DatabaseIDFromString(databaseIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_database_id", "Invalid database ID")
+		return
+	}
+
+	projectIDStr := chi.URLParam(r, "project_id")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_project_id", "Invalid project ID")
+		return
+	}
+
+	database, err := h.dbService.GetDatabase(r.Context(), databaseID)
+	if err != nil {
+		utils.SendError(w, http.StatusNotFound, "database_not_found", "Database not found")
+		return
+	}
+
+	if database.ProjectID() != projectID {
+		utils.SendError(w, http.StatusNotFound, "database_not_found", "Database not found in project")
+		return
+	}
+
+	if database.ContainerID() == "" {
+		utils.SendError(w, http.StatusBadRequest, "no_container", "Database has no running container")
+		return
+	}
+
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	stdinReader, stdinWriter := io.Pipe()
+	stdoutReader, stdoutWriter := io.Pipe()
+	stderrReader, stderrWriter := io.Pipe()
+	resizeChan := make(chan manager.TerminalSize, 10)
+
+	errChan := make(chan error, 3)
+
+	go func() {
+		cmd := []string{"/bin/sh"}
+		if database.Type() == databases.DatabaseTypePostgreSQL {
+			cmd = []string{"/bin/bash"}
+		}
+		err := h.containerManager.ExecInteractive(r.Context(), database.ContainerID(), cmd, stdinReader, stdoutWriter, stderrWriter, resizeChan)
+		errChan <- err
+	}()
+
+	go func() {
+		buf := make([]byte, 8192)
+		for {
+			n, err := stdoutReader.Read(buf)
+			if err != nil {
+				if err != io.EOF {
+					errChan <- err
+				}
+				return
+			}
+			if n > 0 {
+				msg := TerminalMessage{
+					Type: "output",
+					Data: string(buf[:n]),
+				}
+				if err := conn.WriteJSON(msg); err != nil {
+					errChan <- err
+					return
+				}
+			}
+		}
+	}()
+
+	go func() {
+		buf := make([]byte, 8192)
+		for {
+			n, err := stderrReader.Read(buf)
+			if err != nil {
+				if err != io.EOF {
+					errChan <- err
+				}
+				return
+			}
+			if n > 0 {
+				msg := TerminalMessage{
+					Type: "output",
+					Data: string(buf[:n]),
+				}
+				if err := conn.WriteJSON(msg); err != nil {
+					errChan <- err
+					return
+				}
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			var msg TerminalMessage
+			if err := conn.ReadJSON(&msg); err != nil {
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
+					errChan <- err
+				}
+				return
+			}
+
+			switch msg.Type {
+			case "input":
+				if _, err := stdinWriter.Write([]byte(msg.Data)); err != nil {
+					errChan <- err
+					return
+				}
+			case "resize":
+				resizeChan <- manager.TerminalSize{
+					Height: msg.Rows,
+					Width:  msg.Cols,
+				}
+			}
+		}
+	}()
+
+	<-errChan
+	close(resizeChan)
+	stdinWriter.Close()
+	stdoutWriter.Close()
+	stderrWriter.Close()
 }

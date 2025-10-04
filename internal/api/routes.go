@@ -108,6 +108,7 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 
 	// Protected routes that require authentication
 	api.Group(func(r chi.Router) {
+		r.Use(middleware.WebSocketTokenInjector())
 		r.Use(jwtauth.Verifier(tokenAuth))
 		r.Use(jwtauth.Authenticator(tokenAuth))
 		r.Use(middleware.ExtractUserOrg())
@@ -168,6 +169,7 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 						r.Delete("/", databaseHandler.DeleteDatabase)
 						r.Post("/action", databaseHandler.DatabaseAction)
 						r.Get("/logs", databaseHandler.GetDatabaseLogs)
+						r.Get("/terminal", databaseHandler.HandleTerminal)
 					})
 				})
 

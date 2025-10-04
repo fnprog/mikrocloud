@@ -57,6 +57,9 @@
 	"dependencies": {
 		"@icons-pack/svelte-simple-icons": "^6.4.0",
 		"@tanstack/svelte-query": "^5.83.1",
+		"@xterm/addon-fit": "^0.10.0",
+		"@xterm/addon-web-links": "^0.11.0",
+		"@xterm/xterm": "^5.5.0",
 		"@xyflow/svelte": "^1.2.2",
 		"lucide-svelte": "^0.535.0",
 		"svelte-sonner": "^1.0.5"
