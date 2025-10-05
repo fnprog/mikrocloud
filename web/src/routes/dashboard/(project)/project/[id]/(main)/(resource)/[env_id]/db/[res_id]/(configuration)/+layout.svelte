@@ -7,7 +7,6 @@
 	import { databasesApi } from '$lib/api/databases';
 	import { toast } from 'svelte-sonner';
 	import {
-		ArrowLeft,
 		Database as DatabaseIcon,
 		Play,
 		Square,
@@ -170,7 +169,7 @@
 							? 'bg-accent text-accent-foreground font-medium'
 							: 'text-muted-foreground hover:bg-accent/50'}"
 					>
-						<svelte:component this={item.icon} class="h-4 w-4" />
+						<item.icon class="h-4 w-4" />
 						{item.label}
 					</button>
 				{/each}

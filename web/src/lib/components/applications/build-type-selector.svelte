@@ -5,8 +5,10 @@
 	import { cn } from '$lib/utils';
 
 	interface Props {
-		selected: 'nixpacks' | 'heroku' | 'paketo' | 'static';
-		onSelect: (type: 'nixpacks' | 'heroku' | 'paketo' | 'static') => void;
+		selected: 'nixpacks' | 'heroku' | 'paketo' | 'static' | 'dockerfile' | 'compose';
+		onSelect: (
+			type: 'nixpacks' | 'heroku' | 'paketo' | 'static' | 'dockerfile' | 'compose'
+		) => void;
 		publishDirectory?: string;
 		onPublishDirectoryChange?: (value: string) => void;
 	}
@@ -33,6 +35,17 @@
 			value: 'static' as const,
 			title: 'Static site',
 			description: 'Serve static files with nginx'
+		},
+		{
+			value: 'dockerfile' as const,
+			title: 'Dockerfile',
+			description: 'Build following a dockerfile'
+		},
+
+		{
+			value: 'compose' as const,
+			title: 'Compose',
+			description: 'Build following a composefile'
 		}
 	];
 </script>
@@ -40,9 +53,7 @@
 <div class="space-y-4">
 	<div>
 		<Label class="text-base font-semibold">Build method</Label>
-		<p class="text-sm text-muted-foreground mt-1">
-			Choose how your application should be built
-		</p>
+		<p class="text-sm text-muted-foreground mt-1">Choose how your application should be built</p>
 	</div>
 
 	<div class="space-y-2">
@@ -59,9 +70,7 @@
 						<div
 							class={cn(
 								'w-4 h-4 rounded-full border-2 mt-0.5 flex-shrink-0',
-								selected === option.value
-									? 'border-primary bg-primary'
-									: 'border-muted-foreground'
+								selected === option.value ? 'border-primary bg-primary' : 'border-muted-foreground'
 							)}
 						>
 							{#if selected === option.value}
@@ -87,9 +96,7 @@
 				value={publishDirectory}
 				oninput={(e) => onPublishDirectoryChange?.(e.currentTarget.value)}
 			/>
-			<p class="text-xs text-muted-foreground">
-				The directory containing your built static files
-			</p>
+			<p class="text-xs text-muted-foreground">The directory containing your built static files</p>
 		</div>
 	{/if}
 </div>

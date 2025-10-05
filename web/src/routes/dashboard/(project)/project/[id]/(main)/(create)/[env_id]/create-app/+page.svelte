@@ -24,14 +24,19 @@
 	let envId = $state($page.params.env_id);
 
 	let sourceType = $state<'git' | 'docker' | 'zip'>('git');
-	let buildType = $state<'nixpacks' | 'heroku' | 'paketo' | 'static'>('nixpacks');
+	let buildType = $state<'nixpacks' | 'heroku' | 'paketo' | 'static' | 'dockerfile' | 'compose'>(
+		'nixpacks'
+	);
 	let publishDirectory = $state('dist');
 
 	let appName = $state('');
 	let appDescription = $state('');
 	let location = $state('local');
 
-	let gitProvider = $state<'github' | 'gitlab' | 'bitbucket'>('github');
+	let gitProvider = $state<'github' | 'gitlab' | 'bitbucket' | 'custom'>('github');
+	let dockerfilePath = $state('Dockerfile');
+	let composePath = $state('docker-compose.yml');
+	let customGitUrl = $state('');
 	let repository = $state('');
 	let branch = $state('main');
 	let autoDeploy = $state(true);
@@ -114,7 +119,6 @@
 </script>
 
 <div class="container mx-auto max-w-4xl py-8 px-4">
-
 	<div class="space-y-8">
 		<div>
 			<h1 class="text-3xl font-bold">Create new application</h1>
@@ -151,6 +155,8 @@
 						onAutoDeployChange={(a) => (autoDeploy = a)}
 						{isPrivate}
 						onIsPrivateChange={(p) => (isPrivate = p)}
+						{customGitUrl}
+						onCustomGitUrlChange={(u) => (customGitUrl = u)}
 					/>
 				</CardContent>
 			</Card>

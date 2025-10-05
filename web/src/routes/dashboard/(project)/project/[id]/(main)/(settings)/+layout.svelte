@@ -6,6 +6,7 @@
 	const tabs = [
 		{ name: 'Overview', href: 'dashboard' },
 		{ name: 'Shared Variables', href: 'shared-vars' },
+		{ name: 'Architecture', href: 'architecture' },
 		{ name: 'Settings', href: 'settings' }
 	];
 </script>

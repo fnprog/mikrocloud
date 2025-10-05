@@ -24,6 +24,9 @@ import (
 	diskService "github.com/mikrocloud/mikrocloud/internal/domain/disks/service"
 	envHandlers "github.com/mikrocloud/mikrocloud/internal/domain/environments/handlers"
 	environmentService "github.com/mikrocloud/mikrocloud/internal/domain/environments/service"
+	gitHandlers "github.com/mikrocloud/mikrocloud/internal/domain/git/handlers"
+	gitRepo "github.com/mikrocloud/mikrocloud/internal/domain/git/repository"
+	gitService "github.com/mikrocloud/mikrocloud/internal/domain/git/service"
 	maintenanceHandlers "github.com/mikrocloud/mikrocloud/internal/domain/maintenance/handlers"
 	projectHandlers "github.com/mikrocloud/mikrocloud/internal/domain/projects/handlers"
 	projectService "github.com/mikrocloud/mikrocloud/internal/domain/projects/service"
@@ -106,6 +109,10 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 		db.DB(),
 		containerManager,
 	)
+
+	gitRepository := gitRepo.NewSQLiteGitRepository(db.DB())
+	gitSvc := gitService.NewGitService(gitRepository)
+	gitHandler := gitHandlers.NewGitHandler(gitSvc)
 
 	// Protected routes that require authentication
 	api.Group(func(r chi.Router) {
@@ -225,6 +232,20 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 				r.Delete("/", templateHandler.DeleteTemplate)
 				r.Post("/deploy", templateHandler.DeployTemplate)
 				r.Post("/preview", templateHandler.PreviewDeployment)
+			})
+		})
+
+		// Git routes
+		r.Route("/git", func(r chi.Router) {
+			r.Post("/validate", gitHandler.ValidateRepository)
+			r.Post("/branches", gitHandler.ListBranches)
+			r.Post("/detect-build", gitHandler.DetectBuildMethod)
+			r.Post("/sources", gitHandler.CreateGitSource)
+			r.Get("/sources", gitHandler.ListGitSources)
+			r.Route("/sources/{source_id}", func(r chi.Router) {
+				r.Get("/", gitHandler.GetGitSource)
+				r.Put("/", gitHandler.UpdateGitSource)
+				r.Delete("/", gitHandler.DeleteGitSource)
 			})
 		})
 	})
