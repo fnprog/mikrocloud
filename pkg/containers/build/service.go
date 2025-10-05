@@ -66,7 +66,7 @@ func (bs *BuildService) createBuildHelper(ctx context.Context, image, containerN
 	// Prepare the command to run inside the helper container
 	// This will clone the repo and execute the build commands
 	fullCommand := []string{
-		"sh", "-c",
+		"/bin/sh", "-c",
 		bs.generateBuildScript(commands, request),
 	}
 
@@ -204,13 +204,12 @@ func (bs *BuildService) buildStatic(ctx context.Context, request BuildRequest, c
 
 	commands := []string{
 		"echo 'Building static site...'",
-		"apk add --no-cache docker-cli", // Install Docker CLI in Alpine
 		fmt.Sprintf("printf \"%s\" > Dockerfile", dockerfileContent),
 		fmt.Sprintf("docker build -t %s .", request.ImageTag),
 	}
 
-	// Use Alpine with git for Node.js builds
-	return bs.createBuildHelper(ctx, "alpine/git:latest", containerName, commands, request)
+	// Use mikrocloud-builder with git and Docker CLI
+	return bs.createBuildHelper(ctx, "ghcr.io/fantasy-programming/mikrocloud-2/mikrocloud-builder:latest", containerName, commands, request)
 }
 
 func (bs *BuildService) buildWithDockerfile(ctx context.Context, request BuildRequest, containerName string) (*BuildResult, error) {
@@ -241,12 +240,11 @@ func (bs *BuildService) buildWithDockerfile(ctx context.Context, request BuildRe
 
 	commands := []string{
 		"echo 'Building with Dockerfile...'",
-		"apk add --no-cache docker-cli", // Install Docker CLI in Alpine
 		fmt.Sprintf("docker build -f %s%s%s -t %s .", dockerfilePath, buildArgs, targetFlag, request.ImageTag),
 	}
 
-	// Use Alpine with Docker CLI and git
-	return bs.createBuildHelper(ctx, "alpine/git:latest", containerName, commands, request)
+	// Use mikrocloud-builder with Docker CLI and git
+	return bs.createBuildHelper(ctx, "ghcr.io/fantasy-programming/mikrocloud-2/mikrocloud-builder:latest", containerName, commands, request)
 }
 
 func (bs *BuildService) buildWithCompose(ctx context.Context, request BuildRequest, containerName string) (*BuildResult, error) {
@@ -273,10 +271,9 @@ func (bs *BuildService) buildWithCompose(ctx context.Context, request BuildReque
 
 	commands := []string{
 		"echo 'Building with Docker Compose...'",
-		"apk add --no-cache docker-cli docker-compose", // Install docker-compose in Alpine
 		buildCmd,
 	}
 
-	// Use Alpine with Docker CLI and git
-	return bs.createBuildHelper(ctx, "alpine/git:latest", containerName, commands, request)
+	// Use mikrocloud-builder with Docker Compose
+	return bs.createBuildHelper(ctx, "ghcr.io/fantasy-programming/mikrocloud-2/mikrocloud-builder:latest", containerName, commands, request)
 }

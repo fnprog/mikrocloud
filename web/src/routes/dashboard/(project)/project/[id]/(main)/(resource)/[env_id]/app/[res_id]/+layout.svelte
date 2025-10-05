@@ -9,7 +9,7 @@
 
 	const tabs = $derived([
 		{
-			name: 'Configuration',
+			name: 'Overview',
 			href: `/dashboard/project/${projectId}/${envId}/app/${resId}/overview`
 		},
 		{
@@ -17,7 +17,11 @@
 			href: `/dashboard/project/${projectId}/${envId}/app/${resId}/deployments`
 		},
 		{ name: 'Logs', href: `/dashboard/project/${projectId}/${envId}/app/${resId}/logs` },
-		{ name: 'Terminal', href: `/dashboard/project/${projectId}/${envId}/app/${resId}/terminal` }
+		{ name: 'Terminal', href: `/dashboard/project/${projectId}/${envId}/app/${resId}/terminal` },
+		{
+			name: 'Configuration',
+			href: `/dashboard/project/${projectId}/${envId}/app/${resId}/general`
+		}
 	]);
 </script>
 

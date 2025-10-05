@@ -94,7 +94,7 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	authHandler := authHandlers.NewAuthHandler(authSvc)
 	projectHandler := projectHandlers.NewProjectHandler(projSvc)
 	environmentHandler := envHandlers.NewEnvironmentHandler(envSvc)
-	applicationHandler := appHandlers.NewApplicationHandler(appSvc)
+	applicationHandler := appHandlers.NewApplicationHandler(appSvc, deploymentSvc, containerManager)
 	databaseHandler := databaseHandlers.NewDatabaseHandler(dbSvc, containerManager)
 	studioHandler := databaseHandlers.NewStudioHandler(dbSvc)
 	deploymentHandler := deploymentHandlers.NewDeploymentHandler(deploymentSvc, appSvc)
@@ -150,6 +150,10 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 						r.Put("/", applicationHandler.UpdateApplication)
 						r.Delete("/", applicationHandler.DeleteApplication)
 						r.Post("/deploy", applicationHandler.DeployApplication)
+						r.Post("/start", applicationHandler.StartApplication)
+						r.Post("/stop", applicationHandler.StopApplication)
+						r.Post("/restart", applicationHandler.RestartApplication)
+						r.Get("/logs", applicationHandler.GetApplicationLogs)
 
 						// Deployment routes within application
 						r.Route("/deployments", func(r chi.Router) {

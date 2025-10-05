@@ -2,25 +2,34 @@ package handlers
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/mikrocloud/mikrocloud/internal/api/middleware"
 	"github.com/mikrocloud/mikrocloud/internal/domain/applications"
 	"github.com/mikrocloud/mikrocloud/internal/domain/applications/service"
+	deploymentService "github.com/mikrocloud/mikrocloud/internal/domain/deployments/service"
+	"github.com/mikrocloud/mikrocloud/internal/domain/users"
 	"github.com/mikrocloud/mikrocloud/internal/utils"
+	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
 )
 
 type ApplicationHandler struct {
-	appService *service.ApplicationService
-	validator  *validator.Validate
+	appService        *service.ApplicationService
+	deploymentService *deploymentService.DeploymentService
+	containerManager  manager.ContainerManager
+	validator         *validator.Validate
 }
 
-func NewApplicationHandler(appService *service.ApplicationService) *ApplicationHandler {
+func NewApplicationHandler(appService *service.ApplicationService, deploymentService *deploymentService.DeploymentService, containerManager manager.ContainerManager) *ApplicationHandler {
 	return &ApplicationHandler{
-		appService: appService,
-		validator:  validator.New(),
+		appService:        appService,
+		deploymentService: deploymentService,
+		containerManager:  containerManager,
+		validator:         validator.New(),
 	}
 }
 
@@ -414,6 +423,237 @@ func (h *ApplicationHandler) DeployApplication(w http.ResponseWriter, r *http.Re
 	}
 
 	utils.SendJSON(w, http.StatusOK, response)
+}
+
+func (h *ApplicationHandler) StartApplication(w http.ResponseWriter, r *http.Request) {
+	// Get user ID from context
+	userIDStr := middleware.GetUserID(r)
+	if userIDStr == "" {
+		utils.SendError(w, http.StatusUnauthorized, "unauthorized", "User not authenticated")
+		return
+	}
+
+	userID, err := users.UserIDFromString(userIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusUnauthorized, "invalid_user", "Invalid user ID")
+		return
+	}
+
+	appIDStr := chi.URLParam(r, "application_id")
+	appID, err := applications.ApplicationIDFromString(appIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_application_id", "Invalid application ID")
+		return
+	}
+
+	projectIDStr := chi.URLParam(r, "project_id")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_project_id", "Invalid project ID")
+		return
+	}
+
+	app, err := h.appService.GetApplication(r.Context(), appID)
+	if err != nil {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found")
+		return
+	}
+
+	if app.ProjectID() != projectID {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found in project")
+		return
+	}
+
+	// Create deployment command for manual start
+	cmd := deploymentService.CreateDeploymentCommand{
+		ApplicationID: appID,
+		IsProduction:  false,
+		TriggeredBy:   &userID,
+		TriggerType:   "manual",
+		ImageTag:      generateImageTag(app, ""),
+	}
+
+	// Create and execute deployment
+	_, err = h.deploymentService.CreateAndExecuteDeployment(r.Context(), cmd, h.appService)
+	if err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "start_failed", "Failed to start application: "+err.Error())
+		return
+	}
+
+	utils.SendJSON(w, http.StatusOK, map[string]string{"message": "Application deployment started successfully"})
+}
+
+func generateImageTag(app *applications.Application, gitCommitHash string) string {
+	imageName := app.Name().String()
+	if gitCommitHash != "" {
+		if len(gitCommitHash) > 7 {
+			return imageName + ":" + gitCommitHash[:7]
+		}
+		return imageName + ":" + gitCommitHash
+	}
+	return imageName + ":latest"
+}
+
+func (h *ApplicationHandler) StopApplication(w http.ResponseWriter, r *http.Request) {
+	appIDStr := chi.URLParam(r, "application_id")
+	appID, err := applications.ApplicationIDFromString(appIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_application_id", "Invalid application ID")
+		return
+	}
+
+	projectIDStr := chi.URLParam(r, "project_id")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_project_id", "Invalid project ID")
+		return
+	}
+
+	app, err := h.appService.GetApplication(r.Context(), appID)
+	if err != nil {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found")
+		return
+	}
+
+	if app.ProjectID() != projectID {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found in project")
+		return
+	}
+
+	err = h.appService.StopApplication(r.Context(), appID)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "stop_failed", "Failed to stop application: "+err.Error())
+		return
+	}
+
+	utils.SendJSON(w, http.StatusOK, map[string]string{"message": "Application stopped successfully"})
+}
+
+func (h *ApplicationHandler) RestartApplication(w http.ResponseWriter, r *http.Request) {
+	// Get user ID from context
+	userIDStr := middleware.GetUserID(r)
+	if userIDStr == "" {
+		utils.SendError(w, http.StatusUnauthorized, "unauthorized", "User not authenticated")
+		return
+	}
+
+	userID, err := users.UserIDFromString(userIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusUnauthorized, "invalid_user", "Invalid user ID")
+		return
+	}
+
+	appIDStr := chi.URLParam(r, "application_id")
+	appID, err := applications.ApplicationIDFromString(appIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_application_id", "Invalid application ID")
+		return
+	}
+
+	projectIDStr := chi.URLParam(r, "project_id")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_project_id", "Invalid project ID")
+		return
+	}
+
+	app, err := h.appService.GetApplication(r.Context(), appID)
+	if err != nil {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found")
+		return
+	}
+
+	if app.ProjectID() != projectID {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found in project")
+		return
+	}
+
+	// Stop the application first
+	err = h.appService.StopApplication(r.Context(), appID)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "restart_failed", "Failed to stop application: "+err.Error())
+		return
+	}
+
+	// Create deployment command for manual restart
+	cmd := deploymentService.CreateDeploymentCommand{
+		ApplicationID: appID,
+		IsProduction:  false,
+		TriggeredBy:   &userID,
+		TriggerType:   "manual",
+		ImageTag:      generateImageTag(app, ""),
+	}
+
+	// Create and execute new deployment
+	_, err = h.deploymentService.CreateAndExecuteDeployment(r.Context(), cmd, h.appService)
+	if err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "restart_failed", "Failed to start application: "+err.Error())
+		return
+	}
+
+	utils.SendJSON(w, http.StatusOK, map[string]string{"message": "Application redeployment started successfully"})
+}
+
+func (h *ApplicationHandler) GetApplicationLogs(w http.ResponseWriter, r *http.Request) {
+	appIDStr := chi.URLParam(r, "application_id")
+	appID, err := applications.ApplicationIDFromString(appIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_application_id", "Invalid application ID")
+		return
+	}
+
+	projectIDStr := chi.URLParam(r, "project_id")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_project_id", "Invalid project ID")
+		return
+	}
+
+	app, err := h.appService.GetApplication(r.Context(), appID)
+	if err != nil {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found")
+		return
+	}
+
+	if app.ProjectID() != projectID {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found in project")
+		return
+	}
+
+	deployment, err := h.deploymentService.GetLatestDeploymentByApplication(r.Context(), appID)
+	if err != nil {
+		utils.SendError(w, http.StatusNotFound, "no_deployment_found", "No deployment found for application")
+		return
+	}
+
+	if deployment.ContainerID() == "" {
+		utils.SendError(w, http.StatusNotFound, "no_container_found", "No container found for application")
+		return
+	}
+
+	follow := r.URL.Query().Get("follow") == "true"
+
+	logStream, err := h.containerManager.StreamLogs(r.Context(), deployment.ContainerID(), follow)
+	if err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "logs_failed", "Failed to get container logs: "+err.Error())
+		return
+	}
+	defer func() {
+		_ = logStream.Close()
+	}()
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	if follow {
+		w.Header().Set("Transfer-Encoding", "chunked")
+	}
+
+	_, err = io.Copy(w, logStream)
+	if err != nil {
+		return
+	}
 }
 
 // Helper functions to convert between legacy and new buildpack configs

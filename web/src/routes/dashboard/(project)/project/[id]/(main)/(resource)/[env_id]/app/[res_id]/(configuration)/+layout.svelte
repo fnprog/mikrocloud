@@ -1,81 +1,49 @@
 <script lang="ts">
-	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
-	import SiteHeader from '$lib/components/ProjectHeader.svelte';
-	import { page } from '$app/state';
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
+	import { Settings, HardDrive, Gauge, BarChart3, Scale, LayoutGrid } from 'lucide-svelte';
 
-	const url = page.url.pathname;
-	const projectId = page.params.id;
+	const projectId = $derived($page.params.id);
+	const envId = $derived($page.params.env_id);
+	const resId = $derived($page.params.res_id);
 
-	const data = [
-		{
-			title: 'Overview',
-			url: `/project/${projectId}`
-		},
-		{
-			title: 'Deployments',
-			url: `/project/${projectId}/deployments`
-		},
-		{
-			title: 'Logs',
-			url: `/project/${projectId}/logs`
-		},
-		{
-			title: 'Analytics',
-			url: `/project/${projectId}/analytics`
-		},
-		{
-			title: 'Environment variables',
-			url: `/project/${projectId}/env`
-		},
-		{
-			title: 'Processes',
-			url: `/project/${projectId}/processes`
-		},
-		{
-			title: 'Domains',
-			url: `/project/${projectId}/domains`
-		},
-		{
-			title: 'Networking',
-			url: `/project/${projectId}/networking`
-		},
-		{
-			title: 'Disks',
-			url: `/project/${projectId}/disks`
-		},
-		{
-			title: 'Settings',
-			url: `/project/${projectId}/settings`
-		}
+	const navItems = [
+		{ path: 'general', label: 'General', icon: LayoutGrid },
+		{ path: 'settings', label: 'Settings', icon: Settings },
+		{ path: 'storage', label: 'Persistent Storage', icon: HardDrive },
+		{ path: 'limits', label: 'Resource Limits', icon: Gauge },
+		{ path: 'metrics', label: 'Metrics', icon: BarChart3 },
+		{ path: 'scaling', label: 'Scaling', icon: Scale }
 	];
 
-	let { children } = $props();
+	const isActive = (path: string) => {
+		return $page.url.pathname.endsWith(`/${path}`);
+	};
 </script>
 
-<div class="[--header-height:calc(--spacing(14))]">
-	<Sidebar.Provider class="flex flex-col">
-		<SiteHeader />
-		<div class="flex flex-1">
-			<Sidebar.Root class="top-(--header-height) h-[calc(100svh-var(--header-height))]!">
-				<Sidebar.Content>
-					<Sidebar.Menu class="p-4 space-y-1">
-						{#each data as item (item.title)}
-							<Sidebar.MenuItem>
-								<Sidebar.MenuButton tooltipContent={item.title} isActive={item.url === url}>
-									{#snippet child({ props })}
-										<a href={item.url} {...props}>
-											<span>{item.title}</span>
-										</a>
-									{/snippet}
-								</Sidebar.MenuButton>
-							</Sidebar.MenuItem>
-						{/each}
-					</Sidebar.Menu>
-				</Sidebar.Content>
-			</Sidebar.Root>
-			<Sidebar.Inset>
-				{@render children()}
-			</Sidebar.Inset>
+<div class="container max-w-7xl py-8">
+	<div class="flex gap-6">
+		<nav class="w-56 flex-shrink-0">
+			<div class="space-y-1">
+				{#each navItems as item}
+					<button
+						onclick={() =>
+							goto(`/dashboard/project/${projectId}/${envId}/app/${resId}/${item.path}`)}
+						class="w-full flex items-center gap-3 px-4 py-2 text-sm rounded-lg transition-colors {isActive(
+							item.path
+						)
+							? 'bg-accent text-accent-foreground font-medium'
+							: 'text-muted-foreground hover:bg-accent/50'}"
+					>
+						<item.icon class="h-4 w-4" />
+						{item.label}
+					</button>
+				{/each}
+			</div>
+		</nav>
+
+		<div class="flex-1">
+			<slot />
 		</div>
-	</Sidebar.Provider>
+	</div>
 </div>

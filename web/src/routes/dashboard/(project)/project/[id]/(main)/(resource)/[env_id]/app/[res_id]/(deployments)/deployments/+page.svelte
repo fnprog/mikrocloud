@@ -1,231 +1,247 @@
-<!---->
-<!-- <script lang="ts"> -->
-<!-- 	import { page } from '$app/state'; -->
-<!-- 	import { goto } from '$app/navigation'; -->
-<!-- 	import { Button } from '$lib/components/ui/button'; -->
-<!-- 	import { Badge } from '$lib/components/ui/badge'; -->
-<!-- 	import { Card, CardContent } from '$lib/components/ui/card'; -->
-<!-- 	import { -->
-<!-- 		Github, -->
-<!-- 		CheckCircle, -->
-<!-- 		GitBranch, -->
-<!-- 		Clock, -->
-<!-- 		AlertCircle, -->
-<!-- 		XCircle, -->
-<!-- 		Eye, -->
-<!-- 		RotateCcw -->
-<!-- 	} from 'lucide-svelte'; -->
-<!---->
-<!-- 	const projectId = page.params.id; -->
-<!---->
-<!-- 	// Mock project data -->
-<!-- 	let project = $state({ -->
-<!-- 		name: 'Focalpoint Dashboard', -->
-<!-- 		repo: 'focalpoint/dashboard', -->
-<!-- 		branch: 'main', -->
-<!-- 		workspace: 'Focalpoint', -->
-<!-- 		category: 'Applications', -->
-<!-- 		deploymentEnabled: true, -->
-<!-- 		domain: 'app.focalpoint.com' -->
-<!-- 	}); -->
-<!---->
-<!-- 	// Mock deployments data -->
-<!-- 	let deployments = $state([ -->
-<!-- 		{ -->
-<!-- 			id: 1, -->
-<!-- 			status: 'success', -->
-<!-- 			message: 'Deployment successful', -->
-<!-- 			time: '2 minutes ago', -->
-<!-- 			duration: '1m 23s', -->
-<!-- 			commit: 'feat: add user dashboard', -->
-<!-- 			commitHash: 'a1b2c3d', -->
-<!-- 			branch: 'main', -->
-<!-- 			author: 'John Doe', -->
-<!-- 			buildLogs: 'Build completed successfully...' -->
-<!-- 		}, -->
-<!-- 		{ -->
-<!-- 			id: 2, -->
-<!-- 			status: 'success', -->
-<!-- 			message: 'Deployment successful', -->
-<!-- 			time: '1 hour ago', -->
-<!-- 			duration: '2m 15s', -->
-<!-- 			commit: 'fix: resolve API timeout issue', -->
-<!-- 			commitHash: 'e4f5g6h', -->
-<!-- 			branch: 'main', -->
-<!-- 			author: 'Jane Smith', -->
-<!-- 			buildLogs: 'Build completed successfully...' -->
-<!-- 		}, -->
-<!-- 		{ -->
-<!-- 			id: 3, -->
-<!-- 			status: 'failed', -->
-<!-- 			message: 'Build failed', -->
-<!-- 			time: '3 hours ago', -->
-<!-- 			duration: '45s', -->
-<!-- 			commit: 'refactor: update API endpoints', -->
-<!-- 			commitHash: 'i7j8k9l', -->
-<!-- 			branch: 'develop', -->
-<!-- 			author: 'Bob Johnson', -->
-<!-- 			buildLogs: 'Error: Module not found...' -->
-<!-- 		}, -->
-<!-- 		{ -->
-<!-- 			id: 4, -->
-<!-- 			status: 'cancelled', -->
-<!-- 			message: 'Deployment cancelled', -->
-<!-- 			time: '1 day ago', -->
-<!-- 			duration: '30s', -->
-<!-- 			commit: 'chore: update dependencies', -->
-<!-- 			commitHash: 'm0n1o2p', -->
-<!-- 			branch: 'main', -->
-<!-- 			author: 'Alice Brown', -->
-<!-- 			buildLogs: 'Build cancelled by user...' -->
-<!-- 		}, -->
-<!-- 		{ -->
-<!-- 			id: 5, -->
-<!-- 			status: 'success', -->
-<!-- 			message: 'Deployment successful', -->
-<!-- 			time: '2 days ago', -->
-<!-- 			duration: '1m 45s', -->
-<!-- 			commit: 'feat: implement user authentication', -->
-<!-- 			commitHash: 'q3r4s5t', -->
-<!-- 			branch: 'main', -->
-<!-- 			author: 'John Doe', -->
-<!-- 			buildLogs: 'Build completed successfully...' -->
-<!-- 		} -->
-<!-- 	]); -->
-<!---->
-<!-- 	function getStatusIcon(status: string) { -->
-<!-- 		switch (status) { -->
-<!-- 			case 'success': -->
-<!-- 				return CheckCircle; -->
-<!-- 			case 'failed': -->
-<!-- 				return AlertCircle; -->
-<!-- 			case 'cancelled': -->
-<!-- 				return XCircle; -->
-<!-- 			case 'running': -->
-<!-- 				return Clock; -->
-<!-- 			default: -->
-<!-- 				return Clock; -->
-<!-- 		} -->
-<!-- 	} -->
-<!---->
-<!-- 	function getStatusColor(status: string) { -->
-<!-- 		switch (status) { -->
-<!-- 			case 'success': -->
-<!-- 				return 'text-green-500'; -->
-<!-- 			case 'failed': -->
-<!-- 				return 'text-red-500'; -->
-<!-- 			case 'cancelled': -->
-<!-- 				return 'text-gray-500'; -->
-<!-- 			case 'running': -->
-<!-- 				return 'text-blue-500'; -->
-<!-- 			default: -->
-<!-- 				return 'text-gray-500'; -->
-<!-- 		} -->
-<!-- 	} -->
-<!---->
-<!-- 	function getStatusBadgeVariant(status: string) { -->
-<!-- 		switch (status) { -->
-<!-- 			case 'success': -->
-<!-- 				return 'default'; -->
-<!-- 			case 'failed': -->
-<!-- 				return 'destructive'; -->
-<!-- 			case 'cancelled': -->
-<!-- 				return 'secondary'; -->
-<!-- 			case 'running': -->
-<!-- 				return 'default'; -->
-<!-- 			default: -->
-<!-- 				return 'secondary'; -->
-<!-- 		} -->
-<!-- 	} -->
-<!---->
-<!-- 	function redeployCommit(deploymentId: number) { -->
-<!-- 		console.log('Redeploying commit:', deploymentId); -->
-<!-- 	} -->
-<!---->
-<!-- 	function viewLogs(deploymentId: number) { -->
-<!-- 		console.log('Viewing logs for:', deploymentId); -->
-<!-- 	} -->
-<!-- </script> -->
-<!---->
-<!-- <svelte:head> -->
-<!-- 	<title>Deployments - {project.name}</title> -->
-<!-- </svelte:head> -->
-<!---->
-<!-- <!-- Main Content --> -->
-<!-- <div class="flex-1 p-6"> -->
-<!-- 	<!-- Header --> -->
-<!-- 	<div class="flex items-center justify-between mb-6"> -->
-<!-- 		<div class="flex items-center space-x-4"> -->
-<!-- 			<div> -->
-<!-- 				<h1 class="text-2xl font-semibold text-gray-900">Deployments</h1> -->
-<!-- 				<p class="text-sm text-gray-500 mt-1"> -->
-<!-- 					View and manage all deployments for {project.name}. -->
-<!-- 				</p> -->
-<!-- 			</div> -->
-<!-- 		</div> -->
-<!-- 		<Button class="bg-gray-900 hover:bg-gray-800">Deploy now</Button> -->
-<!-- 	</div> -->
-<!---->
-<!-- 	<!-- Deployments List --> -->
-<!-- 	<div class="space-y-4"> -->
-<!-- 		{#each deployments as deployment (deployment.id)} -->
-<!-- 			<Card class="hover:shadow-sm transition-shadow"> -->
-<!-- 				<CardContent class="p-6"> -->
-<!-- 					<div class="flex items-center justify-between"> -->
-<!-- 						<div class="flex items-center space-x-4"> -->
-<!-- 							{#if deployment.status === 'success'} -->
-<!-- 								<CheckCircle class="w-5 h-5 text-green-500" /> -->
-<!-- 							{:else if deployment.status === 'failed'} -->
-<!-- 								<AlertCircle class="w-5 h-5 text-red-500" /> -->
-<!-- 							{:else if deployment.status === 'cancelled'} -->
-<!-- 								<XCircle class="w-5 h-5 text-gray-500" /> -->
-<!-- 							{:else} -->
-<!-- 								<Clock class="w-5 h-5 text-blue-500" /> -->
-<!-- 							{/if} -->
-<!---->
-<!-- 							<div> -->
-<!-- 								<div class="flex items-center space-x-3 mb-1"> -->
-<!-- 									<h3 class="font-medium text-gray-900">{deployment.message}</h3> -->
-<!-- 									<Badge variant={getStatusBadgeVariant(deployment.status)} class="text-xs"> -->
-<!-- 										{deployment.status} -->
-<!-- 									</Badge> -->
-<!-- 								</div> -->
-<!-- 								<div class="flex items-center space-x-4 text-sm text-gray-600"> -->
-<!-- 									<div class="flex items-center space-x-1"> -->
-<!-- 										<Github class="w-4 h-4" /> -->
-<!-- 										<span>{deployment.commitHash}</span> -->
-<!-- 									</div> -->
-<!-- 									<div class="flex items-center space-x-1"> -->
-<!-- 										<GitBranch class="w-4 h-4" /> -->
-<!-- 										<span>{deployment.branch}</span> -->
-<!-- 									</div> -->
-<!-- 									<span>by {deployment.author}</span> -->
-<!-- 									<div class="flex items-center space-x-1"> -->
-<!-- 										<Clock class="w-4 h-4" /> -->
-<!-- 										<span>{deployment.duration}</span> -->
-<!-- 									</div> -->
-<!-- 								</div> -->
-<!-- 								<p class="text-sm text-gray-700 mt-1">{deployment.commit}</p> -->
-<!-- 							</div> -->
-<!-- 						</div> -->
-<!-- 						<div class="flex items-center space-x-4"> -->
-<!-- 							<span class="text-sm text-gray-500">{deployment.time}</span> -->
-<!-- 							<div class="flex items-center space-x-2"> -->
-<!-- 								<Button size="sm" variant="outline" onclick={() => viewLogs(deployment.id)}> -->
-<!-- 									<Eye class="w-4 h-4 mr-1" /> -->
-<!-- 									Logs -->
-<!-- 								</Button> -->
-<!-- 								{#if deployment.status === 'success'} -->
-<!-- 									<Button size="sm" variant="outline" onclick={() => redeployCommit(deployment.id)}> -->
-<!-- 										<RotateCcw class="w-4 h-4 mr-1" /> -->
-<!-- 										Redeploy -->
-<!-- 									</Button> -->
-<!-- 								{/if} -->
-<!-- 							</div> -->
-<!-- 						</div> -->
-<!-- 					</div> -->
-<!-- 				</CardContent> -->
-<!-- 			</Card> -->
-<!-- 		{/each} -->
-<!-- 	</div> -->
-<!-- </div> -->
+<script lang="ts">
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
+	import { Button } from '$lib/components/ui/button';
+	import { Badge } from '$lib/components/ui/badge';
+	import { Card, CardContent } from '$lib/components/ui/card';
+	import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
+	import { deploymentsApi, type DeploymentStatus } from '$lib/api/deployments';
+	import { toast } from 'svelte-sonner';
+	import {
+		CheckCircle,
+		AlertCircle,
+		XCircle,
+		Clock,
+		GitBranch,
+		GitCommit,
+		User,
+		RotateCcw,
+		Eye
+	} from 'lucide-svelte';
+
+	const projectId = $derived($page.params.id);
+	const envId = $derived($page.params.env_id);
+	const resId = $derived($page.params.res_id);
+
+	const queryClient = useQueryClient();
+
+	const deploymentsQuery = createQuery({
+		queryKey: ['deployments', projectId, resId],
+		queryFn: () => deploymentsApi.list(projectId, resId),
+		enabled: !!projectId && !!resId,
+		refetchInterval: 5000
+	});
+
+	const deployments = $derived($deploymentsQuery.data || []);
+
+	const redeployMutation = createMutation({
+		mutationFn: (deploymentId: string) => deploymentsApi.redeploy(projectId, resId, deploymentId),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['deployments', projectId, resId] });
+			toast.success('Redeployment started');
+		},
+		onError: (error: Error) => {
+			toast.error(`Failed to redeploy: ${error.message}`);
+		}
+	});
+
+	function getStatusIcon(status: DeploymentStatus) {
+		switch (status) {
+			case 'success':
+				return CheckCircle;
+			case 'failed':
+				return AlertCircle;
+			case 'cancelled':
+				return XCircle;
+			case 'building':
+			case 'deploying':
+			case 'pending':
+				return Clock;
+			default:
+				return Clock;
+		}
+	}
+
+	function getStatusColor(status: DeploymentStatus) {
+		switch (status) {
+			case 'success':
+				return 'text-green-500';
+			case 'failed':
+				return 'text-red-500';
+			case 'cancelled':
+				return 'text-gray-500';
+			case 'building':
+			case 'deploying':
+			case 'pending':
+				return 'text-blue-500';
+			default:
+				return 'text-gray-500';
+		}
+	}
+
+	function getStatusBadgeVariant(
+		status: DeploymentStatus
+	): 'default' | 'secondary' | 'destructive' | 'outline' {
+		switch (status) {
+			case 'success':
+				return 'default';
+			case 'failed':
+				return 'destructive';
+			case 'cancelled':
+				return 'secondary';
+			case 'building':
+			case 'deploying':
+			case 'pending':
+				return 'outline';
+			default:
+				return 'secondary';
+		}
+	}
+
+	function formatDuration(seconds?: number): string {
+		if (!seconds) return 'N/A';
+		const mins = Math.floor(seconds / 60);
+		const secs = seconds % 60;
+		return `${mins}m ${secs}s`;
+	}
+
+	function formatTime(timestamp: string): string {
+		const date = new Date(timestamp);
+		const now = new Date();
+		const diff = now.getTime() - date.getTime();
+		const seconds = Math.floor(diff / 1000);
+		const minutes = Math.floor(seconds / 60);
+		const hours = Math.floor(minutes / 60);
+		const days = Math.floor(hours / 24);
+
+		if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
+		if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+		if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+		return `${seconds} second${seconds > 1 ? 's' : ''} ago`;
+	}
+
+	function viewDeployment(deploymentId: string) {
+		goto(`/dashboard/project/${projectId}/${envId}/app/${resId}/deployments/${deploymentId}`);
+	}
+
+	function redeployCommit(deploymentId: string) {
+		$redeployMutation.mutate(deploymentId);
+	}
+</script>
+
+<div class="space-y-6">
+	<div class="flex items-center justify-between">
+		<div>
+			<h2 class="text-2xl font-bold tracking-tight">Deployments</h2>
+			<p class="text-muted-foreground">View and manage all deployments for this application</p>
+		</div>
+	</div>
+
+	{#if $deploymentsQuery.isLoading}
+		<div class="flex items-center justify-center py-12">
+			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+		</div>
+	{:else if $deploymentsQuery.isError}
+		<Card>
+			<CardContent class="p-6">
+				<div class="text-center">
+					<AlertCircle class="mx-auto h-12 w-12 text-destructive mb-4" />
+					<h3 class="text-lg font-medium">Failed to load deployments</h3>
+					<p class="text-muted-foreground mt-2">
+						{$deploymentsQuery.error?.message || 'An error occurred'}
+					</p>
+				</div>
+			</CardContent>
+		</Card>
+	{:else if deployments.length === 0}
+		<Card>
+			<CardContent class="p-12">
+				<div class="text-center">
+					<GitBranch class="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+					<h3 class="text-lg font-medium">No deployments yet</h3>
+					<p class="text-muted-foreground mt-2">
+						Deployments will appear here once you trigger your first deployment.
+					</p>
+				</div>
+			</CardContent>
+		</Card>
+	{:else}
+		<div class="space-y-4">
+			{#each deployments as deployment (deployment.id)}
+				{@const StatusIcon = getStatusIcon(deployment.status)}
+				<Card class="hover:shadow-sm transition-shadow">
+					<CardContent class="p-6">
+						<div class="flex items-center justify-between">
+							<div class="flex items-center space-x-4 flex-1">
+								<StatusIcon class="w-5 h-5 {getStatusColor(deployment.status)}" />
+
+								<div class="flex-1">
+									<div class="flex items-center space-x-3 mb-1">
+										<h3 class="font-medium">
+											{deployment.commit_message || 'Deployment'}
+										</h3>
+										<Badge variant={getStatusBadgeVariant(deployment.status)} class="text-xs">
+											{deployment.status}
+										</Badge>
+									</div>
+
+									<div class="flex items-center space-x-4 text-sm text-muted-foreground flex-wrap gap-2">
+										{#if deployment.commit_hash}
+											<div class="flex items-center space-x-1">
+												<GitCommit class="w-4 h-4" />
+												<span class="font-mono">{deployment.commit_hash.slice(0, 7)}</span>
+											</div>
+										{/if}
+										{#if deployment.branch}
+											<div class="flex items-center space-x-1">
+												<GitBranch class="w-4 h-4" />
+												<span>{deployment.branch}</span>
+											</div>
+										{/if}
+										{#if deployment.author}
+											<div class="flex items-center space-x-1">
+												<User class="w-4 h-4" />
+												<span>{deployment.author}</span>
+											</div>
+										{/if}
+										{#if deployment.duration}
+											<div class="flex items-center space-x-1">
+												<Clock class="w-4 h-4" />
+												<span>{formatDuration(deployment.duration)}</span>
+											</div>
+										{/if}
+									</div>
+								</div>
+							</div>
+
+							<div class="flex items-center space-x-4 ml-4">
+								<span class="text-sm text-muted-foreground whitespace-nowrap">
+									{formatTime(deployment.started_at)}
+								</span>
+								<div class="flex items-center space-x-2">
+									<Button size="sm" variant="outline" onclick={() => viewDeployment(deployment.id)}>
+										<Eye class="w-4 h-4 mr-1" />
+										View
+									</Button>
+									{#if deployment.status === 'success'}
+										<Button
+											size="sm"
+											variant="outline"
+											disabled={$redeployMutation.isPending}
+											onclick={() => redeployCommit(deployment.id)}
+										>
+											<RotateCcw
+												class="w-4 h-4 mr-1 {$redeployMutation.isPending ? 'animate-spin' : ''}"
+											/>
+											Redeploy
+										</Button>
+									{/if}
+								</div>
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+			{/each}
+		</div>
+	{/if}
+</div>

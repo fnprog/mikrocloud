@@ -97,6 +97,14 @@ docker-run:
 docker-stop:
 	docker-compose down
 
+# Build helper image for builds
+build-helper:
+	docker build -t mikrocloud-builder:latest ./docker/Build-Helper
+	docker tag mikrocloud-builder:latest ghcr.io/fantasy-programming/mikrocloud-2/mikrocloud-builder:latest
+
+build-helper-push:
+	docker push ghcr.io/fantasy-programming/mikrocloud-2/mikrocloud-builder:latest
+
 # Development database - SQLite (no external dependencies needed)
 db-init:
 	@mkdir -p $(HOME)/.local/share/mikrocloud
