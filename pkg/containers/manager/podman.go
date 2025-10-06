@@ -175,6 +175,7 @@ func (p *PodmanManager) Create(ctx context.Context, config ContainerConfig) (str
 		ContainerBasicConfig: specgen.ContainerBasicConfig{
 			Name:   config.Name,
 			Remove: &config.AutoRemove,
+			Labels: config.Labels,
 		},
 		ContainerStorageConfig: specgen.ContainerStorageConfig{
 			Image: config.Image,

@@ -9,6 +9,7 @@
 
 	const navItems = [
 		{ path: 'general', label: 'General', icon: LayoutGrid },
+		{ path: 'networking', label: 'Networking', icon: LayoutGrid },
 		{ path: 'settings', label: 'Settings', icon: Settings },
 		{ path: 'storage', label: 'Persistent Storage', icon: HardDrive },
 		{ path: 'limits', label: 'Resource Limits', icon: Gauge },

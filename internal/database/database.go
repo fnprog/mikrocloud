@@ -18,6 +18,7 @@ import (
 	projectsRepo "github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
 	proxyRepo "github.com/mikrocloud/mikrocloud/internal/domain/proxy/repository"
 	servicesRepo "github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
+	settingsRepo "github.com/mikrocloud/mikrocloud/internal/domain/settings/repository"
 	usersRepo "github.com/mikrocloud/mikrocloud/internal/domain/users/repository"
 
 	"github.com/mikrocloud/mikrocloud/internal/config"
@@ -46,6 +47,7 @@ type Database struct {
 	DiskBackupRepository    disksRepo.DiskBackupRepository
 	MetricRepository        analyticsRepo.MetricRepository
 	LogRepository           logsRepo.LogRepository
+	SettingsRepository      *settingsRepo.SettingsRepository
 }
 
 func New(cfg *config.Config) (*Database, error) {
@@ -104,6 +106,7 @@ func New(cfg *config.Config) (*Database, error) {
 		DiskBackupRepository:    mainDB.DiskBackupRepository(),
 		MetricRepository:        metricRepo,
 		LogRepository:           logRepo,
+		SettingsRepository:      settingsRepo.NewSettingsRepository(mainDB.DB()),
 	}, nil
 }
 

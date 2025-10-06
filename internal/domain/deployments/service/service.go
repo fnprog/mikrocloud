@@ -503,16 +503,44 @@ func (s *DeploymentService) deployContainer(ctx context.Context, deploymentID de
 	containerName = strings.ToLower(strings.ReplaceAll(containerName, " ", "-"))
 
 	ports := make(map[string]string)
-	ports["80"] = "8080"
+	if len(app.PortMappings()) > 0 {
+		for _, mapping := range app.PortMappings() {
+			ports[fmt.Sprintf("%d", mapping.ContainerPort)] = fmt.Sprintf("%d", mapping.HostPort)
+		}
+		s.AppendDeployLogs(ctx, deploymentID, fmt.Sprintf("Configured %d port mapping(s)", len(app.PortMappings())))
+	} else {
+		s.AppendDeployLogs(ctx, deploymentID, "No port mappings configured - container will not expose ports to host")
+	}
+
+	labels := make(map[string]string)
+	domain := app.Domain()
+	if domain == "" {
+		domain = app.GeneratedDomain()
+	}
+
+	if domain != "" {
+		labels["traefik.enable"] = "true"
+		labels["traefik.http.routers."+containerName+".rule"] = fmt.Sprintf("Host(`%s`)", domain)
+		labels["traefik.http.routers."+containerName+".entrypoints"] = "web"
+
+		if len(app.ExposedPorts()) > 0 {
+			labels["traefik.http.services."+containerName+".loadbalancer.server.port"] = fmt.Sprintf("%d", app.ExposedPorts()[0])
+			s.AppendDeployLogs(ctx, deploymentID, fmt.Sprintf("Configured Traefik routing: %s -> port %d", domain, app.ExposedPorts()[0]))
+		} else {
+			labels["traefik.http.services."+containerName+".loadbalancer.server.port"] = "8080"
+			s.AppendDeployLogs(ctx, deploymentID, fmt.Sprintf("Configured Traefik routing: %s -> port 8080 (default)", domain))
+		}
+	}
 
 	containerConfig := manager.ContainerConfig{
 		Image:         imageTag,
 		Name:          containerName,
 		Ports:         ports,
 		Environment:   app.EnvVars(),
-		Networks:      []string{"mikrocloud"},
+		Networks:      []string{},
 		RestartPolicy: "unless-stopped",
 		AutoRemove:    false,
+		Labels:        labels,
 	}
 
 	s.AppendDeployLogs(ctx, deploymentID, fmt.Sprintf("Creating container: %s from image: %s", containerName, imageTag))
@@ -560,6 +588,46 @@ func (s *DeploymentService) DeleteDeployment(ctx context.Context, id deployments
 
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return fmt.Errorf("failed to delete deployment: %w", err)
+	}
+
+	return nil
+}
+
+func (s *DeploymentService) RecreateContainer(ctx context.Context, applicationID applications.ApplicationID, getApp func(context.Context, applications.ApplicationID) (*applications.Application, error)) error {
+	latestDeployment, err := s.repo.GetLatestByApplication(ctx, applicationID)
+	if err != nil {
+		return fmt.Errorf("no deployment found for application: %w", err)
+	}
+
+	if latestDeployment.Status() != deployments.DeploymentStatusRunning {
+		return fmt.Errorf("latest deployment is not running, cannot recreate container")
+	}
+
+	if latestDeployment.ContainerID() == "" {
+		return fmt.Errorf("deployment has no container ID")
+	}
+
+	app, err := getApp(ctx, applicationID)
+	if err != nil {
+		return fmt.Errorf("failed to get application: %w", err)
+	}
+
+	oldContainerID := latestDeployment.ContainerID()
+	if err := s.containerManager.Stop(ctx, oldContainerID); err != nil {
+		return fmt.Errorf("failed to stop old container: %w", err)
+	}
+
+	if err := s.containerManager.Delete(ctx, oldContainerID); err != nil {
+		return fmt.Errorf("failed to delete old container: %w", err)
+	}
+
+	imageTag := latestDeployment.ImageTag()
+	if imageTag == "" {
+		return fmt.Errorf("deployment has no image tag")
+	}
+
+	if err := s.deployContainer(ctx, latestDeployment.ID(), latestDeployment, app, imageTag); err != nil {
+		return fmt.Errorf("failed to deploy new container: %w", err)
 	}
 
 	return nil

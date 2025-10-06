@@ -35,10 +35,19 @@ func NewSQLiteApplicationRepository(db *sql.DB) *SQLiteApplicationRepository {
 }
 
 func (r *SQLiteApplicationRepository) Save(ctx context.Context, app *applications.Application) error {
-	// For now, use the old config field to store buildpack config for backward compatibility
 	buildpackJSON, err := json.Marshal(app.Buildpack())
 	if err != nil {
 		return fmt.Errorf("failed to marshal buildpack config: %w", err)
+	}
+
+	exposedPortsJSON, err := json.Marshal(app.ExposedPorts())
+	if err != nil {
+		return fmt.Errorf("failed to marshal exposed ports: %w", err)
+	}
+
+	portMappingsJSON, err := json.Marshal(app.PortMappings())
+	if err != nil {
+		return fmt.Errorf("failed to marshal port mappings: %w", err)
 	}
 
 	query := sqlite.Insert(
@@ -49,17 +58,20 @@ func (r *SQLiteApplicationRepository) Save(ctx context.Context, app *application
 			sqlite.Arg(app.Description()),
 			sqlite.Arg(app.ProjectID().String()),
 			sqlite.Arg(app.EnvironmentID().String()),
-			sqlite.Arg(app.RepoURL()),    // For backward compatibility with git repos
-			sqlite.Arg(app.RepoBranch()), // For backward compatibility
-			sqlite.Arg(app.RepoPath()),   // For backward compatibility
+			sqlite.Arg(app.RepoURL()),
+			sqlite.Arg(app.RepoBranch()),
+			sqlite.Arg(app.RepoPath()),
 			sqlite.Arg(app.Domain()),
-			sqlite.Arg(string(app.BuildpackType())), // For backward compatibility
-			sqlite.Arg(string(buildpackJSON)),       // Store enhanced buildpack config in config field
+			sqlite.Arg(string(app.BuildpackType())),
+			sqlite.Arg(string(buildpackJSON)),
 			sqlite.Arg(app.AutoDeploy()),
 			sqlite.Arg(string(app.Status())),
 			sqlite.Arg(app.CreatedAt().Format(time.RFC3339)),
 			sqlite.Arg(app.UpdatedAt().Format(time.RFC3339)),
 			sqlite.Arg(app.BasePath()),
+			sqlite.Arg(app.GeneratedDomain()),
+			sqlite.Arg(string(exposedPortsJSON)),
+			sqlite.Arg(string(portMappingsJSON)),
 		),
 		im.OnConflict("id").DoUpdate(
 			im.SetCol("name").ToArg(app.Name().String()),
@@ -74,6 +86,9 @@ func (r *SQLiteApplicationRepository) Save(ctx context.Context, app *application
 			im.SetCol("status").ToArg(string(app.Status())),
 			im.SetCol("updated_at").ToArg(app.UpdatedAt().Format(time.RFC3339)),
 			im.SetCol("base_path").ToArg(app.BasePath()),
+			im.SetCol("generated_domain").ToArg(app.GeneratedDomain()),
+			im.SetCol("exposed_ports").ToArg(string(exposedPortsJSON)),
+			im.SetCol("port_mappings").ToArg(string(portMappingsJSON)),
 		),
 	)
 
@@ -92,7 +107,7 @@ func (r *SQLiteApplicationRepository) Save(ctx context.Context, app *application
 
 func (r *SQLiteApplicationRepository) FindByID(ctx context.Context, id applications.ApplicationID) (*applications.Application, error) {
 	query := sqlite.Select(
-		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at", "base_path"),
+		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at", "base_path", "generated_domain", "exposed_ports", "port_mappings"),
 		sm.From("applications"),
 		sm.Where(sqlite.Quote("id").EQ(sqlite.Arg(id.String()))),
 	)
@@ -106,7 +121,8 @@ func (r *SQLiteApplicationRepository) FindByID(ctx context.Context, id applicati
 	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(
 		&row.ID, &row.Name, &row.Description, &row.ProjectID, &row.EnvironmentID,
 		&row.RepoURL, &row.RepoBranch, &row.RepoPath, &row.Domain, &row.BuildpackType,
-		&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt, &row.BasePath)
+		&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt, &row.BasePath,
+		&row.GeneratedDomain, &row.ExposedPorts, &row.PortMappings)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -120,7 +136,7 @@ func (r *SQLiteApplicationRepository) FindByID(ctx context.Context, id applicati
 
 func (r *SQLiteApplicationRepository) FindByName(ctx context.Context, projectID uuid.UUID, name applications.ApplicationName) (*applications.Application, error) {
 	query := sqlite.Select(
-		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at", "base_path"),
+		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at", "base_path", "generated_domain", "exposed_ports", "port_mappings"),
 		sm.From("applications"),
 		sm.Where(
 			sqlite.Quote("project_id").EQ(sqlite.Arg(projectID.String())).
@@ -137,7 +153,8 @@ func (r *SQLiteApplicationRepository) FindByName(ctx context.Context, projectID 
 	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(
 		&row.ID, &row.Name, &row.Description, &row.ProjectID, &row.EnvironmentID,
 		&row.RepoURL, &row.RepoBranch, &row.RepoPath, &row.Domain, &row.BuildpackType,
-		&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt, &row.BasePath)
+		&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt, &row.BasePath,
+		&row.GeneratedDomain, &row.ExposedPorts, &row.PortMappings)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -151,7 +168,7 @@ func (r *SQLiteApplicationRepository) FindByName(ctx context.Context, projectID 
 
 func (r *SQLiteApplicationRepository) FindByProject(ctx context.Context, projectID uuid.UUID) ([]*applications.Application, error) {
 	query := sqlite.Select(
-		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at", "base_path"),
+		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at", "base_path", "generated_domain", "exposed_ports", "port_mappings"),
 		sm.From("applications"),
 		sm.Where(sqlite.Quote("project_id").EQ(sqlite.Arg(projectID.String()))),
 		sm.OrderBy("created_at").Desc(),
@@ -173,7 +190,8 @@ func (r *SQLiteApplicationRepository) FindByProject(ctx context.Context, project
 		var row applicationRow
 		err := rows.Scan(&row.ID, &row.Name, &row.Description, &row.ProjectID, &row.EnvironmentID,
 			&row.RepoURL, &row.RepoBranch, &row.RepoPath, &row.Domain, &row.BuildpackType,
-			&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt, &row.BasePath)
+			&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt, &row.BasePath,
+			&row.GeneratedDomain, &row.ExposedPorts, &row.PortMappings)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan application row: %w", err)
 		}
@@ -195,7 +213,7 @@ func (r *SQLiteApplicationRepository) FindByProject(ctx context.Context, project
 
 func (r *SQLiteApplicationRepository) FindByEnvironment(ctx context.Context, environmentID uuid.UUID) ([]*applications.Application, error) {
 	query := sqlite.Select(
-		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at", "base_path"),
+		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at", "base_path", "generated_domain", "exposed_ports", "port_mappings"),
 		sm.From("applications"),
 		sm.Where(sqlite.Quote("environment_id").EQ(sqlite.Arg(environmentID.String()))),
 		sm.OrderBy("created_at").Desc(),
@@ -217,7 +235,8 @@ func (r *SQLiteApplicationRepository) FindByEnvironment(ctx context.Context, env
 		var row applicationRow
 		err := rows.Scan(&row.ID, &row.Name, &row.Description, &row.ProjectID, &row.EnvironmentID,
 			&row.RepoURL, &row.RepoBranch, &row.RepoPath, &row.Domain, &row.BuildpackType,
-			&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt, &row.BasePath)
+			&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt, &row.BasePath,
+			&row.GeneratedDomain, &row.ExposedPorts, &row.PortMappings)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan application row: %w", err)
 		}
@@ -239,7 +258,7 @@ func (r *SQLiteApplicationRepository) FindByEnvironment(ctx context.Context, env
 
 func (r *SQLiteApplicationRepository) FindAll(ctx context.Context) ([]*applications.Application, error) {
 	query := sqlite.Select(
-		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at", "base_path"),
+		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at", "base_path", "generated_domain", "exposed_ports", "port_mappings"),
 		sm.From("applications"),
 		sm.OrderBy("created_at").Desc(),
 	)
@@ -260,7 +279,8 @@ func (r *SQLiteApplicationRepository) FindAll(ctx context.Context) ([]*applicati
 		var row applicationRow
 		err := rows.Scan(&row.ID, &row.Name, &row.Description, &row.ProjectID, &row.EnvironmentID,
 			&row.RepoURL, &row.RepoBranch, &row.RepoPath, &row.Domain, &row.BuildpackType,
-			&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt, &row.BasePath)
+			&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt, &row.BasePath,
+			&row.GeneratedDomain, &row.ExposedPorts, &row.PortMappings)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan application row: %w", err)
 		}
@@ -333,22 +353,25 @@ func (r *SQLiteApplicationRepository) Exists(ctx context.Context, projectID uuid
 }
 
 type applicationRow struct {
-	ID            string
-	Name          string
-	Description   sql.NullString
-	ProjectID     string
-	EnvironmentID string
-	RepoURL       sql.NullString
-	RepoBranch    sql.NullString
-	RepoPath      sql.NullString
-	Domain        sql.NullString
-	BuildpackType string
-	Config        string
-	AutoDeploy    bool
-	Status        string
-	CreatedAt     string
-	UpdatedAt     string
-	BasePath      sql.NullString
+	ID              string
+	Name            string
+	Description     sql.NullString
+	ProjectID       string
+	EnvironmentID   string
+	RepoURL         sql.NullString
+	RepoBranch      sql.NullString
+	RepoPath        sql.NullString
+	Domain          sql.NullString
+	BuildpackType   string
+	Config          string
+	AutoDeploy      bool
+	Status          string
+	CreatedAt       string
+	UpdatedAt       string
+	BasePath        sql.NullString
+	GeneratedDomain sql.NullString
+	ExposedPorts    string
+	PortMappings    string
 }
 
 func (r *SQLiteApplicationRepository) mapRowToApplication(row applicationRow) (*applications.Application, error) {
@@ -434,11 +457,29 @@ func (r *SQLiteApplicationRepository) mapRowToApplication(row applicationRow) (*
 		buildConfig = applications.NewBuildConfig(buildpackType)
 	}
 
-	// For now, empty env vars (we'll add this to schema later)
 	envVars := make(map[string]string)
+
+	generatedDomain := ""
+	if row.GeneratedDomain.Valid {
+		generatedDomain = row.GeneratedDomain.String
+	}
+
+	var exposedPorts []int
+	if row.ExposedPorts != "" && row.ExposedPorts != "[]" {
+		if err := json.Unmarshal([]byte(row.ExposedPorts), &exposedPorts); err != nil {
+			exposedPorts = []int{}
+		}
+	}
+
+	var portMappings []applications.PortMapping
+	if row.PortMappings != "" && row.PortMappings != "[]" {
+		if err := json.Unmarshal([]byte(row.PortMappings), &portMappings); err != nil {
+			portMappings = []applications.PortMapping{}
+		}
+	}
 
 	return applications.ReconstructApplication(
 		appID, appName, description, projectID, environmentID,
-		deploymentSource, domain, buildConfig, envVars,
-		row.AutoDeploy, status, createdAt, updatedAt), nil
+		deploymentSource, domain, generatedDomain, exposedPorts, portMappings,
+		buildConfig, envVars, row.AutoDeploy, status, createdAt, updatedAt), nil
 }

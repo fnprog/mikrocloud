@@ -171,6 +171,12 @@ type BuildpackConfig struct {
 	Config any           `json:"config,omitempty"`
 }
 
+type PortMapping struct {
+	ContainerPort int    `json:"container_port"`
+	HostPort      int    `json:"host_port,omitempty"`
+	Protocol      string `json:"protocol"` // tcp, udp
+}
+
 type Application struct {
 	id               ApplicationID
 	name             ApplicationName
@@ -179,6 +185,9 @@ type Application struct {
 	environmentID    uuid.UUID
 	deploymentSource DeploymentSource
 	domain           string
+	generatedDomain  string
+	exposedPorts     []int
+	portMappings     []PortMapping
 	buildpack        *BuildConfig
 	envVars          map[string]string
 	autoDeploy       bool
@@ -262,6 +271,8 @@ func NewApplication(
 		deploymentSource: deploymentSource,
 		buildpack:        buildpack,
 		envVars:          make(map[string]string),
+		exposedPorts:     []int{},
+		portMappings:     []PortMapping{},
 		autoDeploy:       true,
 		status:           ApplicationStatusCreated,
 		createdAt:        now,
@@ -323,6 +334,18 @@ func (a *Application) BasePath() string {
 
 func (a *Application) Domain() string {
 	return a.domain
+}
+
+func (a *Application) GeneratedDomain() string {
+	return a.generatedDomain
+}
+
+func (a *Application) ExposedPorts() []int {
+	return a.exposedPorts
+}
+
+func (a *Application) PortMappings() []PortMapping {
+	return a.portMappings
 }
 
 func (a *Application) BuildpackType() BuildpackType {
@@ -440,6 +463,64 @@ func (a *Application) SetDomain(domain string) {
 	a.updatedAt = time.Now()
 }
 
+func (a *Application) SetGeneratedDomain(domain string) {
+	a.generatedDomain = domain
+	a.updatedAt = time.Now()
+}
+
+func (a *Application) UpdateName(name ApplicationName) {
+	a.name = name
+	a.updatedAt = time.Now()
+}
+
+func (a *Application) SetExposedPorts(ports []int) error {
+	for _, port := range ports {
+		if port < 1 || port > 65535 {
+			return fmt.Errorf("invalid port: %d", port)
+		}
+	}
+	a.exposedPorts = ports
+	a.updatedAt = time.Now()
+	return nil
+}
+
+func (a *Application) AddPortMapping(containerPort, hostPort int, protocol string) error {
+	if containerPort < 1 || containerPort > 65535 {
+		return fmt.Errorf("invalid container port: %d", containerPort)
+	}
+	if hostPort != 0 && (hostPort < 1 || hostPort > 65535) {
+		return fmt.Errorf("invalid host port: %d", hostPort)
+	}
+	if protocol != "tcp" && protocol != "udp" {
+		protocol = "tcp"
+	}
+
+	a.portMappings = append(a.portMappings, PortMapping{
+		ContainerPort: containerPort,
+		HostPort:      hostPort,
+		Protocol:      protocol,
+	})
+	a.updatedAt = time.Now()
+	return nil
+}
+
+func (a *Application) SetPortMappings(mappings []PortMapping) error {
+	for _, mapping := range mappings {
+		if mapping.ContainerPort < 1 || mapping.ContainerPort > 65535 {
+			return fmt.Errorf("invalid container port: %d", mapping.ContainerPort)
+		}
+		if mapping.HostPort != 0 && (mapping.HostPort < 1 || mapping.HostPort > 65535) {
+			return fmt.Errorf("invalid host port: %d", mapping.HostPort)
+		}
+		if mapping.Protocol != "tcp" && mapping.Protocol != "udp" {
+			mapping.Protocol = "tcp"
+		}
+	}
+	a.portMappings = mappings
+	a.updatedAt = time.Now()
+	return nil
+}
+
 func (a *Application) SetBuildpackType(buildpackType BuildpackType) {
 	if a.buildpack == nil {
 		a.buildpack = NewBuildConfig(buildpackType)
@@ -547,6 +628,9 @@ func ReconstructApplication(
 	projectID, environmentID uuid.UUID,
 	deploymentSource DeploymentSource,
 	domain string,
+	generatedDomain string,
+	exposedPorts []int,
+	portMappings []PortMapping,
 	buildpack *BuildConfig,
 	envVars map[string]string,
 	autoDeploy bool,
@@ -556,6 +640,12 @@ func ReconstructApplication(
 	if envVars == nil {
 		envVars = make(map[string]string)
 	}
+	if exposedPorts == nil {
+		exposedPorts = []int{}
+	}
+	if portMappings == nil {
+		portMappings = []PortMapping{}
+	}
 	return &Application{
 		id:               id,
 		name:             name,
@@ -564,6 +654,9 @@ func ReconstructApplication(
 		environmentID:    environmentID,
 		deploymentSource: deploymentSource,
 		domain:           domain,
+		generatedDomain:  generatedDomain,
+		exposedPorts:     exposedPorts,
+		portMappings:     portMappings,
 		buildpack:        buildpack,
 		envVars:          envVars,
 		autoDeploy:       autoDeploy,

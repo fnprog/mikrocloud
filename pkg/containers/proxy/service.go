@@ -25,9 +25,25 @@ type TraefikConfig struct {
 	Global      *proxy.TraefikGlobalConfig `json:"global"`
 	HTTP        *HTTPConfig                `json:"http,omitempty"`
 	EntryPoints map[string]EntryPoint      `json:"entryPoints"`
+	Providers   *ProvidersConfig           `json:"providers,omitempty"`
 	API         APIConfig                  `json:"api"`
 	Log         LogConfig                  `json:"log"`
 	AccessLog   AccessLogConfig            `json:"accessLog"`
+}
+
+type ProvidersConfig struct {
+	Docker *DockerProviderConfig `json:"docker,omitempty"`
+	File   *FileProviderConfig   `json:"file,omitempty"`
+}
+
+type DockerProviderConfig struct {
+	Endpoint         string `json:"endpoint,omitempty"`
+	ExposedByDefault bool   `json:"exposedByDefault"`
+}
+
+type FileProviderConfig struct {
+	Directory string `json:"directory,omitempty"`
+	Watch     bool   `json:"watch,omitempty"`
 }
 
 type HTTPConfig struct {
@@ -222,8 +238,6 @@ func (ts *TraefikService) Start(ctx context.Context, globalConfig *proxy.Traefik
 		},
 		Command: []string{
 			"--configfile=/etc/traefik/traefik.yml",
-			"--providers.file.directory=/etc/traefik/dynamic",
-			"--providers.file.watch=true",
 		},
 	}
 
@@ -358,7 +372,16 @@ func (ts *TraefikService) writeGlobalConfig(globalConfig *proxy.TraefikGlobalCon
 			},
 			"websecure": {
 				Address: ":443",
-				TLS:     &EntryTLS{},
+			},
+		},
+		Providers: &ProvidersConfig{
+			Docker: &DockerProviderConfig{
+				Endpoint:         "unix:///var/run/docker.sock",
+				ExposedByDefault: false,
+			},
+			File: &FileProviderConfig{
+				Directory: "/etc/traefik/dynamic",
+				Watch:     true,
 			},
 		},
 		API: APIConfig{

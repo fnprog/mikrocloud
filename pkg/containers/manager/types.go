@@ -42,8 +42,9 @@ type ContainerConfig struct {
 	WorkingDir    string
 	Command       []string
 	Entrypoint    []string
-	AutoRemove    bool // Automatically remove container when it exits
-	Privileged    bool // Run container in privileged mode (needed for some build operations)
+	AutoRemove    bool              // Automatically remove container when it exits
+	Privileged    bool              // Run container in privileged mode (needed for some build operations)
+	Labels        map[string]string // Container labels for metadata and routing (e.g., Traefik)
 }
 
 type ContainerInfo struct {

@@ -11,6 +11,10 @@ export interface Application {
 	domain: string;
 	status: ApplicationStatus;
 	created_at: string;
+	custom_domain?: string;
+	generated_domain?: string;
+	exposed_ports?: number[];
+	port_mappings?: Array<{ host: number; container: number }>;
 }
 
 export interface GitRepoSource {
@@ -66,6 +70,10 @@ export const applicationsApi = {
 		return apiClient.get<Application>(`/projects/${projectId}/applications/${applicationId}`);
 	},
 
+	async getById(applicationId: string): Promise<Application> {
+		return apiClient.get<Application>(`/applications/${applicationId}`);
+	},
+
 	async create(projectId: string, data: CreateApplicationRequest): Promise<Application> {
 		return apiClient.post<Application>(`/projects/${projectId}/applications`, data);
 	},
@@ -84,6 +92,44 @@ export const applicationsApi = {
 
 	async restart(projectId: string, applicationId: string): Promise<void> {
 		return apiClient.post<void>(`/projects/${projectId}/applications/${applicationId}/restart`, {});
+	},
+
+	async updateGeneral(
+		projectId: string,
+		applicationId: string,
+		data: { name?: string; description?: string }
+	): Promise<void> {
+		return apiClient.patch<void>(
+			`/projects/${projectId}/applications/${applicationId}/general`,
+			data
+		);
+	},
+
+	async generateDomain(projectId: string, applicationId: string): Promise<{ domain: string }> {
+		return apiClient.post<{ domain: string }>(
+			`/projects/${projectId}/applications/${applicationId}/domain/generate`,
+			{}
+		);
+	},
+
+	async assignDomain(projectId: string, applicationId: string, domain: string): Promise<void> {
+		return apiClient.put<void>(`/projects/${projectId}/applications/${applicationId}/domain`, {
+			domain
+		});
+	},
+
+	async updatePorts(
+		projectId: string,
+		applicationId: string,
+		data: {
+			exposed_ports: number[];
+			port_mappings: Array<{ host_port: number; container_port: number }>;
+		}
+	): Promise<void> {
+		return apiClient.put<void>(
+			`/projects/${projectId}/applications/${applicationId}/ports`,
+			data
+		);
 	},
 
 	async streamLogs(

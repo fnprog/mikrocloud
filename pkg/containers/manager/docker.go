@@ -98,6 +98,7 @@ func (d *DockerManager) Create(ctx context.Context, config ContainerConfig) (str
 		WorkingDir:   config.WorkingDir,
 		Cmd:          config.Command,
 		Entrypoint:   config.Entrypoint,
+		Labels:       config.Labels,
 	}
 
 	hostConfig := &container.HostConfig{
@@ -114,6 +115,13 @@ func (d *DockerManager) Create(ctx context.Context, config ContainerConfig) (str
 	resp, err := d.client.ContainerCreate(ctx, containerConfig, hostConfig, networkConfig, nil, config.Name)
 	if err != nil {
 		return "", fmt.Errorf("failed to create container: %w", err)
+	}
+
+	for _, networkName := range config.Networks {
+		if err := d.client.NetworkConnect(ctx, networkName, resp.ID, nil); err != nil {
+			d.client.ContainerRemove(ctx, resp.ID, container.RemoveOptions{Force: true})
+			return "", fmt.Errorf("failed to connect container to network %s: %w", networkName, err)
+		}
 	}
 
 	return resp.ID, nil

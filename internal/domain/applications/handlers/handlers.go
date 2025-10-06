@@ -42,6 +42,10 @@ type ApplicationResponse struct {
 	EnvironmentID    string                         `json:"environment_id"`
 	DeploymentSource applications.DeploymentSource  `json:"deployment_source"`
 	Domain           string                         `json:"domain"`
+	CustomDomain     string                         `json:"custom_domain"`
+	GeneratedDomain  string                         `json:"generated_domain"`
+	ExposedPorts     []int                          `json:"exposed_ports"`
+	PortMappings     []applications.PortMapping     `json:"port_mappings"`
 	Buildpack        applications.BuildpackConfig   `json:"buildpack"`
 	EnvVars          map[string]string              `json:"env_vars"`
 	AutoDeploy       bool                           `json:"auto_deploy"`
@@ -85,6 +89,20 @@ type ListApplicationsResponse struct {
 
 type DeployApplicationRequest struct {
 	Action string `json:"action" validate:"required,oneof=deploy stop"`
+}
+
+type UpdateGeneralRequest struct {
+	Name        *string `json:"name" validate:"omitempty,min=1,max=100"`
+	Description *string `json:"description"`
+}
+
+type AssignDomainRequest struct {
+	Domain string `json:"domain" validate:"required"`
+}
+
+type UpdatePortsRequest struct {
+	ExposedPorts []int                      `json:"exposed_ports" validate:"required,min=1,dive,min=1,max=65535"`
+	PortMappings []applications.PortMapping `json:"port_mappings" validate:"dive"`
 }
 
 // CreateApplication creates a new application in a project
@@ -140,6 +158,10 @@ func (h *ApplicationHandler) CreateApplication(w http.ResponseWriter, r *http.Re
 		EnvironmentID:    app.EnvironmentID().String(),
 		DeploymentSource: app.DeploymentSource(),
 		Domain:           app.Domain(),
+		CustomDomain:     app.Domain(),
+		GeneratedDomain:  app.GeneratedDomain(),
+		ExposedPorts:     app.ExposedPorts(),
+		PortMappings:     app.PortMappings(),
 		Buildpack:        convertToLegacyBuildpackConfig(app.Buildpack()),
 		EnvVars:          app.EnvVars(),
 		AutoDeploy:       app.AutoDeploy(),
@@ -189,6 +211,10 @@ func (h *ApplicationHandler) GetApplication(w http.ResponseWriter, r *http.Reque
 		EnvironmentID:    app.EnvironmentID().String(),
 		DeploymentSource: app.DeploymentSource(),
 		Domain:           app.Domain(),
+		CustomDomain:     app.Domain(),
+		GeneratedDomain:  app.GeneratedDomain(),
+		ExposedPorts:     app.ExposedPorts(),
+		PortMappings:     app.PortMappings(),
 		Buildpack:        convertToLegacyBuildpackConfig(app.Buildpack()),
 		EnvVars:          app.EnvVars(),
 		AutoDeploy:       app.AutoDeploy(),
@@ -303,6 +329,10 @@ func (h *ApplicationHandler) UpdateApplication(w http.ResponseWriter, r *http.Re
 		EnvironmentID:    updatedApp.EnvironmentID().String(),
 		DeploymentSource: updatedApp.DeploymentSource(),
 		Domain:           updatedApp.Domain(),
+		CustomDomain:     updatedApp.Domain(),
+		GeneratedDomain:  updatedApp.GeneratedDomain(),
+		ExposedPorts:     updatedApp.ExposedPorts(),
+		PortMappings:     updatedApp.PortMappings(),
 		Buildpack:        convertToLegacyBuildpackConfig(updatedApp.Buildpack()),
 		EnvVars:          updatedApp.EnvVars(),
 		AutoDeploy:       updatedApp.AutoDeploy(),
@@ -696,4 +726,258 @@ func convertToLegacyBuildpackConfig(config *applications.BuildConfig) applicatio
 		Type:   config.BuildpackType(),
 		Config: configData,
 	}
+}
+
+func (h *ApplicationHandler) UpdateGeneral(w http.ResponseWriter, r *http.Request) {
+	var req UpdateGeneralRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_json", "Invalid JSON format")
+		return
+	}
+
+	if err := h.validator.Struct(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "validation_error", err.Error())
+		return
+	}
+
+	appIDStr := chi.URLParam(r, "application_id")
+	appID, err := applications.ApplicationIDFromString(appIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_application_id", "Invalid application ID")
+		return
+	}
+
+	projectIDStr := chi.URLParam(r, "project_id")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_project_id", "Invalid project ID")
+		return
+	}
+
+	app, err := h.appService.GetApplication(r.Context(), appID)
+	if err != nil {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found")
+		return
+	}
+
+	if app.ProjectID() != projectID {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found in project")
+		return
+	}
+
+	cmd := service.UpdateGeneralCommand{
+		ID:          appID,
+		Name:        req.Name,
+		Description: req.Description,
+	}
+
+	updatedApp, err := h.appService.UpdateGeneral(r.Context(), cmd)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "update_failed", "Failed to update application: "+err.Error())
+		return
+	}
+
+	response := ApplicationResponse{
+		ID:               updatedApp.ID().String(),
+		Name:             updatedApp.Name().String(),
+		Description:      updatedApp.Description(),
+		ProjectID:        updatedApp.ProjectID().String(),
+		EnvironmentID:    updatedApp.EnvironmentID().String(),
+		DeploymentSource: updatedApp.DeploymentSource(),
+		Domain:           updatedApp.Domain(),
+		CustomDomain:     updatedApp.Domain(),
+		GeneratedDomain:  updatedApp.GeneratedDomain(),
+		ExposedPorts:     updatedApp.ExposedPorts(),
+		PortMappings:     updatedApp.PortMappings(),
+		Buildpack:        convertToLegacyBuildpackConfig(updatedApp.Buildpack()),
+		EnvVars:          updatedApp.EnvVars(),
+		AutoDeploy:       updatedApp.AutoDeploy(),
+		Status:           updatedApp.Status(),
+		CreatedAt:        updatedApp.CreatedAt().Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:        updatedApp.UpdatedAt().Format("2006-01-02T15:04:05Z07:00"),
+	}
+
+	utils.SendJSON(w, http.StatusOK, response)
+}
+
+func (h *ApplicationHandler) GenerateDomain(w http.ResponseWriter, r *http.Request) {
+	appIDStr := chi.URLParam(r, "application_id")
+	appID, err := applications.ApplicationIDFromString(appIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_application_id", "Invalid application ID")
+		return
+	}
+
+	projectIDStr := chi.URLParam(r, "project_id")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_project_id", "Invalid project ID")
+		return
+	}
+
+	app, err := h.appService.GetApplication(r.Context(), appID)
+	if err != nil {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found")
+		return
+	}
+
+	if app.ProjectID() != projectID {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found in project")
+		return
+	}
+
+	domain, err := h.appService.GenerateDomain(r.Context(), appID)
+	if err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "generate_failed", "Failed to generate domain: "+err.Error())
+		return
+	}
+
+	response := map[string]string{
+		"domain": domain,
+	}
+
+	utils.SendJSON(w, http.StatusOK, response)
+}
+
+func (h *ApplicationHandler) AssignDomain(w http.ResponseWriter, r *http.Request) {
+	var req AssignDomainRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_json", "Invalid JSON format")
+		return
+	}
+
+	if err := h.validator.Struct(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "validation_error", err.Error())
+		return
+	}
+
+	appIDStr := chi.URLParam(r, "application_id")
+	appID, err := applications.ApplicationIDFromString(appIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_application_id", "Invalid application ID")
+		return
+	}
+
+	projectIDStr := chi.URLParam(r, "project_id")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_project_id", "Invalid project ID")
+		return
+	}
+
+	app, err := h.appService.GetApplication(r.Context(), appID)
+	if err != nil {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found")
+		return
+	}
+
+	if app.ProjectID() != projectID {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found in project")
+		return
+	}
+
+	err = h.appService.AssignDomain(r.Context(), appID, req.Domain)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "assign_failed", "Failed to assign domain: "+err.Error())
+		return
+	}
+
+	updatedApp, err := h.appService.GetApplication(r.Context(), appID)
+	if err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "fetch_failed", "Failed to fetch updated application")
+		return
+	}
+
+	response := ApplicationResponse{
+		ID:               updatedApp.ID().String(),
+		Name:             updatedApp.Name().String(),
+		Description:      updatedApp.Description(),
+		ProjectID:        updatedApp.ProjectID().String(),
+		EnvironmentID:    updatedApp.EnvironmentID().String(),
+		DeploymentSource: updatedApp.DeploymentSource(),
+		Domain:           updatedApp.Domain(),
+		CustomDomain:     updatedApp.Domain(),
+		GeneratedDomain:  updatedApp.GeneratedDomain(),
+		ExposedPorts:     updatedApp.ExposedPorts(),
+		PortMappings:     updatedApp.PortMappings(),
+		Buildpack:        convertToLegacyBuildpackConfig(updatedApp.Buildpack()),
+		EnvVars:          updatedApp.EnvVars(),
+		AutoDeploy:       updatedApp.AutoDeploy(),
+		Status:           updatedApp.Status(),
+		CreatedAt:        updatedApp.CreatedAt().Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:        updatedApp.UpdatedAt().Format("2006-01-02T15:04:05Z07:00"),
+	}
+
+	utils.SendJSON(w, http.StatusOK, response)
+}
+
+func (h *ApplicationHandler) UpdatePorts(w http.ResponseWriter, r *http.Request) {
+	var req UpdatePortsRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_json", "Invalid JSON format")
+		return
+	}
+
+	if err := h.validator.Struct(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "validation_error", err.Error())
+		return
+	}
+
+	appIDStr := chi.URLParam(r, "application_id")
+	appID, err := applications.ApplicationIDFromString(appIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_application_id", "Invalid application ID")
+		return
+	}
+
+	projectIDStr := chi.URLParam(r, "project_id")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_project_id", "Invalid project ID")
+		return
+	}
+
+	app, err := h.appService.GetApplication(r.Context(), appID)
+	if err != nil {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found")
+		return
+	}
+
+	if app.ProjectID() != projectID {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found in project")
+		return
+	}
+
+	err = h.appService.UpdatePorts(r.Context(), appID, req.ExposedPorts, req.PortMappings)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "update_failed", "Failed to update ports: "+err.Error())
+		return
+	}
+
+	updatedApp, err := h.appService.GetApplication(r.Context(), appID)
+	if err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "fetch_failed", "Failed to fetch updated application")
+		return
+	}
+
+	response := ApplicationResponse{
+		ID:               updatedApp.ID().String(),
+		Name:             updatedApp.Name().String(),
+		Description:      updatedApp.Description(),
+		ProjectID:        updatedApp.ProjectID().String(),
+		EnvironmentID:    updatedApp.EnvironmentID().String(),
+		DeploymentSource: updatedApp.DeploymentSource(),
+		Domain:           updatedApp.Domain(),
+		Buildpack:        convertToLegacyBuildpackConfig(updatedApp.Buildpack()),
+		EnvVars:          updatedApp.EnvVars(),
+		AutoDeploy:       updatedApp.AutoDeploy(),
+		Status:           updatedApp.Status(),
+		CreatedAt:        updatedApp.CreatedAt().Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:        updatedApp.UpdatedAt().Format("2006-01-02T15:04:05Z07:00"),
+	}
+
+	utils.SendJSON(w, http.StatusOK, response)
 }

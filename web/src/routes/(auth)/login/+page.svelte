@@ -5,11 +5,25 @@
 	import Logo from '$lib/components/logo/logo.svelte';
 	import { authApi, type ApiError } from '$lib/api';
 	import { authStore } from '$lib/stores/auth.svelte';
+	import { onMount } from 'svelte';
 
 	let email = $state('');
 	let password = $state('');
 	let isLoading = $state(false);
 	let error = $state('');
+	let allowRegistrations = $state(true);
+
+	onMount(async () => {
+		try {
+			const response = await fetch('/api/settings/general');
+			if (response.ok) {
+				const data = await response.json();
+				allowRegistrations = data.allow_registrations ?? true;
+			}
+		} catch (error) {
+			console.error('Failed to load settings:', error);
+		}
+	});
 
 	async function handleSubmit(event: SubmitEvent) {
 		event.preventDefault();
@@ -51,7 +65,9 @@
 		<div class="flex items-center">
 			<Logo class="h-[25px]" />
 		</div>
-		<Button variant="outline" onclick={() => goto('/register')}>Signup</Button>
+		{#if allowRegistrations}
+			<Button variant="outline" onclick={() => goto('/register')}>Signup</Button>
+		{/if}
 	</header>
 
 	<div class="flex-1 flex items-center justify-center px-4 py-12">

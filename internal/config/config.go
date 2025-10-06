@@ -24,6 +24,7 @@ type ServerConfig struct {
 	DataDir        string   `mapstructure:"data_dir"`
 	LogLevel       string   `mapstructure:"log_level"`
 	AllowedOrigins []string `mapstructure:"allowed_origins"`
+	PublicIP       string   `mapstructure:"public_ip"`
 }
 
 type DatabaseConfig struct {
@@ -89,6 +90,7 @@ func setDefaults() {
 	viper.SetDefault("server.data_dir", "${HOME}/.local/share/mikrocloud")
 	viper.SetDefault("server.log_level", "info")
 	viper.SetDefault("server.allowed_origins", []string{"*"})
+	viper.SetDefault("server.public_ip", "")
 
 	// Database defaults - SQLite database path
 	viper.SetDefault("database.type", "sqlite")

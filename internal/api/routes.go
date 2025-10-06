@@ -22,6 +22,7 @@ import (
 	deploymentService "github.com/mikrocloud/mikrocloud/internal/domain/deployments/service"
 	diskHandlers "github.com/mikrocloud/mikrocloud/internal/domain/disks/handlers"
 	diskService "github.com/mikrocloud/mikrocloud/internal/domain/disks/service"
+	"github.com/mikrocloud/mikrocloud/internal/domain/domains"
 	envHandlers "github.com/mikrocloud/mikrocloud/internal/domain/environments/handlers"
 	environmentService "github.com/mikrocloud/mikrocloud/internal/domain/environments/service"
 	gitHandlers "github.com/mikrocloud/mikrocloud/internal/domain/git/handlers"
@@ -35,6 +36,8 @@ import (
 	serviceHandlers "github.com/mikrocloud/mikrocloud/internal/domain/services/handlers"
 	"github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
 	servicesService "github.com/mikrocloud/mikrocloud/internal/domain/services/service"
+	settingsHandlers "github.com/mikrocloud/mikrocloud/internal/domain/settings/handlers"
+	settingsService "github.com/mikrocloud/mikrocloud/internal/domain/settings/service"
 	buildService "github.com/mikrocloud/mikrocloud/pkg/containers/build"
 	databaseContainers "github.com/mikrocloud/mikrocloud/pkg/containers/database"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
@@ -55,7 +58,6 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	envSvc := environmentService.NewEnvironmentService(db.EnvironmentRepository)
 	projSvc := projectService.NewProjectService(db.ProjectRepository, db.EnvironmentRepository)
 	authSvc := authService.NewAuthService(db.SessionRepository, db.AuthRepository, db.UserRepository, cfg.Auth.JWTSecret)
-	appSvc := applicationsService.NewApplicationService(db.ApplicationRepository)
 
 	// Create disk service (needed by database deployment service)
 	diskSvc := diskService.NewDiskService(db.DiskRepository, db.DiskBackupRepository)
@@ -71,10 +73,6 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	statusSyncSvc := databaseService.NewStatusSyncService(dbSvc, containerManager, logger, 30*time.Second)
 	go statusSyncSvc.Start(ctx)
 
-	// Create QuickDeployService wrapper for ApplicationService
-	quickDeployService := repository.NewQuickDeployService(db.TemplateRepository, appSvc)
-	templateSvc := servicesService.NewTemplateService(db.TemplateRepository, quickDeployService)
-
 	// Create build service
 	buildSvc := buildService.NewBuildService(containerManager, cfg.Docker.SocketPath)
 
@@ -84,6 +82,14 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 		buildSvc,
 		containerManager,
 	)
+
+	// Create application service with deployment service as container recreator
+	domainGenerator := domains.NewDomainGenerator(cfg.Server.PublicIP)
+	appSvc := applicationsService.NewApplicationService(db.ApplicationRepository, domainGenerator, deploymentSvc)
+
+	// Create QuickDeployService wrapper for ApplicationService
+	quickDeployService := repository.NewQuickDeployService(db.TemplateRepository, appSvc)
+	templateSvc := servicesService.NewTemplateService(db.TemplateRepository, quickDeployService)
 
 	// Create proxy services
 	proxySvc := proxyService.New(db.ProxyRepository, db.TraefikConfigRepository)
@@ -113,6 +119,9 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	gitRepository := gitRepo.NewSQLiteGitRepository(db.DB())
 	gitSvc := gitService.NewGitService(gitRepository)
 	gitHandler := gitHandlers.NewGitHandler(gitSvc)
+
+	settingsSvc := settingsService.NewSettingsService(db.SettingsRepository)
+	settingsHandler := settingsHandlers.NewSettingsHandler(settingsSvc)
 
 	// Protected routes that require authentication
 	api.Group(func(r chi.Router) {
@@ -154,6 +163,10 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 						r.Post("/stop", applicationHandler.StopApplication)
 						r.Post("/restart", applicationHandler.RestartApplication)
 						r.Get("/logs", applicationHandler.GetApplicationLogs)
+						r.Patch("/general", applicationHandler.UpdateGeneral)
+						r.Post("/domain/generate", applicationHandler.GenerateDomain)
+						r.Put("/domain", applicationHandler.AssignDomain)
+						r.Put("/ports", applicationHandler.UpdatePorts)
 
 						// Deployment routes within application
 						r.Route("/deployments", func(r chi.Router) {
@@ -287,6 +300,21 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 			r.Delete("/{domain_id}", maintenanceHandler.RemoveDomain)
 			r.Post("/{domain_id}/ssl", maintenanceHandler.EnableSSL)
 		})
+	})
+
+	// Settings routes (protected)
+	api.Route("/settings", func(r chi.Router) {
+		r.Use(jwtauth.Verifier(tokenAuth))
+		r.Use(jwtauth.Authenticator(tokenAuth))
+
+		r.Get("/general", settingsHandler.GetGeneralSettings)
+		r.Post("/general", settingsHandler.SaveGeneralSettings)
+		r.Get("/advanced", settingsHandler.GetAdvancedSettings)
+		r.Post("/advanced", settingsHandler.SaveAdvancedSettings)
+		r.Get("/updates", settingsHandler.GetUpdateSettings)
+		r.Post("/updates", settingsHandler.SaveUpdateSettings)
+		r.Post("/backup", settingsHandler.CreateBackup)
+		r.Post("/restore", settingsHandler.RestoreBackup)
 	})
 
 	return traefikSvc, statusSyncSvc, nil
