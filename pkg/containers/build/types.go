@@ -27,6 +27,9 @@ type BuildRequest struct {
 	StaticConfig     *StaticConfig     `json:"static_config,omitempty"`
 	DockerfileConfig *DockerfileConfig `json:"dockerfile_config,omitempty"`
 	ComposeConfig    *ComposeConfig    `json:"compose_config,omitempty"`
+
+	// Optional callback for streaming logs in real-time
+	LogCallback func(log string) `json:"-"`
 }
 
 type BuildResult struct {

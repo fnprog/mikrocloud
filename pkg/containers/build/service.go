@@ -97,26 +97,60 @@ func (bs *BuildService) createBuildHelper(ctx context.Context, image, containerN
 		return &BuildResult{Success: false, Error: fmt.Sprintf("failed to start build: %v", err)}, nil
 	}
 
-	// Stream and capture build logs in a separate goroutine
+	// Stream and capture build logs
 	logStream, err := bs.containerManager.StreamLogs(ctx, containerID, true)
 	if err != nil {
 		return &BuildResult{Success: false, Error: fmt.Sprintf("failed to get build logs: %v", err)}, nil
 	}
 	defer logStream.Close()
 
-	// Capture logs
-	logBytes, err := io.ReadAll(logStream)
-	if err != nil {
-		return &BuildResult{Success: false, Error: fmt.Sprintf("failed to read build logs: %v", err)}, nil
-	}
+	// Stream logs in real-time if callback is provided
+	var allLogs strings.Builder
+	done := make(chan error, 1)
+
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := logStream.Read(buf)
+			if n > 0 {
+				logChunk := string(buf[:n])
+				allLogs.WriteString(logChunk)
+
+				// Call the callback for real-time streaming
+				if request.LogCallback != nil {
+					request.LogCallback(logChunk)
+				}
+			}
+			if err != nil {
+				if err != io.EOF {
+					done <- err
+				} else {
+					done <- nil
+				}
+				return
+			}
+		}
+	}()
 
 	// Wait for container to finish and get exit code
 	exitCode, err := bs.containerManager.Wait(ctx, containerID)
+
+	// Wait for log streaming to complete
+	logErr := <-done
+
 	if err != nil {
 		return &BuildResult{
 			Success:   false,
 			Error:     fmt.Sprintf("failed to wait for container: %v", err),
-			BuildLogs: string(logBytes),
+			BuildLogs: allLogs.String(),
+		}, nil
+	}
+
+	if logErr != nil {
+		return &BuildResult{
+			Success:   exitCode == 0,
+			Error:     fmt.Sprintf("failed to read build logs: %v", logErr),
+			BuildLogs: allLogs.String(),
 		}, nil
 	}
 
@@ -130,7 +164,7 @@ func (bs *BuildService) createBuildHelper(ctx context.Context, image, containerN
 	return &BuildResult{
 		Success:   success,
 		ImageTag:  request.ImageTag,
-		BuildLogs: string(logBytes),
+		BuildLogs: allLogs.String(),
 		Error:     errorMsg,
 	}, nil
 }
@@ -139,31 +173,41 @@ func (bs *BuildService) createBuildHelper(ctx context.Context, image, containerN
 func (bs *BuildService) generateBuildScript(commands []string, request BuildRequest) string {
 	script := []string{
 		"set -e", // Exit on any error
-		"echo 'Starting build process...'",
+		"echo '=== Starting build process ==='",
 		"",
 		"# Clone the repository",
-		"echo 'Cloning repository...'",
+		"echo '=== Cloning repository ==='",
 	}
 
 	// Add git clone command
 	if request.GitBranch != "" {
-		script = append(script, fmt.Sprintf("git clone -b %s %s /workspace/source", request.GitBranch, request.GitRepo))
+		cloneCmd := fmt.Sprintf("git clone -b %s %s /workspace/source", request.GitBranch, request.GitRepo)
+		script = append(script, fmt.Sprintf("echo 'Running: %s'", cloneCmd))
+		script = append(script, cloneCmd)
 	} else {
-		script = append(script, fmt.Sprintf("git clone %s /workspace/source", request.GitRepo))
+		cloneCmd := fmt.Sprintf("git clone %s /workspace/source", request.GitRepo)
+		script = append(script, fmt.Sprintf("echo 'Running: %s'", cloneCmd))
+		script = append(script, cloneCmd)
 	}
 
 	// Change to context directory if specified
 	if request.ContextRoot != "" {
-		script = append(script, fmt.Sprintf("cd /workspace/source/%s", request.ContextRoot))
+		cdCmd := fmt.Sprintf("cd /workspace/source/%s", request.ContextRoot)
+		script = append(script, fmt.Sprintf("echo 'Running: %s'", cdCmd))
+		script = append(script, cdCmd)
 	} else {
+		script = append(script, "echo 'Running: cd /workspace/source'")
 		script = append(script, "cd /workspace/source")
 	}
 
 	script = append(script, "")
-	script = append(script, "# Execute build commands")
+	script = append(script, "echo '=== Executing build commands ==='")
 
-	// Add build commands
-	script = append(script, commands...)
+	// Add build commands with logging
+	for _, cmd := range commands {
+		script = append(script, fmt.Sprintf("echo 'Running: %s'", cmd))
+		script = append(script, cmd)
+	}
 
 	return strings.Join(script, "\n")
 }
@@ -185,7 +229,7 @@ func (bs *BuildService) buildWithNixpacks(ctx context.Context, request BuildRequ
 	}
 
 	// Use nixpacks image as the build helper
-	return bs.createBuildHelper(ctx, "nixpacks/nixpacks:latest", containerName, commands, request)
+	return bs.createBuildHelper(ctx, "railwayapp/nixpacks:latest", containerName, commands, request)
 }
 
 func (bs *BuildService) buildStatic(ctx context.Context, request BuildRequest, containerName string) (*BuildResult, error) {
@@ -209,7 +253,7 @@ func (bs *BuildService) buildStatic(ctx context.Context, request BuildRequest, c
 	}
 
 	// Use mikrocloud-builder with git and Docker CLI
-	return bs.createBuildHelper(ctx, "ghcr.io/fantasy-programming/mikrocloud-2/mikrocloud-builder:latest", containerName, commands, request)
+	return bs.createBuildHelper(ctx, "ghcr.io/fnprog/mikrocloud/mikrocloud-builder:latest", containerName, commands, request)
 }
 
 func (bs *BuildService) buildWithDockerfile(ctx context.Context, request BuildRequest, containerName string) (*BuildResult, error) {
@@ -244,7 +288,7 @@ func (bs *BuildService) buildWithDockerfile(ctx context.Context, request BuildRe
 	}
 
 	// Use mikrocloud-builder with Docker CLI and git
-	return bs.createBuildHelper(ctx, "ghcr.io/fantasy-programming/mikrocloud-2/mikrocloud-builder:latest", containerName, commands, request)
+	return bs.createBuildHelper(ctx, "ghcr.io/fnprog/mikrocloud/mikrocloud-builder:latest", containerName, commands, request)
 }
 
 func (bs *BuildService) buildWithCompose(ctx context.Context, request BuildRequest, containerName string) (*BuildResult, error) {
@@ -275,5 +319,5 @@ func (bs *BuildService) buildWithCompose(ctx context.Context, request BuildReque
 	}
 
 	// Use mikrocloud-builder with Docker Compose
-	return bs.createBuildHelper(ctx, "ghcr.io/fantasy-programming/mikrocloud-2/mikrocloud-builder:latest", containerName, commands, request)
+	return bs.createBuildHelper(ctx, "ghcr.io/fnprog/mikrocloud/mikrocloud-builder:latest", containerName, commands, request)
 }

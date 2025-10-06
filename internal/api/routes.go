@@ -164,6 +164,7 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 								r.Post("/stop", deploymentHandler.StopDeployment)
 								r.Post("/cancel", deploymentHandler.CancelDeployment)
 								r.Get("/logs", deploymentHandler.GetDeploymentLogs)
+								r.Get("/logs/stream", deploymentHandler.StreamDeploymentLogs)
 							})
 						})
 					})

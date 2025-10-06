@@ -20,6 +20,8 @@
 		onIsPrivateChange: (isPrivate: boolean) => void;
 		customGitUrl?: string;
 		onCustomGitUrlChange?: (url: string) => void;
+		basePath?: string;
+		onBasePathChange?: (basePath: string) => void;
 	}
 
 	let {
@@ -34,7 +36,9 @@
 		isPrivate,
 		onIsPrivateChange,
 		customGitUrl = '',
-		onCustomGitUrlChange
+		onCustomGitUrlChange,
+		basePath = '/',
+		onBasePathChange
 	}: Props = $props();
 
 	let branches = $state<string[]>(['main', 'master', 'develop', 'staging', 'production']);
@@ -213,6 +217,21 @@
 			</SelectContent>
 		</Select>
 	</div>
+
+	{#if onBasePathChange}
+		<div class="space-y-2">
+			<Label for="base-path">Base path</Label>
+			<Input
+				id="base-path"
+				placeholder="/"
+				value={basePath}
+				oninput={(e) => onBasePathChange(e.currentTarget.value)}
+			/>
+			<p class="text-xs text-muted-foreground">
+				The directory containing your Dockerfile or docker-compose.yml (default: /)
+			</p>
+		</div>
+	{/if}
 
 	<div class="flex items-center space-x-2">
 		<input

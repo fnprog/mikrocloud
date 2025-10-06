@@ -25,10 +25,11 @@ const (
 
 // GitRepoSource represents a Git repository source with enhanced validation
 type GitRepoSource struct {
-	URL    string `json:"url"`
-	Branch string `json:"branch"`
-	Path   string `json:"path,omitempty"`  // Context root within repo
-	Token  string `json:"token,omitempty"` // For private repos
+	URL      string `json:"url"`
+	Branch   string `json:"branch"`
+	Path     string `json:"path,omitempty"`      // Context root within repo (subdir)
+	BasePath string `json:"base_path,omitempty"` // Base path for Dockerfile/Compose file
+	Token    string `json:"token,omitempty"`     // For private repos
 }
 
 // GitURL is a value object for Git repository URLs with enhanced validation
@@ -106,13 +107,15 @@ type StaticConfig struct {
 }
 
 type DockerfileConfig struct {
-	DockerfilePath string            `json:"dockerfile_path,omitempty"`
+	DockerfilePath string            `json:"dockerfile_path,omitempty"` // Path to Dockerfile (e.g., "Dockerfile")
+	BasePath       string            `json:"base_path,omitempty"`       // Base directory containing Dockerfile (e.g., "./backend")
 	BuildArgs      map[string]string `json:"build_args,omitempty"`
 	Target         string            `json:"target,omitempty"`
 }
 
 type ComposeConfig struct {
-	ComposeFile string `json:"compose_file,omitempty"`
+	ComposeFile string `json:"compose_file,omitempty"` // Path to compose file (e.g., "docker-compose.yml")
+	BasePath    string `json:"base_path,omitempty"`    // Base directory containing compose file
 	Service     string `json:"service,omitempty"`
 }
 
@@ -307,6 +310,13 @@ func (a *Application) RepoBranch() string {
 func (a *Application) RepoPath() string {
 	if a.deploymentSource.Type == DeploymentSourceTypeGit && a.deploymentSource.GitRepo != nil {
 		return a.deploymentSource.GitRepo.Path
+	}
+	return ""
+}
+
+func (a *Application) BasePath() string {
+	if a.deploymentSource.Type == DeploymentSourceTypeGit && a.deploymentSource.GitRepo != nil {
+		return a.deploymentSource.GitRepo.BasePath
 	}
 	return ""
 }
@@ -564,17 +574,17 @@ func ReconstructApplication(
 }
 
 // Helper functions for creating deployment sources
-func NewGitDeploymentSource(url, branch, path, token string) DeploymentSource {
+func NewGitDeploymentSource(url, branch, path, basePath string) DeploymentSource {
 	if branch == "" {
 		branch = "main"
 	}
 	return DeploymentSource{
 		Type: DeploymentSourceTypeGit,
 		GitRepo: &GitRepoSource{
-			URL:    url,
-			Branch: branch,
-			Path:   path,
-			Token:  token,
+			URL:      url,
+			Branch:   branch,
+			Path:     path,
+			BasePath: basePath,
 		},
 	}
 }
@@ -606,22 +616,90 @@ func NewUploadDeploymentSource(filename, filePath string) DeploymentSource {
 func NewLegacyBuildpackConfig(buildpackType BuildpackType, config interface{}) *BuildConfig {
 	buildConfig := NewBuildConfig(buildpackType)
 
+	if config == nil {
+		return buildConfig
+	}
+
+	// Handle JSON map conversion from HTTP requests
+	configMap, isMap := config.(map[string]interface{})
+
 	// Try to convert legacy config to new format
 	switch buildpackType {
 	case BuildpackTypeNixpacks:
 		if nixConfig, ok := config.(*NixpacksConfig); ok {
 			buildConfig.SetNixpacksConfig(nixConfig)
+		} else if isMap {
+			nixConfig := &NixpacksConfig{}
+			if startCmd, ok := configMap["start_command"].(string); ok {
+				nixConfig.StartCommand = startCmd
+			}
+			if buildCmd, ok := configMap["build_command"].(string); ok {
+				nixConfig.BuildCommand = buildCmd
+			}
+			if vars, ok := configMap["variables"].(map[string]interface{}); ok {
+				nixConfig.Variables = make(map[string]string)
+				for k, v := range vars {
+					if strVal, ok := v.(string); ok {
+						nixConfig.Variables[k] = strVal
+					}
+				}
+			}
+			buildConfig.SetNixpacksConfig(nixConfig)
 		}
 	case BuildpackTypeStatic:
 		if staticConfig, ok := config.(*StaticConfig); ok {
+			buildConfig.SetStaticConfig(staticConfig)
+		} else if isMap {
+			staticConfig := &StaticConfig{}
+			if buildCmd, ok := configMap["build_command"].(string); ok {
+				staticConfig.BuildCommand = buildCmd
+			}
+			if outputDir, ok := configMap["output_dir"].(string); ok {
+				staticConfig.OutputDir = outputDir
+			}
+			if nginxCfg, ok := configMap["nginx_config"].(string); ok {
+				staticConfig.NginxConfig = nginxCfg
+			}
 			buildConfig.SetStaticConfig(staticConfig)
 		}
 	case BuildpackTypeDockerfile:
 		if dockerConfig, ok := config.(*DockerfileConfig); ok {
 			buildConfig.SetDockerfileConfig(dockerConfig)
+		} else if isMap {
+			dockerConfig := &DockerfileConfig{}
+			if dockerfilePath, ok := configMap["dockerfile_path"].(string); ok {
+				dockerConfig.DockerfilePath = dockerfilePath
+			}
+			if basePath, ok := configMap["base_path"].(string); ok {
+				dockerConfig.BasePath = basePath
+			}
+			if target, ok := configMap["target"].(string); ok {
+				dockerConfig.Target = target
+			}
+			if buildArgs, ok := configMap["build_args"].(map[string]interface{}); ok {
+				dockerConfig.BuildArgs = make(map[string]string)
+				for k, v := range buildArgs {
+					if strVal, ok := v.(string); ok {
+						dockerConfig.BuildArgs[k] = strVal
+					}
+				}
+			}
+			buildConfig.SetDockerfileConfig(dockerConfig)
 		}
 	case BuildpackTypeDockerCompose:
 		if composeConfig, ok := config.(*ComposeConfig); ok {
+			buildConfig.SetComposeConfig(composeConfig)
+		} else if isMap {
+			composeConfig := &ComposeConfig{}
+			if composeFile, ok := configMap["compose_file"].(string); ok {
+				composeConfig.ComposeFile = composeFile
+			}
+			if basePath, ok := configMap["base_path"].(string); ok {
+				composeConfig.BasePath = basePath
+			}
+			if service, ok := configMap["service"].(string); ok {
+				composeConfig.Service = service
+			}
 			buildConfig.SetComposeConfig(composeConfig)
 		}
 	}

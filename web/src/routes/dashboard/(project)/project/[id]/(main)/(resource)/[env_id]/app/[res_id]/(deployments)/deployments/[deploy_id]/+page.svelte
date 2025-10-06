@@ -7,6 +7,7 @@
 	import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
 	import { deploymentsApi, type DeploymentStatus } from '$lib/api/deployments';
 	import { toast } from 'svelte-sonner';
+	import { onMount, onDestroy } from 'svelte';
 	import {
 		CheckCircle,
 		AlertCircle,
@@ -29,13 +30,18 @@
 
 	const queryClient = useQueryClient();
 
+	let streamedLogs = $state<string[]>([]);
+	let isStreaming = $state(false);
+	let closeStream: (() => void) | null = null;
+	let logsContainer: HTMLDivElement | null = null;
+
 	const deploymentQuery = createQuery({
 		queryKey: ['deployment', projectId, resId, deployId],
 		queryFn: () => deploymentsApi.get(projectId, resId, deployId),
 		enabled: !!projectId && !!resId && !!deployId,
 		refetchInterval: (query) => {
 			const data = query.state.data;
-			if (data && ['pending', 'building', 'deploying'].includes(data.status)) {
+			if (data && ['pending', 'building', 'deploying'].includes(data.status) && !isStreaming) {
 				return 3000;
 			}
 			return false;
@@ -43,6 +49,57 @@
 	});
 
 	const deployment = $derived($deploymentQuery.data);
+
+	$effect(() => {
+		if (deployment && ['pending', 'building', 'deploying'].includes(deployment.status) && !isStreaming) {
+			startLogStream();
+		} else if (deployment && !['pending', 'building', 'deploying'].includes(deployment.status) && isStreaming) {
+			stopLogStream();
+		}
+	});
+
+	function startLogStream() {
+		if (isStreaming) return;
+		
+		isStreaming = true;
+		streamedLogs = [];
+
+		closeStream = deploymentsApi.streamLogs(
+			projectId,
+			resId,
+			deployId,
+			(log: string) => {
+				streamedLogs = [...streamedLogs, log];
+				setTimeout(() => scrollToBottom(), 10);
+			},
+			(status: DeploymentStatus) => {
+				isStreaming = false;
+				queryClient.invalidateQueries({ queryKey: ['deployment', projectId, resId, deployId] });
+			},
+			(error: Error) => {
+				console.error('Log stream error:', error);
+				isStreaming = false;
+			}
+		);
+	}
+
+	function stopLogStream() {
+		if (closeStream) {
+			closeStream();
+			closeStream = null;
+		}
+		isStreaming = false;
+	}
+
+	function scrollToBottom() {
+		if (logsContainer) {
+			logsContainer.scrollTop = logsContainer.scrollHeight;
+		}
+	}
+
+	onDestroy(() => {
+		stopLogStream();
+	});
 
 	const redeployMutation = createMutation({
 		mutationFn: () => deploymentsApi.redeploy(projectId, resId, deployId),
@@ -316,18 +373,33 @@
 				</CardContent>
 			</Card>
 
-			{#if deployment.logs}
-				<Card>
-					<CardHeader>
-						<CardTitle>Build Logs</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<div class="bg-muted rounded-md p-4 overflow-x-auto">
-							<pre class="text-sm font-mono whitespace-pre-wrap">{deployment.logs}</pre>
-						</div>
-					</CardContent>
-				</Card>
-			{/if}
+		<Card>
+			<CardHeader>
+				<CardTitle class="flex items-center justify-between">
+					<span>Build Logs</span>
+					{#if isStreaming}
+						<Badge variant="outline" class="text-xs">
+							<span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+							Live
+						</Badge>
+					{/if}
+				</CardTitle>
+			</CardHeader>
+			<CardContent>
+				<div 
+					bind:this={logsContainer}
+					class="bg-muted rounded-md p-4 overflow-x-auto overflow-y-auto max-h-[600px]"
+				>
+					{#if isStreaming && streamedLogs.length > 0}
+						<pre class="text-sm font-mono whitespace-pre-wrap">{streamedLogs.join('\n')}</pre>
+					{:else if deployment.logs}
+						<pre class="text-sm font-mono whitespace-pre-wrap">{deployment.logs}</pre>
+					{:else}
+						<p class="text-sm text-muted-foreground">No logs available yet...</p>
+					{/if}
+				</div>
+			</CardContent>
+		</Card>
 		</div>
 	{/if}
 </div>

@@ -36,6 +36,7 @@
 	let gitProvider = $state<'github' | 'gitlab' | 'bitbucket' | 'custom'>('github');
 	let dockerfilePath = $state('Dockerfile');
 	let composePath = $state('docker-compose.yml');
+	let basePath = $state('/');
 	let customGitUrl = $state('');
 	let repository = $state('');
 	let branch = $state('main');
@@ -62,12 +63,13 @@
 			sourceType === 'git'
 				? {
 						type: 'git' as const,
-						config: {
-							provider: gitProvider,
-							repository,
+						git_repo: {
+							url:
+								gitProvider === 'custom'
+									? customGitUrl
+									: `https://${gitProvider}.com/${repository}.git`,
 							branch,
-							auto_deploy: autoDeploy,
-							is_private: isPrivate
+							path: basePath
 						}
 					}
 				: sourceType === 'docker'
@@ -86,20 +88,31 @@
 						};
 
 		const buildpack =
-			sourceType === 'docker'
+			buildType === 'static'
 				? {
-						type: 'docker',
-						config: {}
-					}
-				: buildType === 'static'
-					? {
-							type: 'static',
-							config: { publish_directory: publishDirectory }
+						type: 'static',
+						config: {
+							output_dir: publishDirectory
 						}
-					: {
-							type: buildType,
-							config: {}
-						};
+					}
+				: buildType === 'dockerfile'
+					? {
+							type: 'dockerfile',
+							config: {
+								dockerfile_path: dockerfilePath
+							}
+						}
+					: buildType === 'compose'
+						? {
+								type: 'docker-compose',
+								config: {
+									compose_file: composePath
+								}
+							}
+						: {
+								type: buildType,
+								config: {}
+							};
 
 		const data: CreateApplicationRequest = {
 			name: appName,
@@ -157,6 +170,8 @@
 						onIsPrivateChange={(p) => (isPrivate = p)}
 						{customGitUrl}
 						onCustomGitUrlChange={(u) => (customGitUrl = u)}
+						basePath={basePath}
+						onBasePathChange={(p) => (basePath = p)}
 					/>
 				</CardContent>
 			</Card>

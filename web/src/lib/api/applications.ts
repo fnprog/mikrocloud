@@ -13,14 +13,36 @@ export interface Application {
 	created_at: string;
 }
 
+export interface GitRepoSource {
+	url: string;
+	branch: string;
+	path?: string;
+	base_path?: string;
+	token?: string;
+}
+
+export interface RegistrySource {
+	image: string;
+	tag: string;
+}
+
+export interface UploadSource {
+	filename: string;
+	file_path: string;
+}
+
+export interface DeploymentSource {
+	type: 'git' | 'registry' | 'upload';
+	git_repo?: GitRepoSource;
+	registry?: RegistrySource;
+	upload?: UploadSource;
+}
+
 export interface CreateApplicationRequest {
 	name: string;
 	description?: string;
 	environment_id: string;
-	deployment_source: {
-		type: 'git' | 'docker';
-		config: any;
-	};
+	deployment_source: DeploymentSource;
 	buildpack: {
 		type: string;
 		config: any;

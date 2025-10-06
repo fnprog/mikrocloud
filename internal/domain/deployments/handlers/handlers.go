@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -493,6 +495,95 @@ func (h *DeploymentHandler) GetDeploymentLogs(w http.ResponseWriter, r *http.Req
 	utils.SendJSON(w, http.StatusOK, response)
 }
 
+func (h *DeploymentHandler) StreamDeploymentLogs(w http.ResponseWriter, r *http.Request) {
+	projectID, err := uuid.Parse(chi.URLParam(r, "project_id"))
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_project_id", "Invalid project ID")
+		return
+	}
+
+	applicationID, err := applications.ApplicationIDFromString(chi.URLParam(r, "application_id"))
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_application_id", "Invalid application ID")
+		return
+	}
+
+	deploymentID, err := deployments.DeploymentIDFromString(chi.URLParam(r, "deployment_id"))
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_deployment_id", "Invalid deployment ID")
+		return
+	}
+
+	app, err := h.applicationService.GetApplication(r.Context(), applicationID)
+	if err != nil {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found")
+		return
+	}
+
+	if app.ProjectID() != projectID {
+		utils.SendError(w, http.StatusForbidden, "application_forbidden", "Application does not belong to this project")
+		return
+	}
+
+	deployment, err := h.deploymentService.GetDeployment(r.Context(), deploymentID)
+	if err != nil {
+		utils.SendError(w, http.StatusNotFound, "deployment_not_found", "Deployment not found")
+		return
+	}
+
+	if deployment.ApplicationID() != applicationID {
+		utils.SendError(w, http.StatusForbidden, "deployment_forbidden", "Deployment does not belong to this application")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		utils.SendError(w, http.StatusInternalServerError, "streaming_not_supported", "Streaming not supported")
+		return
+	}
+
+	lastLogLength := 0
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			deployment, err := h.deploymentService.GetDeployment(r.Context(), deploymentID)
+			if err != nil {
+				return
+			}
+
+			currentLogs := deployment.BuildLogs()
+			if len(currentLogs) > lastLogLength {
+				newLogs := currentLogs[lastLogLength:]
+				for _, line := range strings.Split(newLogs, "\n") {
+					if line != "" {
+						_, _ = w.Write([]byte("data: " + line + "\n\n"))
+						flusher.Flush()
+					}
+				}
+				lastLogLength = len(currentLogs)
+			}
+
+			if deployment.Status() != deployments.DeploymentStatusBuilding &&
+				deployment.Status() != deployments.DeploymentStatusPending &&
+				deployment.Status() != deployments.DeploymentStatusQueued {
+				_, _ = w.Write([]byte("event: done\ndata: {\"status\": \"" + string(deployment.Status()) + "\"}\n\n"))
+				flusher.Flush()
+				return
+			}
+		}
+	}
+}
+
 func (h *DeploymentHandler) mapDeploymentToResponse(deployment *deployments.Deployment) DeploymentResponse {
 	response := DeploymentResponse{
 		ID:               deployment.ID().String(),
@@ -544,14 +635,24 @@ func (h *DeploymentHandler) mapDeploymentToResponse(deployment *deployments.Depl
 }
 
 func generateImageTag(app *applications.Application, gitCommitHash string) string {
-	// Generate a meaningful image tag based on application name and commit hash
-	imageName := app.Name().String()
+	imageName := sanitizeDockerImageName(app.Name().String())
 	if gitCommitHash != "" {
 		if len(gitCommitHash) > 7 {
 			return imageName + ":" + gitCommitHash[:7]
 		}
 		return imageName + ":" + gitCommitHash
 	}
-	// Fallback to timestamp-based tag
 	return imageName + ":latest"
+}
+
+func sanitizeDockerImageName(name string) string {
+	result := strings.ToLower(name)
+	result = strings.ReplaceAll(result, " ", "-")
+	result = strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
+			return r
+		}
+		return '-'
+	}, result)
+	return result
 }

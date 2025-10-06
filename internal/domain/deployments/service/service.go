@@ -125,6 +125,11 @@ func (s *DeploymentService) executeBuildAndDeploy(ctx context.Context, deploymen
 		return fmt.Errorf("failed to create build request: %w", err)
 	}
 
+	// Add real-time log callback
+	buildRequest.LogCallback = func(log string) {
+		s.AppendBuildLogs(ctx, deploymentID, log)
+	}
+
 	// Execute the build
 	buildResult, err := s.buildService.BuildImage(ctx, *buildRequest)
 	if err != nil {
@@ -132,7 +137,7 @@ func (s *DeploymentService) executeBuildAndDeploy(ctx context.Context, deploymen
 		return fmt.Errorf("build failed: %w", err)
 	}
 
-	// Update deployment with build logs
+	// Update deployment with any remaining build logs
 	if buildResult.BuildLogs != "" {
 		s.AppendBuildLogs(ctx, deploymentID, buildResult.BuildLogs)
 	}

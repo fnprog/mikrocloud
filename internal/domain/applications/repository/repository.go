@@ -59,6 +59,7 @@ func (r *SQLiteApplicationRepository) Save(ctx context.Context, app *application
 			sqlite.Arg(string(app.Status())),
 			sqlite.Arg(app.CreatedAt().Format(time.RFC3339)),
 			sqlite.Arg(app.UpdatedAt().Format(time.RFC3339)),
+			sqlite.Arg(app.BasePath()),
 		),
 		im.OnConflict("id").DoUpdate(
 			im.SetCol("name").ToArg(app.Name().String()),
@@ -72,6 +73,7 @@ func (r *SQLiteApplicationRepository) Save(ctx context.Context, app *application
 			im.SetCol("auto_deploy").ToArg(app.AutoDeploy()),
 			im.SetCol("status").ToArg(string(app.Status())),
 			im.SetCol("updated_at").ToArg(app.UpdatedAt().Format(time.RFC3339)),
+			im.SetCol("base_path").ToArg(app.BasePath()),
 		),
 	)
 
@@ -90,7 +92,7 @@ func (r *SQLiteApplicationRepository) Save(ctx context.Context, app *application
 
 func (r *SQLiteApplicationRepository) FindByID(ctx context.Context, id applications.ApplicationID) (*applications.Application, error) {
 	query := sqlite.Select(
-		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at"),
+		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at", "base_path"),
 		sm.From("applications"),
 		sm.Where(sqlite.Quote("id").EQ(sqlite.Arg(id.String()))),
 	)
@@ -104,7 +106,7 @@ func (r *SQLiteApplicationRepository) FindByID(ctx context.Context, id applicati
 	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(
 		&row.ID, &row.Name, &row.Description, &row.ProjectID, &row.EnvironmentID,
 		&row.RepoURL, &row.RepoBranch, &row.RepoPath, &row.Domain, &row.BuildpackType,
-		&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt)
+		&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt, &row.BasePath)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -118,7 +120,7 @@ func (r *SQLiteApplicationRepository) FindByID(ctx context.Context, id applicati
 
 func (r *SQLiteApplicationRepository) FindByName(ctx context.Context, projectID uuid.UUID, name applications.ApplicationName) (*applications.Application, error) {
 	query := sqlite.Select(
-		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at"),
+		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at", "base_path"),
 		sm.From("applications"),
 		sm.Where(
 			sqlite.Quote("project_id").EQ(sqlite.Arg(projectID.String())).
@@ -135,7 +137,7 @@ func (r *SQLiteApplicationRepository) FindByName(ctx context.Context, projectID 
 	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(
 		&row.ID, &row.Name, &row.Description, &row.ProjectID, &row.EnvironmentID,
 		&row.RepoURL, &row.RepoBranch, &row.RepoPath, &row.Domain, &row.BuildpackType,
-		&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt)
+		&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt, &row.BasePath)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -149,7 +151,7 @@ func (r *SQLiteApplicationRepository) FindByName(ctx context.Context, projectID 
 
 func (r *SQLiteApplicationRepository) FindByProject(ctx context.Context, projectID uuid.UUID) ([]*applications.Application, error) {
 	query := sqlite.Select(
-		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at"),
+		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at", "base_path"),
 		sm.From("applications"),
 		sm.Where(sqlite.Quote("project_id").EQ(sqlite.Arg(projectID.String()))),
 		sm.OrderBy("created_at").Desc(),
@@ -171,7 +173,7 @@ func (r *SQLiteApplicationRepository) FindByProject(ctx context.Context, project
 		var row applicationRow
 		err := rows.Scan(&row.ID, &row.Name, &row.Description, &row.ProjectID, &row.EnvironmentID,
 			&row.RepoURL, &row.RepoBranch, &row.RepoPath, &row.Domain, &row.BuildpackType,
-			&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt)
+			&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt, &row.BasePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan application row: %w", err)
 		}
@@ -193,7 +195,7 @@ func (r *SQLiteApplicationRepository) FindByProject(ctx context.Context, project
 
 func (r *SQLiteApplicationRepository) FindByEnvironment(ctx context.Context, environmentID uuid.UUID) ([]*applications.Application, error) {
 	query := sqlite.Select(
-		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at"),
+		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at", "base_path"),
 		sm.From("applications"),
 		sm.Where(sqlite.Quote("environment_id").EQ(sqlite.Arg(environmentID.String()))),
 		sm.OrderBy("created_at").Desc(),
@@ -215,7 +217,7 @@ func (r *SQLiteApplicationRepository) FindByEnvironment(ctx context.Context, env
 		var row applicationRow
 		err := rows.Scan(&row.ID, &row.Name, &row.Description, &row.ProjectID, &row.EnvironmentID,
 			&row.RepoURL, &row.RepoBranch, &row.RepoPath, &row.Domain, &row.BuildpackType,
-			&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt)
+			&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt, &row.BasePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan application row: %w", err)
 		}
@@ -237,7 +239,7 @@ func (r *SQLiteApplicationRepository) FindByEnvironment(ctx context.Context, env
 
 func (r *SQLiteApplicationRepository) FindAll(ctx context.Context) ([]*applications.Application, error) {
 	query := sqlite.Select(
-		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at"),
+		sm.Columns("id", "name", "description", "project_id", "environment_id", "repo_url", "repo_branch", "repo_path", "domain", "buildpack_type", "config", "auto_deploy", "status", "created_at", "updated_at", "base_path"),
 		sm.From("applications"),
 		sm.OrderBy("created_at").Desc(),
 	)
@@ -258,7 +260,7 @@ func (r *SQLiteApplicationRepository) FindAll(ctx context.Context) ([]*applicati
 		var row applicationRow
 		err := rows.Scan(&row.ID, &row.Name, &row.Description, &row.ProjectID, &row.EnvironmentID,
 			&row.RepoURL, &row.RepoBranch, &row.RepoPath, &row.Domain, &row.BuildpackType,
-			&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt)
+			&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt, &row.BasePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan application row: %w", err)
 		}
@@ -346,6 +348,7 @@ type applicationRow struct {
 	Status        string
 	CreatedAt     string
 	UpdatedAt     string
+	BasePath      sql.NullString
 }
 
 func (r *SQLiteApplicationRepository) mapRowToApplication(row applicationRow) (*applications.Application, error) {
@@ -401,10 +404,15 @@ func (r *SQLiteApplicationRepository) mapRowToApplication(row applicationRow) (*
 		repoPath = row.RepoPath.String
 	}
 
+	basePath := ""
+	if row.BasePath.Valid {
+		basePath = row.BasePath.String
+	}
+
 	// For now, create a git deployment source if we have a repo URL
 	var deploymentSource applications.DeploymentSource
 	if repoURL != "" {
-		deploymentSource = applications.NewGitDeploymentSource(repoURL, repoBranch, repoPath, "")
+		deploymentSource = applications.NewGitDeploymentSource(repoURL, repoBranch, repoPath, basePath)
 	} else {
 		// Default empty deployment source
 		deploymentSource = applications.DeploymentSource{
