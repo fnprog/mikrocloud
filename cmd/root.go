@@ -151,16 +151,22 @@ func migrateAnalyticsDatabase(cfg *config.Config) error {
 		return fmt.Errorf("failed to create analytics database directory: %w", err)
 	}
 
+	// Determine driver based on analytics database type
+	driver := "sqlite3"
+	dialect := "sqlite3"
+	if cfg.Analytics.Type == "duckdb" {
+		driver = "duckdb"
+	}
+
 	// Open analytics database connection
-	// For now, using SQLite fallback - will update when DuckDB is fixed
-	db, err := sql.Open("sqlite3", cfg.Analytics.URL)
+	db, err := sql.Open(driver, cfg.Analytics.URL)
 	if err != nil {
 		return fmt.Errorf("failed to open analytics database: %w", err)
 	}
 	defer db.Close()
 
 	// Set up goose for analytics database
-	goose.SetDialect("sqlite3")
+	goose.SetDialect(dialect)
 
 	// Run migrations from analytics migrations directory
 	if err := goose.Up(db, "./migrations/analytics"); err != nil {

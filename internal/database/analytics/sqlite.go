@@ -7,32 +7,28 @@ import (
 	"fmt"
 	"strings"
 
-	_ "github.com/marcboeker/go-duckdb"
+	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/exp/slog"
 )
 
-// DuckDBAnalyticsDatabase implements AnalyticsDatabase interface for DuckDB
-type DuckDBAnalyticsDatabase struct {
+type SQLiteAnalyticsDatabase struct {
 	db *sql.DB
 }
 
-// NewDuckDBDatabase creates a new DuckDB analytics database instance
-func NewDuckDBDatabase(connectionString string) (AnalyticsDatabase, error) {
-	db, err := sql.Open("duckdb", connectionString+"?access_mode=read_write")
+func NewSQLiteDatabase(connectionString string) (AnalyticsDatabase, error) {
+	db, err := sql.Open("sqlite3", connectionString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// Test the connection
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	slog.Info("Analytics database connection established", "connection", connectionString)
+	slog.Info("Analytics database connection established (SQLite)", "connection", connectionString)
 
-	instance := &DuckDBAnalyticsDatabase{db: db}
+	instance := &SQLiteAnalyticsDatabase{db: db}
 
-	// Initialize schema
 	if err := instance.initSchema(); err != nil {
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
 	}
@@ -40,8 +36,8 @@ func NewDuckDBDatabase(connectionString string) (AnalyticsDatabase, error) {
 	return instance, nil
 }
 
-func (d *DuckDBAnalyticsDatabase) Close() error {
-	if err := d.db.Close(); err != nil {
+func (s *SQLiteAnalyticsDatabase) Close() error {
+	if err := s.db.Close(); err != nil {
 		slog.Error("Error closing analytics database", "error", err)
 		return err
 	}
@@ -49,17 +45,15 @@ func (d *DuckDBAnalyticsDatabase) Close() error {
 	return nil
 }
 
-func (d *DuckDBAnalyticsDatabase) Ping(ctx context.Context) error {
-	return d.db.PingContext(ctx)
+func (s *SQLiteAnalyticsDatabase) Ping(ctx context.Context) error {
+	return s.db.PingContext(ctx)
 }
 
-// DB returns the underlying database connection
-func (d *DuckDBAnalyticsDatabase) DB() interface{} {
-	return d.db
+func (s *SQLiteAnalyticsDatabase) DB() interface{} {
+	return s.db
 }
 
-// Schema initialization
-func (d *DuckDBAnalyticsDatabase) initSchema() error {
+func (s *SQLiteAnalyticsDatabase) initSchema() error {
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS metrics (
 			id TEXT PRIMARY KEY,
@@ -97,7 +91,7 @@ func (d *DuckDBAnalyticsDatabase) initSchema() error {
 	}
 
 	for _, query := range queries {
-		if _, err := d.db.Exec(query); err != nil {
+		if _, err := s.db.Exec(query); err != nil {
 			return fmt.Errorf("failed to execute schema query: %w", err)
 		}
 	}
@@ -105,15 +99,14 @@ func (d *DuckDBAnalyticsDatabase) initSchema() error {
 	return nil
 }
 
-// Store operations
-func (d *DuckDBAnalyticsDatabase) StoreMetric(ctx context.Context, metric Metric) error {
+func (s *SQLiteAnalyticsDatabase) StoreMetric(ctx context.Context, metric Metric) error {
 	tagsJSON, err := json.Marshal(metric.Tags)
 	if err != nil {
 		return fmt.Errorf("failed to marshal tags: %w", err)
 	}
 
 	query := `INSERT INTO metrics (id, name, value, tags, timestamp) VALUES (?, ?, ?, ?, ?)`
-	_, err = d.db.ExecContext(ctx, query, metric.ID, metric.Name, metric.Value, string(tagsJSON), metric.Timestamp)
+	_, err = s.db.ExecContext(ctx, query, metric.ID, metric.Name, metric.Value, string(tagsJSON), metric.Timestamp)
 	if err != nil {
 		return fmt.Errorf("failed to store metric: %w", err)
 	}
@@ -121,7 +114,7 @@ func (d *DuckDBAnalyticsDatabase) StoreMetric(ctx context.Context, metric Metric
 	return nil
 }
 
-func (d *DuckDBAnalyticsDatabase) StoreEvent(ctx context.Context, event Event) error {
+func (s *SQLiteAnalyticsDatabase) StoreEvent(ctx context.Context, event Event) error {
 	dataJSON, err := json.Marshal(event.Data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal data: %w", err)
@@ -133,7 +126,7 @@ func (d *DuckDBAnalyticsDatabase) StoreEvent(ctx context.Context, event Event) e
 	}
 
 	query := `INSERT INTO events (id, type, source, data, tags, timestamp) VALUES (?, ?, ?, ?, ?, ?)`
-	_, err = d.db.ExecContext(ctx, query, event.ID, event.Type, event.Source, string(dataJSON), string(tagsJSON), event.Timestamp)
+	_, err = s.db.ExecContext(ctx, query, event.ID, event.Type, event.Source, string(dataJSON), string(tagsJSON), event.Timestamp)
 	if err != nil {
 		return fmt.Errorf("failed to store event: %w", err)
 	}
@@ -141,12 +134,11 @@ func (d *DuckDBAnalyticsDatabase) StoreEvent(ctx context.Context, event Event) e
 	return nil
 }
 
-func (d *DuckDBAnalyticsDatabase) StoreLogs(ctx context.Context, logs []LogEntry) error {
+func (s *SQLiteAnalyticsDatabase) StoreLogs(ctx context.Context, logs []LogEntry) error {
 	if len(logs) == 0 {
 		return nil
 	}
 
-	// Batch insert for better performance
 	query := `INSERT INTO logs (id, level, message, source, fields, tags, timestamp) VALUES `
 	values := make([]string, len(logs))
 	args := make([]any, 0, len(logs)*7)
@@ -167,7 +159,7 @@ func (d *DuckDBAnalyticsDatabase) StoreLogs(ctx context.Context, logs []LogEntry
 	}
 
 	query += strings.Join(values, ", ")
-	_, err := d.db.ExecContext(ctx, query, args...)
+	_, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("failed to store logs: %w", err)
 	}
@@ -175,8 +167,7 @@ func (d *DuckDBAnalyticsDatabase) StoreLogs(ctx context.Context, logs []LogEntry
 	return nil
 }
 
-// Query operations - Basic implementations for now
-func (d *DuckDBAnalyticsDatabase) GetMetrics(ctx context.Context, filter MetricFilter) ([]Metric, error) {
+func (s *SQLiteAnalyticsDatabase) GetMetrics(ctx context.Context, filter MetricFilter) ([]Metric, error) {
 	query := `SELECT id, name, value, tags, timestamp FROM metrics WHERE timestamp >= ? AND timestamp <= ?`
 	args := []any{filter.TimeRange.Start, filter.TimeRange.End}
 
@@ -195,7 +186,7 @@ func (d *DuckDBAnalyticsDatabase) GetMetrics(ctx context.Context, filter MetricF
 		args = append(args, filter.Limit)
 	}
 
-	rows, err := d.db.QueryContext(ctx, query, args...)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query metrics: %w", err)
 	}
@@ -220,23 +211,19 @@ func (d *DuckDBAnalyticsDatabase) GetMetrics(ctx context.Context, filter MetricF
 	return metrics, nil
 }
 
-func (d *DuckDBAnalyticsDatabase) GetEvents(ctx context.Context, filter EventFilter) ([]Event, error) {
-	// Basic implementation - similar to GetMetrics
+func (s *SQLiteAnalyticsDatabase) GetEvents(ctx context.Context, filter EventFilter) ([]Event, error) {
 	return []Event{}, nil
 }
 
-func (d *DuckDBAnalyticsDatabase) GetLogs(ctx context.Context, filter LogFilter) ([]LogEntry, error) {
-	// Basic implementation - similar to GetMetrics
+func (s *SQLiteAnalyticsDatabase) GetLogs(ctx context.Context, filter LogFilter) ([]LogEntry, error) {
 	return []LogEntry{}, nil
 }
 
-func (d *DuckDBAnalyticsDatabase) GetMetricAggregation(ctx context.Context, aggregation MetricAggregation) ([]AggregationResult, error) {
-	// Basic implementation
+func (s *SQLiteAnalyticsDatabase) GetMetricAggregation(ctx context.Context, aggregation MetricAggregation) ([]AggregationResult, error) {
 	return []AggregationResult{}, nil
 }
 
-func (d *DuckDBAnalyticsDatabase) GetEventStats(ctx context.Context, timeRange TimeRange) (EventStats, error) {
-	// Basic implementation
+func (s *SQLiteAnalyticsDatabase) GetEventStats(ctx context.Context, timeRange TimeRange) (EventStats, error) {
 	return EventStats{
 		TimeRange:      timeRange,
 		EventsByType:   make(map[string]int64),

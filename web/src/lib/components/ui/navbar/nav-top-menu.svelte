@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { cn } from '$lib/utils';
+	import { goto } from '$app/navigation';
+	import { authApi } from '$lib/api/auth';
 
 	import {
 		DropdownMenu,
@@ -11,7 +13,7 @@
 	import { Avatar, AvatarFallback } from '$lib/components/ui/avatar';
 	import { Button } from '$lib/components/ui/button';
 
-	import { LogOut, Settings, Command, Monitor, Sun, Moon, Plus, ExternalLink } from 'lucide-svelte';
+	import { LogOut, Settings, Command, Monitor, Sun, Moon, Plus } from 'lucide-svelte';
 
 	let theme: 'light' | 'dark' | 'system' = 'system';
 
@@ -20,6 +22,11 @@
 		const currentIndex = themes.indexOf(theme);
 		const nextIndex = (currentIndex + 1) % themes.length;
 		theme = themes[nextIndex];
+	}
+
+	function handleLogout() {
+		authApi.logout();
+		goto('/login');
 	}
 </script>
 
@@ -88,25 +95,10 @@
 
 		<DropdownMenuSeparator />
 
-		<!-- External Link -->
-		<DropdownMenuItem class="cursor-pointer justify-between">
-			<span class="text-sm">Home Page</span>
-			<ExternalLink class="h-4 w-4 text-muted-foreground" />
-		</DropdownMenuItem>
-
 		<!-- Logout -->
-		<DropdownMenuItem class="cursor-pointer">
+		<DropdownMenuItem class="cursor-pointer" onSelect={handleLogout}>
 			<LogOut class="mr-2 h-4 w-4" />
 			<span class="text-sm">Log Out</span>
 		</DropdownMenuItem>
-
-		<DropdownMenuSeparator />
-
-		<!-- Upgrade CTA -->
-		<div class="p-1">
-			<Button class="w-full bg-foreground text-background hover:bg-foreground/90">
-				Upgrade to Pro
-			</Button>
-		</div>
 	</DropdownMenuContent>
 </DropdownMenu>

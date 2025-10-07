@@ -15,6 +15,8 @@ func NewAnalyticsFactory() Factory {
 // Create creates an analytics database instance based on configuration
 func (f *AnalyticsFactory) Create(dbType DatabaseType, connectionString string) (AnalyticsDatabase, error) {
 	switch dbType {
+	case SQLite:
+		return NewSQLiteDatabase(connectionString)
 	case DuckDB:
 		return NewDuckDBDatabase(connectionString)
 	case ClickHouse:

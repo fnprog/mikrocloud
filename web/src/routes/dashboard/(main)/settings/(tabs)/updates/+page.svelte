@@ -58,13 +58,6 @@
 </script>
 
 <div class="space-y-6">
-	<div>
-		<h1 class="text-2xl font-bold tracking-tight">Update Settings</h1>
-		<p class="text-sm text-muted-foreground mt-1">
-			Configure automatic updates and version checks for your instance
-		</p>
-	</div>
-
 	<Card.Root>
 		<Card.Header>
 			<Card.Title>Version Checks</Card.Title>

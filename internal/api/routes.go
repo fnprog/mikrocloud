@@ -12,6 +12,8 @@ import (
 	"github.com/mikrocloud/mikrocloud/internal/api/middleware"
 	"github.com/mikrocloud/mikrocloud/internal/config"
 	"github.com/mikrocloud/mikrocloud/internal/database"
+	activitiesHandlers "github.com/mikrocloud/mikrocloud/internal/domain/activities/handlers"
+	activitiesService "github.com/mikrocloud/mikrocloud/internal/domain/activities/service"
 	appHandlers "github.com/mikrocloud/mikrocloud/internal/domain/applications/handlers"
 	applicationsService "github.com/mikrocloud/mikrocloud/internal/domain/applications/service"
 	authHandlers "github.com/mikrocloud/mikrocloud/internal/domain/auth/handlers"
@@ -33,6 +35,8 @@ import (
 	projectService "github.com/mikrocloud/mikrocloud/internal/domain/projects/service"
 	proxyHandlers "github.com/mikrocloud/mikrocloud/internal/domain/proxy/handlers"
 	proxyService "github.com/mikrocloud/mikrocloud/internal/domain/proxy/service"
+	serversHandlers "github.com/mikrocloud/mikrocloud/internal/domain/servers/handlers"
+	serversService "github.com/mikrocloud/mikrocloud/internal/domain/servers/service"
 	serviceHandlers "github.com/mikrocloud/mikrocloud/internal/domain/services/handlers"
 	"github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
 	servicesService "github.com/mikrocloud/mikrocloud/internal/domain/services/service"
@@ -122,6 +126,12 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 
 	settingsSvc := settingsService.NewSettingsService(db.SettingsRepository)
 	settingsHandler := settingsHandlers.NewSettingsHandler(settingsSvc)
+
+	activitiesSvc := activitiesService.NewActivitiesService(db.ActivitiesRepository)
+	activitiesHandler := activitiesHandlers.NewActivitiesHandlers(activitiesSvc)
+
+	serversSvc := serversService.NewServersService(db.ServersRepository)
+	serversHandler := serversHandlers.NewServersHandler(serversSvc)
 
 	// Protected routes that require authentication
 	api.Group(func(r chi.Router) {
@@ -315,6 +325,29 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 		r.Post("/updates", settingsHandler.SaveUpdateSettings)
 		r.Post("/backup", settingsHandler.CreateBackup)
 		r.Post("/restore", settingsHandler.RestoreBackup)
+	})
+
+	// Activities routes (protected)
+	api.Route("/activities", func(r chi.Router) {
+		r.Use(jwtauth.Verifier(tokenAuth))
+		r.Use(jwtauth.Authenticator(tokenAuth))
+
+		r.Get("/{org_id}", activitiesHandler.GetRecentActivities)
+		r.Get("/{resource_type}/{resource_id}", activitiesHandler.GetResourceActivities)
+	})
+
+	// Servers routes (protected)
+	api.Route("/servers", func(r chi.Router) {
+		r.Use(jwtauth.Verifier(tokenAuth))
+		r.Use(jwtauth.Authenticator(tokenAuth))
+
+		r.Get("/", serversHandler.ListServers)
+		r.Post("/", serversHandler.CreateServer)
+		r.Route("/{server_id}", func(r chi.Router) {
+			r.Get("/", serversHandler.GetServer)
+			r.Put("/", serversHandler.UpdateServer)
+			r.Delete("/", serversHandler.DeleteServer)
+		})
 	})
 
 	return traefikSvc, statusSyncSvc, nil

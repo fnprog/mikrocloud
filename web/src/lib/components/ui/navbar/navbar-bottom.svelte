@@ -1,23 +1,27 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { cn } from '$lib/utils';
-	import { isScrolled } from './navbar-scroll.store';
+	import { getIsScrolled } from './navbar-scroll.svelte';
 
 	interface Tab {
 		name: string;
 		href: string;
 	}
 
-	export let tabs: Tab[];
+	let { tabs }: { tabs: Tab[] } = $props();
 
-	let tabsRef: (HTMLAnchorElement | null)[] = [];
-	let tabsContainerRef: HTMLDivElement;
-	let indicatorStyle = { left: 0, width: 0 };
-	let direction: 'left' | 'right' = 'right';
+	let tabsRef = $state<(HTMLAnchorElement | null)[]>([]);
+	let tabsContainerRef = $state<HTMLDivElement | null>(null);
+	let indicatorStyle = $state({ left: 0, width: 0 });
+	let direction = $state<'left' | 'right'>('right');
 
-	$: pathname = $page.url.pathname;
-	$: activeTab = tabs.find((tab) => tab.href === pathname)?.name || tabs[0]?.name;
+	const pathname = $derived(page.url.pathname);
+
+	const activeTab = $derived(
+		tabs.find((tab) => pathname === tab.href || pathname.startsWith(`${tab.href}/`))?.name ||
+			tabs[0]?.name
+	);
 
 	async function updateIndicator() {
 		await tick();
@@ -41,9 +45,11 @@
 		direction = newIndex > currentIndex ? 'right' : 'left';
 	}
 
-	$: if (activeTab || $isScrolled) {
+	$effect(() => {
+		console.log('active Tab', activeTab);
+		console.log('pathname', pathname);
 		updateIndicator();
-	}
+	});
 
 	onMount(() => {
 		updateIndicator();
@@ -53,21 +59,21 @@
 <div
 	class={cn(
 		'sticky left-0 right-0 z-40 bg-card border-b border-input transition-all duration-300',
-		$isScrolled ? 'top-0' : 'top-14'
+		getIsScrolled() ? 'top-0' : 'top-14'
 	)}
 >
 	<div class="mx-auto md:px-6">
 		<div
 			class={cn(
 				'flex items-center justify-between transition-all duration-300',
-				$isScrolled ? 'h-14' : 'h-12'
+				getIsScrolled() ? 'h-14' : 'h-12'
 			)}
 		>
 			<div class="flex items-center gap-4 flex-1 min-w-0 h-full">
 				<div
 					class={cn(
 						'hidden md:flex items-center gap-4 transition-all duration-300 ease-in-out flex-shrink-0',
-						$isScrolled ? 'w-[44px]' : 'w-0'
+						getIsScrolled() ? 'w-[44px]' : 'w-0'
 					)}
 				></div>
 				<div
@@ -80,7 +86,7 @@
 							<a
 								href={tab.href}
 								bind:this={tabsRef[index]}
-								on:click={() => handleTabClick(tab.name)}
+								onclick={() => handleTabClick(tab.name)}
 								class={cn(
 									'relative px-3 py-2 text-sm font-medium transition-colors rounded-md whitespace-nowrap',
 									activeTab === tab.name

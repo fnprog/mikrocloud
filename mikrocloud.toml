@@ -24,3 +24,7 @@ certs_dir = "${HOME}/.local/share/mikrocloud/certs"
 [auth]
 enabled = true
 jwt_secret = "dev-secret-key-for-testing-only-please-change-in-production"
+
+[analytics]
+type = "duckdb"
+url = "${HOME}/.local/share/mikrocloud/analytics.duckdb"

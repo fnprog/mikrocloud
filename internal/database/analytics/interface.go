@@ -31,6 +31,7 @@ type AnalyticsDatabase interface {
 type DatabaseType string
 
 const (
+	SQLite     DatabaseType = "sqlite"
 	DuckDB     DatabaseType = "duckdb"
 	ClickHouse DatabaseType = "clickhouse"
 )

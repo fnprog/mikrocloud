@@ -68,13 +68,6 @@
 </script>
 
 <div class="space-y-6">
-	<div>
-		<h1 class="text-2xl font-bold tracking-tight">General Settings</h1>
-		<p class="text-sm text-muted-foreground mt-1">
-			Configure the basic settings for your MikroCloud instance
-		</p>
-	</div>
-
 	<Card.Root>
 		<Card.Header>
 			<Card.Title>Instance Configuration</Card.Title>
@@ -155,9 +148,7 @@
 			<div class="flex items-center justify-between">
 				<div class="space-y-1">
 					<Label for="do-not-track">Do Not Track</Label>
-					<p class="text-xs text-muted-foreground">
-						Disable telemetry and analytics collection.
-					</p>
+					<p class="text-xs text-muted-foreground">Disable telemetry and analytics collection.</p>
 				</div>
 				<Switch id="do-not-track" bind:checked={doNotTrack} />
 			</div>

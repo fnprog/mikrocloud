@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Logo from '$lib/components/logo/logo.svelte';
-	import { isScrolled } from './navbar-scroll.store';
+	import { getIsScrolled } from './navbar-scroll.svelte';
 	import { cn } from '$lib/utils';
 	import UserMenu from './nav-top-menu.svelte';
 	import NavbarBreadcrumb from './navbar-breadcrumb.svelte';
@@ -11,14 +11,14 @@
 		<Logo
 			class={cn(
 				'h-[25px] absolute left-6 hidden md:flex items-center gap-4 transition-all duration-300 ease-in-out z-10',
-				$isScrolled ? 'translate-y-[21px] h-[20px]' : 'translate-y-[14px]'
+				getIsScrolled() ? 'translate-y-[21px] h-[20px]' : 'translate-y-[14px]'
 			)}
 		/>
 
 		<div
 			class={cn(
 				'flex items-center gap-4 transition-all duration-300 ease-in-out overflow-hidden',
-				$isScrolled ? 'h-0 opacity-0' : 'h-14 opacity-100'
+				getIsScrolled() ? 'h-0 opacity-0' : 'h-14 opacity-100'
 			)}
 		>
 			<div class="w-[25px] flex-shrink-0 hidden md:block"></div>

@@ -7,6 +7,8 @@ import { databasesApi as databases } from './databases';
 import { disksApi as disks } from './disks';
 import { templatesApi as templates } from './templates';
 import { studioApi as studio } from './studio';
+import { activitiesApi as activities } from './activities';
+import { serversApi as servers } from './servers';
 
 export { client as apiClient };
 export { auth as authApi };
@@ -17,6 +19,8 @@ export { databases as databasesApi };
 export { disks as disksApi };
 export { templates as templatesApi };
 export { studio as studioApi };
+export { activities as activitiesApi };
+export { servers as serversApi };
 
 export type { User, LoginRequest, RegisterRequest, AuthResponse } from './auth';
 export type { Project, CreateProjectRequest } from './projects';
@@ -27,6 +31,8 @@ export type { Disk, CreateDiskRequest, ResizeDiskRequest, AttachDiskRequest } fr
 export type { ServiceTemplate, DeployTemplateRequest } from './templates';
 export type { ApiError } from './client';
 export type { Column, TableSchema, QueryResult, TableDataResult, Filter, Sort, DatabaseInfo, TableDataOptions, ExecuteQueryRequest, InsertRowRequest, UpdateRowRequest, DeleteRowRequest } from './studio';
+export type { Activity, ActivitiesResponse } from './activities';
+export type { Server, CreateServerRequest, UpdateServerRequest, ServersResponse } from './servers';
 
 export const getProject = (id: string) => projects.get(id);
 export const listProjects = () => projects.list();

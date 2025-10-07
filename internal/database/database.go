@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/exp/slog"
 
+	activitiesRepo "github.com/mikrocloud/mikrocloud/internal/domain/activities/repository"
 	analyticsRepo "github.com/mikrocloud/mikrocloud/internal/domain/analytics/repository"
 	applicationsRepo "github.com/mikrocloud/mikrocloud/internal/domain/applications/repository"
 	authRepo "github.com/mikrocloud/mikrocloud/internal/domain/auth/repository"
@@ -17,6 +18,7 @@ import (
 	logsRepo "github.com/mikrocloud/mikrocloud/internal/domain/logs/repository"
 	projectsRepo "github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
 	proxyRepo "github.com/mikrocloud/mikrocloud/internal/domain/proxy/repository"
+	serversRepo "github.com/mikrocloud/mikrocloud/internal/domain/servers/repository"
 	servicesRepo "github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
 	settingsRepo "github.com/mikrocloud/mikrocloud/internal/domain/settings/repository"
 	usersRepo "github.com/mikrocloud/mikrocloud/internal/domain/users/repository"
@@ -48,6 +50,8 @@ type Database struct {
 	MetricRepository        analyticsRepo.MetricRepository
 	LogRepository           logsRepo.LogRepository
 	SettingsRepository      *settingsRepo.SettingsRepository
+	ActivitiesRepository    *activitiesRepo.ActivitiesRepository
+	ServersRepository       *serversRepo.ServersRepository
 }
 
 func New(cfg *config.Config) (*Database, error) {
@@ -62,6 +66,9 @@ func New(cfg *config.Config) (*Database, error) {
 	analyticsFactory := analyticsdb.NewAnalyticsFactory()
 	analyticsDB, err := analyticsFactory.Create(analyticsdb.DatabaseType(cfg.Analytics.Type), cfg.Analytics.URL)
 	if err != nil {
+		slog.Warn("Failed to initialize analytics database, continuing without analytics", "error", err)
+		// Return error for now - analytics DB is required
+		// TODO: Make analytics optional once DuckDB extension loading is fixed
 		return nil, fmt.Errorf("failed to initialize analytics database: %w", err)
 	}
 
@@ -107,6 +114,8 @@ func New(cfg *config.Config) (*Database, error) {
 		MetricRepository:        metricRepo,
 		LogRepository:           logRepo,
 		SettingsRepository:      settingsRepo.NewSettingsRepository(mainDB.DB()),
+		ActivitiesRepository:    activitiesRepo.NewActivitiesRepository(mainDB.DB()),
+		ServersRepository:       serversRepo.NewServersRepository(mainDB.DB()),
 	}, nil
 }
 

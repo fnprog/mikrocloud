@@ -50,13 +50,6 @@
 </script>
 
 <div class="space-y-6">
-	<div>
-		<h1 class="text-2xl font-bold tracking-tight">Advanced Settings</h1>
-		<p class="text-sm text-muted-foreground mt-1">
-			Configure advanced features and security settings
-		</p>
-	</div>
-
 	<Card.Root>
 		<Card.Header>
 			<Card.Title>DNS Configuration</Card.Title>
@@ -74,12 +67,7 @@
 
 			<div class="space-y-2">
 				<Label for="dns-servers">Custom DNS Servers</Label>
-				<Input
-					id="dns-servers"
-					type="text"
-					bind:value={dnsServers}
-					placeholder="8.8.8.8,1.1.1.1"
-				/>
+				<Input id="dns-servers" type="text" bind:value={dnsServers} placeholder="8.8.8.8,1.1.1.1" />
 				<p class="text-xs text-muted-foreground">
 					DNS servers to validate domains against. A comma separated list of DNS servers.
 				</p>

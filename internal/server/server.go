@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -15,12 +16,15 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/jwtauth/v5"
+	"github.com/google/uuid"
 	"golang.org/x/exp/slog"
 
 	"github.com/mikrocloud/mikrocloud/internal/api"
 	"github.com/mikrocloud/mikrocloud/internal/config"
 	"github.com/mikrocloud/mikrocloud/internal/database"
 	"github.com/mikrocloud/mikrocloud/internal/domain/proxy"
+	"github.com/mikrocloud/mikrocloud/internal/domain/servers"
+	serversService "github.com/mikrocloud/mikrocloud/internal/domain/servers/service"
 	proxyContainers "github.com/mikrocloud/mikrocloud/pkg/containers/proxy"
 )
 
@@ -89,6 +93,12 @@ func (s *Server) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to setup API routes: %w", err)
 	}
 	s.setupStaticRoutes()
+
+	// Initialize default control plane server
+	if err := s.initializeControlPlaneServer(ctx); err != nil {
+		slog.Warn("Failed to initialize control plane server", "error", err)
+		// Don't fail the server if this fails, just log the warning
+	}
 
 	// Start Traefik service if available
 	if s.traefikSvc != nil {
@@ -336,4 +346,74 @@ func (s *Server) setupPlaceholderRoutes() {
 		</body>
 		</html>`)
 	})
+}
+
+func (s *Server) initializeControlPlaneServer(ctx context.Context) error {
+	serversSvc := serversService.NewServersService(s.db.ServersRepository)
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "localhost"
+	}
+
+	existingServer, err := serversSvc.GetServerByHostname(hostname)
+	if err == nil && existingServer != nil {
+		slog.Info("Control plane server already initialized", "hostname", hostname, "server_id", existingServer.ID())
+		return nil
+	}
+
+	// Get the first organization from the database
+	var orgID string
+	err = s.db.MainDB().DB().QueryRowContext(ctx, "SELECT id FROM organizations LIMIT 1").Scan(&orgID)
+	if err != nil {
+		return fmt.Errorf("no organization found in database: %w", err)
+	}
+	defaultOrgID := uuid.MustParse(orgID)
+
+	cpuCores := runtime.NumCPU()
+	memoryMB := getSystemMemoryMB()
+	diskGB := getDiskSpaceMB() / 1024
+
+	osInfo := runtime.GOOS
+	osVersion := runtime.Version()
+
+	createdServer, err := serversSvc.CreateServer(
+		"Control Plane - "+hostname,
+		hostname,
+		"127.0.0.1",
+		s.config.Server.Port,
+		servers.ServerTypeControlPlane,
+		defaultOrgID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create control plane server: %w", err)
+	}
+
+	createdServer.UpdateDescription("Default control plane server for mikrocloud")
+	createdServer.UpdateSpecs(&cpuCores, &memoryMB, &diskGB, &osInfo, &osVersion)
+	createdServer.AddTag("control-plane")
+	createdServer.AddTag("default")
+
+	if err := serversSvc.UpdateServer(createdServer); err != nil {
+		slog.Warn("Failed to update control plane server specs", "error", err)
+	}
+
+	slog.Info("Control plane server initialized",
+		"server_id", createdServer.ID(),
+		"hostname", hostname,
+		"cpu_cores", cpuCores,
+		"memory_mb", memoryMB,
+	)
+
+	return nil
+}
+
+func getSystemMemoryMB() int {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	return int(m.Sys / 1024 / 1024)
+}
+
+func getDiskSpaceMB() int {
+	return 100000
 }

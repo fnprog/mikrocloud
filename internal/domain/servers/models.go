@@ -8,17 +8,25 @@ import (
 )
 
 type Server struct {
-	id          ServerID
-	name        ServerName
-	description string
-	hostname    string
-	ipAddress   string
-	port        int
-	sshKey      string
-	status      ServerStatus
-	tags        []string
-	createdAt   time.Time
-	updatedAt   time.Time
+	id             ServerID
+	name           ServerName
+	description    string
+	hostname       string
+	ipAddress      string
+	port           int
+	sshKey         string
+	serverType     ServerType
+	status         ServerStatus
+	cpuCores       *int
+	memoryMB       *int
+	diskGB         *int
+	os             *string
+	osVersion      *string
+	metadata       string
+	tags           []string
+	organizationID uuid.UUID
+	createdAt      time.Time
+	updatedAt      time.Time
 }
 
 type ServerID struct {
@@ -58,6 +66,15 @@ func (n ServerName) String() string {
 	return n.value
 }
 
+type ServerType string
+
+const (
+	ServerTypeControlPlane ServerType = "control_plane"
+	ServerTypeWorker       ServerType = "worker"
+	ServerTypeDatabase     ServerType = "database"
+	ServerTypeProxy        ServerType = "proxy"
+)
+
 type ServerStatus string
 
 const (
@@ -68,18 +85,21 @@ const (
 	ServerStatusUnknown     ServerStatus = "unknown"
 )
 
-func NewServer(name ServerName, hostname, ipAddress string, port int) *Server {
+func NewServer(name ServerName, hostname, ipAddress string, port int, serverType ServerType, organizationID uuid.UUID) *Server {
 	now := time.Now()
 	return &Server{
-		id:        NewServerID(),
-		name:      name,
-		hostname:  hostname,
-		ipAddress: ipAddress,
-		port:      port,
-		status:    ServerStatusUnknown,
-		tags:      make([]string, 0),
-		createdAt: now,
-		updatedAt: now,
+		id:             NewServerID(),
+		name:           name,
+		hostname:       hostname,
+		ipAddress:      ipAddress,
+		port:           port,
+		serverType:     serverType,
+		status:         ServerStatusOnline,
+		metadata:       "{}",
+		tags:           make([]string, 0),
+		organizationID: organizationID,
+		createdAt:      now,
+		updatedAt:      now,
 	}
 }
 
@@ -111,8 +131,36 @@ func (s *Server) SSHKey() string {
 	return s.sshKey
 }
 
+func (s *Server) ServerType() ServerType {
+	return s.serverType
+}
+
 func (s *Server) Status() ServerStatus {
 	return s.status
+}
+
+func (s *Server) CPUCores() *int {
+	return s.cpuCores
+}
+
+func (s *Server) MemoryMB() *int {
+	return s.memoryMB
+}
+
+func (s *Server) DiskGB() *int {
+	return s.diskGB
+}
+
+func (s *Server) OS() *string {
+	return s.os
+}
+
+func (s *Server) OSVersion() *string {
+	return s.osVersion
+}
+
+func (s *Server) Metadata() string {
+	return s.metadata
 }
 
 func (s *Server) Tags() []string {
@@ -120,6 +168,10 @@ func (s *Server) Tags() []string {
 	tags := make([]string, len(s.tags))
 	copy(tags, s.tags)
 	return tags
+}
+
+func (s *Server) OrganizationID() uuid.UUID {
+	return s.organizationID
 }
 
 func (s *Server) CreatedAt() time.Time {
@@ -183,6 +235,20 @@ func (s *Server) RemoveTag(tag string) {
 func (s *Server) SetTags(tags []string) {
 	s.tags = make([]string, len(tags))
 	copy(s.tags, tags)
+	s.updatedAt = time.Now()
+}
+
+func (s *Server) UpdateSpecs(cpuCores, memoryMB, diskGB *int, os, osVersion *string) {
+	s.cpuCores = cpuCores
+	s.memoryMB = memoryMB
+	s.diskGB = diskGB
+	s.os = os
+	s.osVersion = osVersion
+	s.updatedAt = time.Now()
+}
+
+func (s *Server) UpdateMetadata(metadata string) {
+	s.metadata = metadata
 	s.updatedAt = time.Now()
 }
 
@@ -286,21 +352,34 @@ func ReconstructServer(
 	description, hostname, ipAddress string,
 	port int,
 	sshKey string,
+	serverType ServerType,
 	status ServerStatus,
+	cpuCores, memoryMB, diskGB *int,
+	os, osVersion *string,
+	metadata string,
 	tags []string,
+	organizationID uuid.UUID,
 	createdAt, updatedAt time.Time,
 ) *Server {
 	return &Server{
-		id:          id,
-		name:        name,
-		description: description,
-		hostname:    hostname,
-		ipAddress:   ipAddress,
-		port:        port,
-		sshKey:      sshKey,
-		status:      status,
-		tags:        tags,
-		createdAt:   createdAt,
-		updatedAt:   updatedAt,
+		id:             id,
+		name:           name,
+		description:    description,
+		hostname:       hostname,
+		ipAddress:      ipAddress,
+		port:           port,
+		sshKey:         sshKey,
+		serverType:     serverType,
+		status:         status,
+		cpuCores:       cpuCores,
+		memoryMB:       memoryMB,
+		diskGB:         diskGB,
+		os:             os,
+		osVersion:      osVersion,
+		metadata:       metadata,
+		tags:           tags,
+		organizationID: organizationID,
+		createdAt:      createdAt,
+		updatedAt:      updatedAt,
 	}
 }

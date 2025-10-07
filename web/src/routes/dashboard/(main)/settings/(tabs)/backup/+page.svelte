@@ -57,13 +57,6 @@
 </script>
 
 <div class="space-y-6">
-	<div>
-		<h1 class="text-2xl font-bold tracking-tight">Backup & Restore</h1>
-		<p class="text-sm text-muted-foreground mt-1">
-			Create backups of your platform data and restore from previous backups
-		</p>
-	</div>
-
 	<Card.Root>
 		<Card.Header>
 			<Card.Title>Create Backup</Card.Title>
@@ -116,20 +109,15 @@
 					</div>
 				</div>
 				<label>
-					<input
-						type="file"
-						accept=".tar.gz,.tgz"
-						class="hidden"
-						onchange={handleRestoreBackup}
-					/>
+					<input type="file" accept=".tar.gz,.tgz" class="hidden" onchange={handleRestoreBackup} />
 					<Button>Select File</Button>
 				</label>
 			</div>
 
-			<div class="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 rounded-lg p-4">
-				<p class="text-sm font-medium text-orange-900 dark:text-orange-100">
-					⚠️ Warning
-				</p>
+			<div
+				class="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 rounded-lg p-4"
+			>
+				<p class="text-sm font-medium text-orange-900 dark:text-orange-100">⚠️ Warning</p>
 				<p class="text-xs text-orange-800 dark:text-orange-200 mt-1">
 					Restoring a backup will replace all current data with the data from the backup file. This
 					action cannot be undone. Make sure to create a backup of your current data before
