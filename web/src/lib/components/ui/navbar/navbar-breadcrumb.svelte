@@ -1,108 +1,132 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { createQuery } from '@tanstack/svelte-query';
-	import { projectsApi, environmentsApi, databasesApi } from '$lib/api';
-	import { Loader2 } from 'lucide-svelte';
+	import {
+		projectsApi,
+		environmentsApi,
+		databasesApi,
+		applicationsApi,
+		organizationsApi
+	} from '$lib/api';
+	import { LoaderCircle } from 'lucide-svelte';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb';
+	import OrgSwitcher from './org-switcher.svelte';
+	import ProjectSwitcher from './project-switcher.svelte';
+	import ResourceSwitcher from './resource-switcher.svelte';
 
-	const projectId = $derived($page.params.id);
-	const envId = $derived($page.params.env_id);
-	const resId = $derived($page.params.res_id);
-	const resourceType = $derived($page.url.pathname.includes('/db/') ? 'database' : 'application');
+	const projectId = $derived(page.params.id);
+	const envId = $derived(page.params.env_id);
+	const resId = $derived(page.params.res_id);
 
-	const projectQuery = createQuery({
+	const resourceType = $derived(
+		page.url.pathname.includes('/db/')
+			? 'database'
+			: page.url.pathname.includes('/app/')
+				? 'application'
+				: null
+	);
+
+	const orgQuery = createQuery(() => ({
+		queryKey: ['organizations'],
+		queryFn: () => {
+			console.log('Organizations query executing...');
+			return organizationsApi.list();
+		},
+		staleTime: 5 * 60 * 1000,
+		refetchOnMount: true,
+		enabled: true
+	}));
+
+	const projectQuery = createQuery(() => ({
 		queryKey: ['project', projectId],
 		queryFn: () => projectsApi.get(projectId!),
 		enabled: !!projectId
-	});
+	}));
 
-	const environmentQuery = createQuery({
+	const environmentQuery = createQuery(() => ({
 		queryKey: ['environment', projectId, envId],
 		queryFn: () => environmentsApi.get(projectId!, envId!),
 		enabled: !!projectId && !!envId
-	});
+	}));
 
-	const databaseQuery = createQuery({
+	const databaseQuery = createQuery(() => ({
 		queryKey: ['database', projectId, resId],
 		queryFn: () => databasesApi.get(projectId!, resId!),
 		enabled: !!projectId && !!resId && resourceType === 'database'
-	});
+	}));
 
-	const breadcrumbs = $derived.by(() => {
-		const crumbs = [];
+	const applicationQuery = createQuery(() => ({
+		queryKey: ['application', projectId, resId],
+		queryFn: () => applicationsApi.get(projectId!, resId!),
+		enabled: !!projectId && !!resId && resourceType === 'application'
+	}));
 
-		if (projectId) {
-			crumbs.push({
-				label: 'My Projects',
-				href: '/dashboard'
-			});
-		}
-
-		if (projectId && $projectQuery.data) {
-			crumbs.push({
-				label: $projectQuery.data.name,
-				href: `/dashboard/project/${projectId}`
-			});
-		} else if (projectId) {
-			crumbs.push({
-				label: '...',
-				href: null,
-				loading: true
-			});
-		}
-
-		if (envId && $environmentQuery.data) {
-			crumbs.push({
-				label: $environmentQuery.data.name,
-				href: `/dashboard/project/${projectId}/${envId}`
-			});
-		} else if (envId) {
-			crumbs.push({
-				label: '...',
-				href: null,
-				loading: true
-			});
-		}
-
-		if (resId && resourceType === 'database' && $databaseQuery.data) {
-			crumbs.push({
-				label: $databaseQuery.data.name,
-				href: `/dashboard/project/${projectId}/${envId}/db/${resId}`
-			});
-		} else if (resId && resourceType === 'database') {
-			crumbs.push({
-				label: '...',
-				href: null,
-				loading: true
-			});
-		}
-
-		return crumbs;
-	});
+	const currentOrg = $derived(orgQuery.data?.[0]);
+	const shouldShowBreadcrumbs = $derived(true);
 </script>
 
-{#if breadcrumbs.length > 0}
+{#if shouldShowBreadcrumbs}
 	<Breadcrumb.Root>
 		<Breadcrumb.List>
-			{#each breadcrumbs as crumb, i (i)}
+			<Breadcrumb.Item>
+				{#if currentOrg}
+					<OrgSwitcher currentOrgId={currentOrg.id}>
+						{currentOrg.name}
+					</OrgSwitcher>
+				{:else}
+					<span class="flex items-center gap-1.5">
+						<LoaderCircle class="w-3 h-3 animate-spin" />
+						Loading...
+					</span>
+				{/if}
+			</Breadcrumb.Item>
+
+			{#if projectId}
+				<Breadcrumb.Separator>/</Breadcrumb.Separator>
 				<Breadcrumb.Item>
-					{#if crumb.href}
-						<Breadcrumb.Link href={crumb.href}>
-							{crumb.label}
-						</Breadcrumb.Link>
+					{#if projectQuery.data}
+						<ProjectSwitcher currentProjectId={projectId}>
+							{projectQuery.data.name}
+						</ProjectSwitcher>
 					{:else}
-						<Breadcrumb.Page class="flex items-center gap-1.5">
-							{#if crumb.loading}
-								<Loader2 class="w-3 h-3 animate-spin" />
-							{/if}
-							{crumb.label}
-						</Breadcrumb.Page>
+						<span class="flex items-center gap-1.5">
+							<LoaderCircle class="w-3 h-3 animate-spin" />
+							...
+						</span>
 					{/if}
 				</Breadcrumb.Item>
-				{#if i < breadcrumbs.length - 1}
-					<Breadcrumb.Separator>/</Breadcrumb.Separator>
-				{/if}
-			{/each}
+			{/if}
+
+			{#if envId && environmentQuery.data}
+				<Breadcrumb.Separator>/</Breadcrumb.Separator>
+				<Breadcrumb.Item>
+					<Breadcrumb.Page>{environmentQuery.data.name}</Breadcrumb.Page>
+				</Breadcrumb.Item>
+			{/if}
+
+			{#if resId && resourceType && projectId}
+				<Breadcrumb.Separator>/</Breadcrumb.Separator>
+				<Breadcrumb.Item>
+					{#if resourceType === 'database' && databaseQuery.data}
+						<ResourceSwitcher {projectId} currentResourceId={resId} currentResourceType="database">
+							{databaseQuery.data.name}
+						</ResourceSwitcher>
+					{:else if resourceType === 'application' && applicationQuery.data}
+						<ResourceSwitcher
+							{projectId}
+							currentResourceId={resId}
+							currentResourceType="application"
+						>
+							{applicationQuery.data.name}
+						</ResourceSwitcher>
+					{:else}
+						<span class="flex items-center gap-1.5">
+							<LoaderCircle class="w-3 h-3 animate-spin" />
+							...
+						</span>
+					{/if}
+				</Breadcrumb.Item>
+			{/if}
 		</Breadcrumb.List>
 	</Breadcrumb.Root>
 {/if}

@@ -31,8 +31,6 @@
 		type ClickHouseConfig
 	} from '$lib/api/databases';
 
-	import { ArrowLeft } from 'lucide-svelte';
-
 	const projectId = $derived(page.params.id);
 	const envId = $derived(page.params.env_id);
 
@@ -106,12 +104,12 @@
 		http_port: 8123
 	});
 
-	const createDatabaseMutation = createMutation({
+	const createDatabaseMutation = createMutation(() => ({
 		mutationFn: (data: CreateDatabaseRequest) => databasesApi.create(projectId, data),
 		onSuccess: () => {
 			goto(`/dashboard/project/${projectId}`);
 		}
-	});
+	}));
 
 	function handleTypeSelect(type: DatabaseType) {
 		selectedType = type;
@@ -150,7 +148,7 @@
 			[selectedType]: selectedConfig
 		};
 
-		$createDatabaseMutation.mutate({
+		createDatabaseMutation.mutate({
 			name: databaseName,
 			description: description || undefined,
 			type: selectedType,
@@ -242,8 +240,8 @@
 
 					<div class="flex justify-end gap-4 pt-4">
 						<Button type="button" variant="outline" onclick={handleBack}>Back</Button>
-						<Button type="submit" disabled={$createDatabaseMutation.isPending}>
-							{$createDatabaseMutation.isPending ? 'Creating...' : 'Create Database'}
+						<Button type="submit" disabled={createDatabaseMutation.isPending}>
+							{createDatabaseMutation.isPending ? 'Creating...' : 'Create Database'}
 						</Button>
 					</div>
 				</form>

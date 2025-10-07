@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { Settings, HardDrive, Gauge, BarChart3, Scale, LayoutGrid } from 'lucide-svelte';
 
-	const projectId = $derived($page.params.id);
-	const envId = $derived($page.params.env_id);
-	const resId = $derived($page.params.res_id);
+	const projectId = $derived(page.params.id);
+	const envId = $derived(page.params.env_id);
+	const resId = $derived(page.params.res_id);
+	let { children } = $props();
 
 	const navItems = [
 		{ path: 'general', label: 'General', icon: LayoutGrid },
@@ -18,7 +19,7 @@
 	];
 
 	const isActive = (path: string) => {
-		return $page.url.pathname.endsWith(`/${path}`);
+		return page.url.pathname.endsWith(`/${path}`);
 	};
 </script>
 
@@ -44,7 +45,7 @@
 		</nav>
 
 		<div class="flex-1">
-			<slot />
+			{@render children()}
 		</div>
 	</div>
 </div>

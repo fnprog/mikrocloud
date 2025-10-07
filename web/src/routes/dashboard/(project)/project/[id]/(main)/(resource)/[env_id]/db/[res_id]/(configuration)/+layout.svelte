@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
@@ -20,21 +20,22 @@
 		LayoutGrid
 	} from 'lucide-svelte';
 
-	const projectId = $derived($page.params.id);
-	const envId = $derived($page.params.env_id);
-	const resId = $derived($page.params.res_id);
+	let { children } = $props();
+	const projectId = $derived(page.params.id);
+	const envId = $derived(page.params.env_id);
+	const resId = $derived(page.params.res_id);
 
 	const queryClient = useQueryClient();
 
-	const databaseQuery = createQuery({
+	const databaseQuery = createQuery(() => ({
 		queryKey: ['database', projectId, resId],
 		queryFn: () => databasesApi.get(projectId, resId),
 		enabled: !!projectId && !!resId
-	});
+	}));
 
-	const database = $derived($databaseQuery.data);
+	const database = $derived(databaseQuery.data);
 
-	const startMutation = createMutation({
+	const startMutation = createMutation(() => ({
 		mutationFn: () => databasesApi.start(projectId, resId),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['database', projectId, resId] });
@@ -43,9 +44,9 @@
 		onError: (error: Error) => {
 			toast.error(`Failed to start database: ${error.message}`);
 		}
-	});
+	}));
 
-	const stopMutation = createMutation({
+	const stopMutation = createMutation(() => ({
 		mutationFn: () => databasesApi.stop(projectId, resId),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['database', projectId, resId] });
@@ -54,9 +55,9 @@
 		onError: (error: Error) => {
 			toast.error(`Failed to stop database: ${error.message}`);
 		}
-	});
+	}));
 
-	const restartMutation = createMutation({
+	const restartMutation = createMutation(() => ({
 		mutationFn: () => databasesApi.restart(projectId, resId),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['database', projectId, resId] });
@@ -65,10 +66,10 @@
 		onError: (error: Error) => {
 			toast.error(`Failed to restart database: ${error.message}`);
 		}
-	});
+	}));
 
 	const isAnyActionPending = $derived(
-		$startMutation.isPending || $stopMutation.isPending || $restartMutation.isPending
+		startMutation.isPending || stopMutation.isPending || restartMutation.isPending
 	);
 
 	function getStatusBadgeVariant(
@@ -97,7 +98,7 @@
 	];
 
 	const isActive = (path: string) => {
-		return $page.url.pathname.endsWith(`/${path}`);
+		return page.url.pathname.endsWith(`/${path}`);
 	};
 </script>
 
@@ -124,20 +125,20 @@
 							variant="outline"
 							size="sm"
 							disabled={isAnyActionPending}
-							onclick={() => $startMutation.mutate()}
+							onclick={() => startMutation.mutate()}
 						>
 							<Play class="mr-2 h-4 w-4" />
-							{$startMutation.isPending ? 'Starting...' : 'Start'}
+							{startMutation.isPending ? 'Starting...' : 'Start'}
 						</Button>
 					{:else if database.status === 'running'}
 						<Button
 							variant="outline"
 							size="sm"
 							disabled={isAnyActionPending}
-							onclick={() => $stopMutation.mutate()}
+							onclick={() => stopMutation.mutate()}
 						>
 							<Square class="mr-2 h-4 w-4" />
-							{$stopMutation.isPending ? 'Stopping...' : 'Stop'}
+							{stopMutation.isPending ? 'Stopping...' : 'Stop'}
 						</Button>
 					{/if}
 					{#if database.status !== 'created'}
@@ -145,10 +146,10 @@
 							variant="outline"
 							size="sm"
 							disabled={isAnyActionPending}
-							onclick={() => $restartMutation.mutate()}
+							onclick={() => restartMutation.mutate()}
 						>
-							<RefreshCw class="mr-2 h-4 w-4 {$restartMutation.isPending ? 'animate-spin' : ''}" />
-							{$restartMutation.isPending ? 'Restarting...' : 'Restart'}
+							<RefreshCw class="mr-2 h-4 w-4 {restartMutation.isPending ? 'animate-spin' : ''}" />
+							{restartMutation.isPending ? 'Restarting...' : 'Restart'}
 						</Button>
 					{/if}
 				</div>
@@ -177,7 +178,7 @@
 		</nav>
 
 		<div class="flex-1">
-			<slot />
+			{@render children()}
 		</div>
 	</div>
 </div>

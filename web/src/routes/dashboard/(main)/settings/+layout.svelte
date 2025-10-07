@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { Settings, Shield, RefreshCw, Database } from 'lucide-svelte';
 
@@ -11,7 +11,10 @@
 	];
 
 	const isActive = (path: string) => {
-		return $page.url.pathname.endsWith(`/${path}`) || ($page.url.pathname.endsWith('/settings') && path === 'general');
+		return (
+			page.url.pathname.endsWith(`/${path}`) ||
+			(page.url.pathname.endsWith('/settings') && path === 'general')
+		);
 	};
 </script>
 

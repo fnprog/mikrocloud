@@ -10,6 +10,7 @@ import (
 	deploymentsRepo "github.com/mikrocloud/mikrocloud/internal/domain/deployments/repository"
 	disksRepo "github.com/mikrocloud/mikrocloud/internal/domain/disks/repository"
 	environmentsRepo "github.com/mikrocloud/mikrocloud/internal/domain/environments/repository"
+	organizationsRepo "github.com/mikrocloud/mikrocloud/internal/domain/organizations/repository"
 	projectsRepo "github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
 	proxyRepo "github.com/mikrocloud/mikrocloud/internal/domain/proxy/repository"
 	servicesRepo "github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
@@ -37,6 +38,7 @@ type MainDatabase interface {
 	TraefikConfigRepository() proxyRepo.TraefikConfigRepository
 	DiskRepository() disksRepo.DiskRepository
 	DiskBackupRepository() disksRepo.DiskBackupRepository
+	OrganizationRepository() organizationsRepo.Repository
 }
 
 // DatabaseType represents the type of main database

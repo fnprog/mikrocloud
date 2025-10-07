@@ -4,22 +4,21 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { Button } from '$lib/components/ui/button';
-	import { Separator } from '$lib/components/ui/separator';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { databasesApi } from '$lib/api/databases';
 	import { Trash2 } from 'lucide-svelte';
 
-	const projectId = $derived($page.params.id);
-	const resId = $derived($page.params.res_id);
+	const projectId = $derived(page.params.id);
+	const resId = $derived(page.params.res_id);
 
-	const databaseQuery = createQuery({
+	const databaseQuery = createQuery(() => ({
 		queryKey: ['database', projectId, resId],
 		queryFn: () => databasesApi.get(projectId, resId),
 		enabled: !!projectId && !!resId
-	});
+	}));
 
-	const database = $derived($databaseQuery.data);
+	const database = $derived(databaseQuery.data);
 
 	let name = $state('');
 	let description = $state('');

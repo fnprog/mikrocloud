@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	let { children } = $props();
 	import { NavBarBottom } from '$lib/components/ui/navbar';
 
-	const projectId = $derived($page.params.id);
-	const envId = $derived($page.params.env_id);
-	const resId = $derived($page.params.res_id);
+	const projectId = $derived(page.params.id);
+	const envId = $derived(page.params.env_id);
+	const resId = $derived(page.params.res_id);
 
 	const tabs = $derived([
 		{

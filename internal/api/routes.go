@@ -31,6 +31,8 @@ import (
 	gitRepo "github.com/mikrocloud/mikrocloud/internal/domain/git/repository"
 	gitService "github.com/mikrocloud/mikrocloud/internal/domain/git/service"
 	maintenanceHandlers "github.com/mikrocloud/mikrocloud/internal/domain/maintenance/handlers"
+	organizationsHandlers "github.com/mikrocloud/mikrocloud/internal/domain/organizations/handlers"
+	organizationsService "github.com/mikrocloud/mikrocloud/internal/domain/organizations/service"
 	projectHandlers "github.com/mikrocloud/mikrocloud/internal/domain/projects/handlers"
 	projectService "github.com/mikrocloud/mikrocloud/internal/domain/projects/service"
 	proxyHandlers "github.com/mikrocloud/mikrocloud/internal/domain/proxy/handlers"
@@ -132,6 +134,9 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 
 	serversSvc := serversService.NewServersService(db.ServersRepository)
 	serversHandler := serversHandlers.NewServersHandler(serversSvc)
+
+	organizationsSvc := organizationsService.NewOrganizationService(db.OrganizationRepository)
+	organizationsHandler := organizationsHandlers.NewOrganizationHandler(organizationsSvc)
 
 	// Protected routes that require authentication
 	api.Group(func(r chi.Router) {
@@ -348,6 +353,15 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 			r.Put("/", serversHandler.UpdateServer)
 			r.Delete("/", serversHandler.DeleteServer)
 		})
+	})
+
+	// Organizations routes (protected)
+	api.Route("/organizations", func(r chi.Router) {
+		r.Use(jwtauth.Verifier(tokenAuth))
+		r.Use(jwtauth.Authenticator(tokenAuth))
+
+		r.Get("/", organizationsHandler.ListOrganizations)
+		r.Get("/{organization_id}", organizationsHandler.GetOrganization)
 	})
 
 	return traefikSvc, statusSyncSvc, nil

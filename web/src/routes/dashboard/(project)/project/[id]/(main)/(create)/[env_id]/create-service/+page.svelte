@@ -47,24 +47,22 @@
 	let deploymentName = $state('');
 	let customEnvVars = $state<Record<string, string>>({});
 
-	const templatesQuery = createQuery({
+	const templatesQuery = createQuery(() => ({
 		queryKey: ['templates', selectedCategory],
 		queryFn: () => templatesApi.list(selectedCategory === 'all' ? undefined : selectedCategory)
-	});
+	}));
 
-
-
-	const deployMutation = createMutation({
+	const deployMutation = createMutation(() => ({
 		mutationFn: (request: { templateId: string; data: DeployTemplateRequest }) =>
 			templatesApi.deploy(request.templateId, request.data),
 		onSuccess: () => {
 			deploySheetOpen = false;
 			goto(`/dashboard/project/${projectId}`);
 		}
-	});
+	}));
 
 	const filteredTemplates = $derived(
-		$templatesQuery.data?.filter((template: ServiceTemplate) =>
+		templatesQuery.data?.filter((template: ServiceTemplate) =>
 			template.name.toLowerCase().includes(searchQuery.toLowerCase())
 		) || []
 	);
@@ -106,7 +104,7 @@
 			return;
 		}
 
-		$deployMutation.mutate({
+		deployMutation.mutate({
 			templateId: selectedTemplate.id,
 			data: {
 				name: deploymentName,
@@ -151,11 +149,11 @@
 		</Select>
 	</div>
 
-	{#if $templatesQuery.isLoading}
+	{#if templatesQuery.isLoading}
 		<div class="flex items-center justify-center py-12">
 			<Loader2 class="h-8 w-8 animate-spin text-muted-foreground" />
 		</div>
-	{:else if $templatesQuery.isError}
+	{:else if templatesQuery.isError}
 		<Card class="border-destructive">
 			<CardContent class="py-6">
 				<p class="text-destructive">Failed to load templates. Please try again.</p>
@@ -255,8 +253,8 @@
 					<SheetClose>
 						<Button type="button" variant="outline">Cancel</Button>
 					</SheetClose>
-					<Button type="submit" disabled={$deployMutation.isPending}>
-						{$deployMutation.isPending ? 'Deploying...' : 'Deploy'}
+					<Button type="submit" disabled={deployMutation.isPending}>
+						{deployMutation.isPending ? 'Deploying...' : 'Deploy'}
 					</Button>
 				</SheetFooter>
 			</form>

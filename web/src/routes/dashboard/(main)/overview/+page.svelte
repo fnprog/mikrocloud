@@ -2,7 +2,14 @@
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Ellipsis, Globe, Plus } from 'lucide-svelte';
-	import { activitiesApi, serversApi, projectsApi, type Activity, type Server, type Project } from '$lib/api';
+	import {
+		activitiesApi,
+		serversApi,
+		projectsApi,
+		type Activity,
+		type Server,
+		type Project
+	} from '$lib/api';
 	import { onMount } from 'svelte';
 	import Skeleton from '$lib/components/ui/skeleton/skeleton.svelte';
 
@@ -42,7 +49,7 @@
 	});
 
 	function goToProject(projectId: string) {
-		goto(`/dashboard/project/${projectId}/overview`);
+		goto(`/dashboard/project/${projectId}`);
 	}
 
 	function getActivityIcon(action: string) {
@@ -65,7 +72,7 @@
 		const date = new Date(dateStr);
 		const now = new Date();
 		const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-		
+
 		if (seconds < 60) return `${seconds}s ago`;
 		if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
 		if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
@@ -74,11 +81,16 @@
 
 	function getServerStatusColor(status: string) {
 		switch (status) {
-			case 'online': return 'bg-green-500';
-			case 'offline': return 'bg-red-500';
-			case 'maintenance': return 'bg-yellow-500';
-			case 'error': return 'bg-red-600';
-			default: return 'bg-gray-500';
+			case 'online':
+				return 'bg-green-500';
+			case 'offline':
+				return 'bg-red-500';
+			case 'maintenance':
+				return 'bg-yellow-500';
+			case 'error':
+				return 'bg-red-600';
+			default:
+				return 'bg-gray-500';
 		}
 	}
 </script>
@@ -140,46 +152,44 @@
 			{/if}
 		</div>
 
-	<div>
-		<h2 class="text-lg font-semibold mb-4">Servers</h2>
-		<div class="bg-white/5 border border-white/10 rounded-lg p-4">
-			{#if loadingServers}
-				<div class="space-y-4">
-					<Skeleton class="h-24 w-full" />
-					<Skeleton class="h-24 w-full" />
-				</div>
-			{:else if servers.length === 0}
-				<div class="text-center text-gray-400 text-sm py-4">
-					No servers configured
-				</div>
-			{:else}
-				{#each servers as server (server.id)}
-					<div class="pb-4 mb-4 last:pb-0 last:mb-0 border-b border-white/10 last:border-0">
-						<div class="flex items-center justify-between mb-2">
-							<div class="flex items-center space-x-2">
-								<span class="text-sm">🖥️</span>
-								<span class="text-sm font-medium">{server.name}</span>
-							</div>
-							<div class="flex items-center space-x-2">
-								<div class="w-2 h-2 rounded-full {getServerStatusColor(server.status)}"></div>
-								<span class="text-xs text-gray-400">{server.status}</span>
-							</div>
-						</div>
-						<div class="text-xs text-gray-500 mb-2">{server.hostname}</div>
-						{#if server.tags && server.tags.length > 0}
-							<div class="flex flex-wrap gap-1">
-								{#each server.tags as tag}
-									<span class="text-xs bg-white/5 border border-white/10 rounded px-2 py-0.5">
-										{tag}
-									</span>
-								{/each}
-							</div>
-						{/if}
+		<div>
+			<h2 class="text-lg font-semibold mb-4">Servers</h2>
+			<div class="bg-white/5 border border-white/10 rounded-lg p-4">
+				{#if loadingServers}
+					<div class="space-y-4">
+						<Skeleton class="h-24 w-full" />
+						<Skeleton class="h-24 w-full" />
 					</div>
-				{/each}
-			{/if}
+				{:else if servers.length === 0}
+					<div class="text-center text-gray-400 text-sm py-4">No servers configured</div>
+				{:else}
+					{#each servers as server (server.id)}
+						<div class="pb-4 mb-4 last:pb-0 last:mb-0 border-b border-white/10 last:border-0">
+							<div class="flex items-center justify-between mb-2">
+								<div class="flex items-center space-x-2">
+									<span class="text-sm">🖥️</span>
+									<span class="text-sm font-medium">{server.name}</span>
+								</div>
+								<div class="flex items-center space-x-2">
+									<div class="w-2 h-2 rounded-full {getServerStatusColor(server.status)}"></div>
+									<span class="text-xs text-gray-400">{server.status}</span>
+								</div>
+							</div>
+							<div class="text-xs text-gray-500 mb-2">{server.hostname}</div>
+							{#if server.tags && server.tags.length > 0}
+								<div class="flex flex-wrap gap-1">
+									{#each server.tags as tag}
+										<span class="text-xs bg-white/5 border border-white/10 rounded px-2 py-0.5">
+											{tag}
+										</span>
+									{/each}
+								</div>
+							{/if}
+						</div>
+					{/each}
+				{/if}
+			</div>
 		</div>
-	</div>
 	</div>
 
 	<div>
@@ -199,9 +209,7 @@
 					{/each}
 				</div>
 			{:else if activities.length === 0}
-				<div class="text-center text-gray-400 text-sm py-8">
-					No recent activity
-				</div>
+				<div class="text-center text-gray-400 text-sm py-8">No recent activity</div>
 			{:else}
 				<div class="space-y-6">
 					{#each activities as activity, index (activity.id)}
@@ -225,7 +233,9 @@
 								</div>
 								<div class="text-xs text-gray-400 mb-1">{activity.activity_type}</div>
 								{#if activity.resource_type && activity.resource_id}
-									<div class="text-xs bg-white/5 border border-white/10 rounded px-2 py-1 inline-block">
+									<div
+										class="text-xs bg-white/5 border border-white/10 rounded px-2 py-1 inline-block"
+									>
 										{activity.resource_type}: {activity.resource_id.substring(0, 8)}
 									</div>
 								{/if}

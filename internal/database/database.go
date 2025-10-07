@@ -16,6 +16,7 @@ import (
 	disksRepo "github.com/mikrocloud/mikrocloud/internal/domain/disks/repository"
 	environmentsRepo "github.com/mikrocloud/mikrocloud/internal/domain/environments/repository"
 	logsRepo "github.com/mikrocloud/mikrocloud/internal/domain/logs/repository"
+	organizationsRepo "github.com/mikrocloud/mikrocloud/internal/domain/organizations/repository"
 	projectsRepo "github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
 	proxyRepo "github.com/mikrocloud/mikrocloud/internal/domain/proxy/repository"
 	serversRepo "github.com/mikrocloud/mikrocloud/internal/domain/servers/repository"
@@ -47,6 +48,7 @@ type Database struct {
 	TraefikConfigRepository proxyRepo.TraefikConfigRepository
 	DiskRepository          disksRepo.DiskRepository
 	DiskBackupRepository    disksRepo.DiskBackupRepository
+	OrganizationRepository  organizationsRepo.Repository
 	MetricRepository        analyticsRepo.MetricRepository
 	LogRepository           logsRepo.LogRepository
 	SettingsRepository      *settingsRepo.SettingsRepository
@@ -111,6 +113,7 @@ func New(cfg *config.Config) (*Database, error) {
 		TraefikConfigRepository: mainDB.TraefikConfigRepository(),
 		DiskRepository:          mainDB.DiskRepository(),
 		DiskBackupRepository:    mainDB.DiskBackupRepository(),
+		OrganizationRepository:  mainDB.OrganizationRepository(),
 		MetricRepository:        metricRepo,
 		LogRepository:           logRepo,
 		SettingsRepository:      settingsRepo.NewSettingsRepository(mainDB.DB()),

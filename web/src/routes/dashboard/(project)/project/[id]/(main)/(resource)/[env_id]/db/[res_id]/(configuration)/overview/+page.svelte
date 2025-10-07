@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
@@ -10,9 +10,9 @@
 	import { databasesApi, type Database } from '$lib/api/databases';
 	import { Copy, Eye, EyeOff, AlertCircle, Play } from 'lucide-svelte';
 
-	const projectId = $derived($page.params.id);
-	const envId = $derived($page.params.env_id);
-	const resId = $derived($page.params.res_id);
+	const projectId = $derived(page.params.id);
+	const envId = $derived(page.params.env_id);
+	const resId = $derived(page.params.res_id);
 
 	let showPassword = $state(false);
 	let showConnectionString = $state(false);
@@ -20,13 +20,13 @@
 	let publicAccess = $state(false);
 	let proxyPort = $state('');
 
-	const databaseQuery = createQuery({
+	const databaseQuery = createQuery(() => ({
 		queryKey: ['database', projectId, resId],
 		queryFn: () => databasesApi.get(projectId, resId),
 		enabled: !!projectId && !!resId
-	});
+	}));
 
-	const database = $derived($databaseQuery.data);
+	const database = $derived(databaseQuery.data);
 
 	function copyToClipboard(text: string, label: string) {
 		navigator.clipboard.writeText(text);
@@ -187,11 +187,7 @@
 								readonly
 								class="font-mono text-sm"
 							/>
-							<Button
-								variant="outline"
-								size="icon"
-								onclick={() => (showPassword = !showPassword)}
-							>
+							<Button variant="outline" size="icon" onclick={() => (showPassword = !showPassword)}>
 								{#if showPassword}
 									<EyeOff class="h-4 w-4" />
 								{:else}
@@ -201,7 +197,8 @@
 							<Button
 								variant="outline"
 								size="icon"
-								onclick={() => copyToClipboard(getConfigForType(database)?.password || '', 'Password')}
+								onclick={() =>
+									copyToClipboard(getConfigForType(database)?.password || '', 'Password')}
 							>
 								<Copy class="h-4 w-4" />
 							</Button>

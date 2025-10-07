@@ -14,6 +14,7 @@ import (
 	deploymentsRepo "github.com/mikrocloud/mikrocloud/internal/domain/deployments/repository"
 	disksRepo "github.com/mikrocloud/mikrocloud/internal/domain/disks/repository"
 	environmentsRepo "github.com/mikrocloud/mikrocloud/internal/domain/environments/repository"
+	organizationsRepo "github.com/mikrocloud/mikrocloud/internal/domain/organizations/repository"
 	projectsRepo "github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
 	proxyRepo "github.com/mikrocloud/mikrocloud/internal/domain/proxy/repository"
 	servicesRepo "github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
@@ -36,6 +37,7 @@ type PostgreSQLDatabase struct {
 	traefikConfigRepository proxyRepo.TraefikConfigRepository
 	diskRepository          disksRepo.DiskRepository
 	diskBackupRepository    disksRepo.DiskBackupRepository
+	organizationRepository  organizationsRepo.Repository
 }
 
 // NewPostgreSQLDatabase creates a new PostgreSQL database instance
@@ -72,6 +74,7 @@ func NewPostgreSQLDatabase(connectionString string) (MainDatabase, error) {
 	traefikConfigRepository := proxyRepo.NewSQLiteTraefikConfigRepository(db)
 	diskRepo := disksRepo.NewSQLiteDiskRepository(db)
 	diskBackupRepo := disksRepo.NewSQLiteDiskBackupRepository(db)
+	organizationRepo := organizationsRepo.NewSQLiteOrganizationRepository(db)
 
 	return &PostgreSQLDatabase{
 		db:                      db,
@@ -88,6 +91,7 @@ func NewPostgreSQLDatabase(connectionString string) (MainDatabase, error) {
 		traefikConfigRepository: traefikConfigRepository,
 		diskRepository:          diskRepo,
 		diskBackupRepository:    diskBackupRepo,
+		organizationRepository:  organizationRepo,
 	}, nil
 }
 
@@ -159,6 +163,10 @@ func (d *PostgreSQLDatabase) DiskRepository() disksRepo.DiskRepository {
 
 func (d *PostgreSQLDatabase) DiskBackupRepository() disksRepo.DiskBackupRepository {
 	return d.diskBackupRepository
+}
+
+func (d *PostgreSQLDatabase) OrganizationRepository() organizationsRepo.Repository {
+	return d.organizationRepository
 }
 
 // maskPassword masks the password in connection string for logging

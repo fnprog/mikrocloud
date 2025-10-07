@@ -13,7 +13,7 @@
 	import { Avatar, AvatarFallback } from '$lib/components/ui/avatar';
 	import { Button } from '$lib/components/ui/button';
 
-	import { LogOut, Settings, Command, Monitor, Sun, Moon, Plus } from 'lucide-svelte';
+	import { LogOut, Monitor, Sun, Moon, Plus } from 'lucide-svelte';
 
 	let theme: 'light' | 'dark' | 'system' = 'system';
 
@@ -53,7 +53,6 @@
 
 		<!-- Account Settings -->
 		<DropdownMenuItem class="cursor-pointer">
-			<Settings class="mr-2 h-4 w-4" />
 			<span class="text-sm">Account Settings</span>
 		</DropdownMenuItem>
 
@@ -68,7 +67,6 @@
 		<!-- Command Menu -->
 		<DropdownMenuItem class="cursor-pointer justify-between">
 			<div class="flex items-center">
-				<Command class="mr-2 h-4 w-4" />
 				<span class="text-sm">Command Menu</span>
 			</div>
 			<div class="flex items-center gap-1 text-xs text-muted-foreground">
@@ -96,9 +94,9 @@
 		<DropdownMenuSeparator />
 
 		<!-- Logout -->
-		<DropdownMenuItem class="cursor-pointer" onSelect={handleLogout}>
-			<LogOut class="mr-2 h-4 w-4" />
+		<DropdownMenuItem class="cursor-pointer justify-between" onSelect={handleLogout}>
 			<span class="text-sm">Log Out</span>
+			<LogOut class="h-4 w-4" />
 		</DropdownMenuItem>
 	</DropdownMenuContent>
 </DropdownMenu>

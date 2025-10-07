@@ -10,8 +10,8 @@
 	<div class="px-6 relative">
 		<Logo
 			class={cn(
-				'h-[25px] absolute left-6 hidden md:flex items-center gap-4 transition-all duration-300 ease-in-out z-10',
-				getIsScrolled() ? 'translate-y-[21px] h-[20px]' : 'translate-y-[14px]'
+				'h-[24px] absolute left-6 hidden md:flex items-center gap-4 transition-all duration-300 ease-in-out z-10',
+				getIsScrolled() ? 'translate-y-[15px] scale-[0.8]' : 'translate-y-[18px]'
 			)}
 		/>
 

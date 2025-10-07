@@ -1,4 +1,3 @@
-// navbar-scroll.svelte.js (or .ts)
 let isScrolled = $state(false);
 
 if (typeof window !== 'undefined') {

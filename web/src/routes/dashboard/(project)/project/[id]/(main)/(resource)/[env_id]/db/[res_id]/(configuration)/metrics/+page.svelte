@@ -1,22 +1,28 @@
 <script lang="ts">
-	import { page } from '$app/stores';
-	import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '$lib/components/ui/card';
+	import { page } from '$app/state';
+	import {
+		Card,
+		CardContent,
+		CardDescription,
+		CardHeader,
+		CardTitle
+	} from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { Tabs, TabsContent, TabsList, TabsTrigger } from '$lib/components/ui/tabs';
 	import { Activity, TrendingUp, Database, Clock } from 'lucide-svelte';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { databasesApi } from '$lib/api/databases';
 
-	const projectId = $derived($page.params.id);
-	const resId = $derived($page.params.res_id);
+	const projectId = $derived(page.params.id);
+	const resId = $derived(page.params.res_id);
 
-	const databaseQuery = createQuery({
+	const databaseQuery = createQuery(() => ({
 		queryKey: ['database', projectId, resId],
 		queryFn: () => databasesApi.get(projectId, resId),
 		enabled: !!projectId && !!resId
-	});
+	}));
 
-	const database = $derived($databaseQuery.data);
+	const database = $derived(databaseQuery.data);
 
 	const metricsData = $state({
 		cpu: [
@@ -117,17 +123,12 @@
 					<div class="h-[300px] flex items-end justify-between gap-2">
 						{#each metricsData.cpu as point}
 							<div class="flex-1 flex flex-col items-center gap-2">
-								<div
-									class="w-full bg-primary rounded-t"
-									style="height: {point.value * 3}px"
-								></div>
+								<div class="w-full bg-primary rounded-t" style="height: {point.value * 3}px"></div>
 								<span class="text-xs text-muted-foreground">{point.time}</span>
 							</div>
 						{/each}
 					</div>
-					<div class="mt-4 text-center text-sm text-muted-foreground">
-						Peak: 60% at 12:00
-					</div>
+					<div class="mt-4 text-center text-sm text-muted-foreground">Peak: 60% at 12:00</div>
 				</CardContent>
 			</Card>
 		</TabsContent>
@@ -142,17 +143,12 @@
 					<div class="h-[300px] flex items-end justify-between gap-2">
 						{#each metricsData.memory as point}
 							<div class="flex-1 flex flex-col items-center gap-2">
-								<div
-									class="w-full bg-primary rounded-t"
-									style="height: {point.value / 3}px"
-								></div>
+								<div class="w-full bg-primary rounded-t" style="height: {point.value / 3}px"></div>
 								<span class="text-xs text-muted-foreground">{point.time}</span>
 							</div>
 						{/each}
 					</div>
-					<div class="mt-4 text-center text-sm text-muted-foreground">
-						Peak: 890 MB at 12:00
-					</div>
+					<div class="mt-4 text-center text-sm text-muted-foreground">Peak: 890 MB at 12:00</div>
 				</CardContent>
 			</Card>
 		</TabsContent>

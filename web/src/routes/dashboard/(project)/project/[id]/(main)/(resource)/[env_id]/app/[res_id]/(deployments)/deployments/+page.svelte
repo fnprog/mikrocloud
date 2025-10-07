@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
@@ -19,22 +19,22 @@
 		Eye
 	} from 'lucide-svelte';
 
-	const projectId = $derived($page.params.id);
-	const envId = $derived($page.params.env_id);
-	const resId = $derived($page.params.res_id);
+	const projectId = $derived(page.params.id);
+	const envId = $derived(page.params.env_id);
+	const resId = $derived(page.params.res_id);
 
 	const queryClient = useQueryClient();
 
-	const deploymentsQuery = createQuery({
+	const deploymentsQuery = createQuery(() => ({
 		queryKey: ['deployments', projectId, resId],
 		queryFn: () => deploymentsApi.list(projectId, resId),
 		enabled: !!projectId && !!resId,
 		refetchInterval: 5000
-	});
+	}));
 
-	const deployments = $derived($deploymentsQuery.data || []);
+	const deployments = $derived(deploymentsQuery.data || []);
 
-	const redeployMutation = createMutation({
+	const redeployMutation = createMutation(() => ({
 		mutationFn: (deploymentId: string) => deploymentsApi.redeploy(projectId, resId, deploymentId),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['deployments', projectId, resId] });
@@ -43,7 +43,7 @@
 		onError: (error: Error) => {
 			toast.error(`Failed to redeploy: ${error.message}`);
 		}
-	});
+	}));
 
 	function getStatusIcon(status: DeploymentStatus) {
 		switch (status) {
@@ -125,7 +125,7 @@
 	}
 
 	function redeployCommit(deploymentId: string) {
-		$redeployMutation.mutate(deploymentId);
+		redeployMutation.mutate(deploymentId);
 	}
 </script>
 
@@ -137,18 +137,18 @@
 		</div>
 	</div>
 
-	{#if $deploymentsQuery.isLoading}
+	{#if deploymentsQuery.isLoading}
 		<div class="flex items-center justify-center py-12">
 			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
 		</div>
-	{:else if $deploymentsQuery.isError}
+	{:else if deploymentsQuery.isError}
 		<Card>
 			<CardContent class="p-6">
 				<div class="text-center">
 					<AlertCircle class="mx-auto h-12 w-12 text-destructive mb-4" />
 					<h3 class="text-lg font-medium">Failed to load deployments</h3>
 					<p class="text-muted-foreground mt-2">
-						{$deploymentsQuery.error?.message || 'An error occurred'}
+						{deploymentsQuery.error?.message || 'An error occurred'}
 					</p>
 				</div>
 			</CardContent>
@@ -185,7 +185,9 @@
 										</Badge>
 									</div>
 
-									<div class="flex items-center space-x-4 text-sm text-muted-foreground flex-wrap gap-2">
+									<div
+										class="flex items-center space-x-4 text-sm text-muted-foreground flex-wrap gap-2"
+									>
 										{#if deployment.commit_hash}
 											<div class="flex items-center space-x-1">
 												<GitCommit class="w-4 h-4" />
@@ -227,11 +229,11 @@
 										<Button
 											size="sm"
 											variant="outline"
-											disabled={$redeployMutation.isPending}
+											disabled={redeployMutation.isPending}
 											onclick={() => redeployCommit(deployment.id)}
 										>
 											<RotateCcw
-												class="w-4 h-4 mr-1 {$redeployMutation.isPending ? 'animate-spin' : ''}"
+												class="w-4 h-4 mr-1 {redeployMutation.isPending ? 'animate-spin' : ''}"
 											/>
 											Redeploy
 										</Button>

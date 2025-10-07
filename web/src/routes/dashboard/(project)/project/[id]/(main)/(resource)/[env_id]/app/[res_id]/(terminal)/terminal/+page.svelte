@@ -1,13 +1,13 @@
 <script>
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import Terminal from '$lib/components/Terminal.svelte';
 	import { Terminal as TerminalIcon, Maximize2, Minimize2 } from 'lucide-svelte';
 
-	let projectId = $derived($page.params.id);
-	let envId = $derived($page.params.env_id);
-	let resId = $derived($page.params.res_id);
+	let projectId = $derived(page.params.id);
+	let envId = $derived(page.params.env_id);
+	let resId = $derived(page.params.res_id);
 
 	let isConnected = $state(false);
 	let isFullscreen = $state(false);

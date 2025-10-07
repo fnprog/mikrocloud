@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
@@ -22,28 +22,29 @@
 		RotateCcw
 	} from 'lucide-svelte';
 
-	const projectId = $derived($page.params.id);
-	const resId = $derived($page.params.res_id);
+	const projectId = $derived(page.params.id);
+	const resId = $derived(page.params.res_id);
+	const envId = $derived(page.params.env_id);
 
 	const queryClient = useQueryClient();
 
-	const applicationQuery = createQuery({
+	const applicationQuery = createQuery(() => ({
 		queryKey: ['application', projectId, resId],
 		queryFn: () => applicationsApi.get(projectId, resId),
 		enabled: !!projectId && !!resId
-	});
+	}));
 
-	const deploymentsQuery = createQuery({
+	const deploymentsQuery = createQuery(() => ({
 		queryKey: ['deployments', projectId, resId],
 		queryFn: () => deploymentsApi.list(projectId, resId),
 		enabled: !!projectId && !!resId,
 		refetchInterval: 5000
-	});
+	}));
 
-	const application = $derived($applicationQuery.data);
-	const latestDeployment = $derived($deploymentsQuery.data?.[0]);
+	const application = $derived(applicationQuery.data);
+	const latestDeployment = $derived(deploymentsQuery.data?.[0]);
 
-	const startMutation = createMutation({
+	const startMutation = createMutation(() => ({
 		mutationFn: () => applicationsApi.start(projectId, resId),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['application', projectId, resId] });
@@ -52,9 +53,9 @@
 		onError: (error: Error) => {
 			toast.error(`Failed to start application: ${error.message}`);
 		}
-	});
+	}));
 
-	const stopMutation = createMutation({
+	const stopMutation = createMutation(() => ({
 		mutationFn: () => applicationsApi.stop(projectId, resId),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['application', projectId, resId] });
@@ -63,9 +64,9 @@
 		onError: (error: Error) => {
 			toast.error(`Failed to stop application: ${error.message}`);
 		}
-	});
+	}));
 
-	const restartMutation = createMutation({
+	const restartMutation = createMutation(() => ({
 		mutationFn: () => applicationsApi.restart(projectId, resId),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['application', projectId, resId] });
@@ -74,10 +75,10 @@
 		onError: (error: Error) => {
 			toast.error(`Failed to restart application: ${error.message}`);
 		}
-	});
+	}));
 
 	const isAnyActionPending = $derived(
-		$startMutation.isPending || $stopMutation.isPending || $restartMutation.isPending
+		startMutation.isPending || stopMutation.isPending || restartMutation.isPending
 	);
 
 	function getStatusBadgeVariant(
@@ -140,19 +141,23 @@
 					</div>
 					<div class="flex gap-2">
 						{#if application.status === 'stopped' || application.status === 'pending' || application.status === 'created'}
-							<Button size="sm" disabled={isAnyActionPending} onclick={() => $startMutation.mutate()}>
+							<Button
+								size="sm"
+								disabled={isAnyActionPending}
+								onclick={() => startMutation.mutate()}
+							>
 								<Play class="mr-2 h-4 w-4" />
-								{$startMutation.isPending ? 'Starting...' : 'Start'}
+								{startMutation.isPending ? 'Starting...' : 'Start'}
 							</Button>
 						{:else if application.status === 'running'}
 							<Button
 								size="sm"
 								variant="outline"
 								disabled={isAnyActionPending}
-								onclick={() => $stopMutation.mutate()}
+								onclick={() => stopMutation.mutate()}
 							>
 								<Square class="mr-2 h-4 w-4" />
-								{$stopMutation.isPending ? 'Stopping...' : 'Stop'}
+								{stopMutation.isPending ? 'Stopping...' : 'Stop'}
 							</Button>
 						{/if}
 						{#if application.status !== 'pending'}
@@ -160,10 +165,10 @@
 								size="sm"
 								variant="outline"
 								disabled={isAnyActionPending}
-								onclick={() => $restartMutation.mutate()}
+								onclick={() => restartMutation.mutate()}
 							>
-								<RefreshCw class="mr-2 h-4 w-4 {$restartMutation.isPending ? 'animate-spin' : ''}" />
-								{$restartMutation.isPending ? 'Restarting...' : 'Restart'}
+								<RefreshCw class="mr-2 h-4 w-4 {restartMutation.isPending ? 'animate-spin' : ''}" />
+								{restartMutation.isPending ? 'Restarting...' : 'Restart'}
 							</Button>
 						{/if}
 					</div>
@@ -234,7 +239,7 @@
 							<Button
 								size="sm"
 								variant="outline"
-								href="/dashboard/project/{projectId}/{$page.params.env_id}/app/{resId}/deployments/{latestDeployment.id}"
+								href="/dashboard/project/{projectId}/{envId}/app/{resId}/deployments/{latestDeployment.id}"
 							>
 								<Eye class="mr-2 h-4 w-4" />
 								View Logs
@@ -315,7 +320,9 @@
 								<div class="flex items-center gap-2 text-sm text-muted-foreground mb-1">
 									<span>Docker Image</span>
 								</div>
-								<p class="font-medium font-mono text-sm">{source.docker_image || 'Not configured'}</p>
+								<p class="font-medium font-mono text-sm">
+									{source.docker_image || 'Not configured'}
+								</p>
 							</div>
 						{/if}
 					{:else}

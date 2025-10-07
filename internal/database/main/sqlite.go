@@ -16,6 +16,7 @@ import (
 	deploymentsRepo "github.com/mikrocloud/mikrocloud/internal/domain/deployments/repository"
 	disksRepo "github.com/mikrocloud/mikrocloud/internal/domain/disks/repository"
 	environmentsRepo "github.com/mikrocloud/mikrocloud/internal/domain/environments/repository"
+	organizationsRepo "github.com/mikrocloud/mikrocloud/internal/domain/organizations/repository"
 	projectsRepo "github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
 	proxyRepo "github.com/mikrocloud/mikrocloud/internal/domain/proxy/repository"
 	servicesRepo "github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
@@ -38,6 +39,7 @@ type SQLiteDatabase struct {
 	traefikConfigRepository proxyRepo.TraefikConfigRepository
 	diskRepository          disksRepo.DiskRepository
 	diskBackupRepository    disksRepo.DiskBackupRepository
+	organizationRepository  organizationsRepo.Repository
 }
 
 // NewSQLiteDatabase creates a new SQLite database instance
@@ -85,6 +87,7 @@ func NewSQLiteDatabase(databaseURL string) (MainDatabase, error) {
 	traefikConfigRepository := proxyRepo.NewSQLiteTraefikConfigRepository(db)
 	diskRepo := disksRepo.NewSQLiteDiskRepository(db)
 	diskBackupRepo := disksRepo.NewSQLiteDiskBackupRepository(db)
+	organizationRepo := organizationsRepo.NewSQLiteOrganizationRepository(db)
 
 	return &SQLiteDatabase{
 		db:                      db,
@@ -101,6 +104,7 @@ func NewSQLiteDatabase(databaseURL string) (MainDatabase, error) {
 		traefikConfigRepository: traefikConfigRepository,
 		diskRepository:          diskRepo,
 		diskBackupRepository:    diskBackupRepo,
+		organizationRepository:  organizationRepo,
 	}, nil
 }
 
@@ -172,6 +176,10 @@ func (d *SQLiteDatabase) DiskRepository() disksRepo.DiskRepository {
 
 func (d *SQLiteDatabase) DiskBackupRepository() disksRepo.DiskBackupRepository {
 	return d.diskBackupRepository
+}
+
+func (d *SQLiteDatabase) OrganizationRepository() organizationsRepo.Repository {
+	return d.organizationRepository
 }
 
 // ensureDataDir creates the directory for the SQLite database if it doesn't exist

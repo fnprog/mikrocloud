@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Card, CardContent } from '$lib/components/ui/card';
@@ -9,16 +9,16 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
-	const projectId = $derived($page.params.id);
-	const resId = $derived($page.params.res_id);
+	const projectId = $derived(page.params.id);
+	const resId = $derived(page.params.res_id);
 
-	const databaseQuery = createQuery({
+	const databaseQuery = createQuery(() => ({
 		queryKey: ['database', projectId, resId],
 		queryFn: () => databasesApi.get(projectId, resId),
 		enabled: !!projectId && !!resId
-	});
+	}));
 
-	const database = $derived($databaseQuery.data);
+	const database = $derived(databaseQuery.data);
 
 	let isStreaming = $state(true);
 	let selectedLevel = $state('all');
@@ -209,7 +209,9 @@
 							</div>
 						{:else}
 							{#each filteredLogs as log (log.id)}
-								<div class="flex items-start space-x-4 py-1 hover:bg-accent/50 px-2 rounded transition-colors">
+								<div
+									class="flex items-start space-x-4 py-1 hover:bg-accent/50 px-2 rounded transition-colors"
+								>
 									<span class="text-muted-foreground text-xs w-32 flex-shrink-0 mt-0.5">
 										{log.timestamp}
 									</span>

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import {
 		Card,
@@ -17,11 +17,11 @@
 	import GitConfigForm from '$lib/components/applications/git-config-form.svelte';
 	import DockerConfigForm from '$lib/components/applications/docker-config-form.svelte';
 	import BuildTypeSelector from '$lib/components/applications/build-type-selector.svelte';
-	import { ArrowLeft, Loader2 } from 'lucide-svelte';
+	import {  Loader2 } from 'lucide-svelte';
 	import { createMutation } from '@tanstack/svelte-query';
 
-	let projectId = $state($page.params.id);
-	let envId = $state($page.params.env_id);
+	let projectId = $state(page.params.id);
+	let envId = $state(page.params.env_id);
 
 	let sourceType = $state<'git' | 'docker' | 'zip'>('git');
 	let buildType = $state<'nixpacks' | 'heroku' | 'paketo' | 'static' | 'dockerfile' | 'compose'>(
@@ -49,14 +49,14 @@
 
 	let zipFile = $state<File | null>(null);
 
-	const createMutation_ = createMutation({
+	const createMutation_ = createMutation(() => ({
 		mutationFn: async (data: CreateApplicationRequest) => {
 			return applicationsApi.create(projectId, data);
 		},
 		onSuccess: () => {
 			goto(`/dashboard/project/${projectId}`);
 		}
-	});
+	}));
 
 	function handleSubmit() {
 		const deploymentSource =
@@ -122,12 +122,12 @@
 			buildpack
 		};
 
-		$createMutation_.mutate(data);
+		createMutation_.mutate(data);
 	}
 
 	$effect(() => {
-		projectId = $page.params.id;
-		envId = $page.params.env_id;
+		projectId = page.params.id;
+		envId = page.params.env_id;
 	});
 </script>
 
@@ -170,7 +170,7 @@
 						onIsPrivateChange={(p) => (isPrivate = p)}
 						{customGitUrl}
 						onCustomGitUrlChange={(u) => (customGitUrl = u)}
-						basePath={basePath}
+						{basePath}
 						onBasePathChange={(p) => (basePath = p)}
 					/>
 				</CardContent>
@@ -298,10 +298,10 @@
 						: sourceType === 'docker'
 							? !dockerfileContent && !composeContent
 							: !zipFile) ||
-					$createMutation_.isPending}
+					createMutation_.isPending}
 				class="flex-1"
 			>
-				{#if $createMutation_.isPending}
+				{#if createMutation_.isPending}
 					<Loader2 class="h-4 w-4 mr-2 animate-spin" />
 					Creating...
 				{:else}
@@ -310,9 +310,9 @@
 			</Button>
 		</div>
 
-		{#if $createMutation_.isError}
+		{#if createMutation_.isError}
 			<div class="text-sm text-destructive">
-				Failed to create application: {$createMutation_.error?.message || 'Unknown error'}
+				Failed to create application: {createMutation_.error?.message || 'Unknown error'}
 			</div>
 		{/if}
 	</div>

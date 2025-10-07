@@ -1,6 +1,12 @@
 <script lang="ts">
-	import { page } from '$app/stores';
-	import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '$lib/components/ui/card';
+	import { page } from '$app/state';
+	import {
+		Card,
+		CardContent,
+		CardDescription,
+		CardHeader,
+		CardTitle
+	} from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -10,37 +16,37 @@
 	import { databasesApi } from '$lib/api/databases';
 	import { disksApi, type CreateDiskRequest } from '$lib/api/disks';
 
-	const projectId = $derived($page.params.id);
-	const resId = $derived($page.params.res_id);
+	const projectId = $derived(page.params.id);
+	const resId = $derived(page.params.res_id);
 	const queryClient = useQueryClient();
 
-	const databaseQuery = createQuery({
+	const databaseQuery = createQuery(() => ({
 		queryKey: ['database', projectId, resId],
 		queryFn: () => databasesApi.get(projectId, resId),
 		enabled: !!projectId && !!resId
-	});
+	}));
 
-	const disksQuery = createQuery({
+	const disksQuery = createQuery(() => ({
 		queryKey: ['disks', projectId],
 		queryFn: () => disksApi.list(projectId),
 		enabled: !!projectId
-	});
+	}));
 
-	const deleteMutation = createMutation({
+	const deleteMutation = createMutation(() => ({
 		mutationFn: (diskId: string) => disksApi.delete(projectId, diskId),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['disks', projectId] });
 		}
-	});
+	}));
 
-	const detachMutation = createMutation({
+	const detachMutation = createMutation(() => ({
 		mutationFn: (diskId: string) => disksApi.detach(projectId, diskId),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['disks', projectId] });
 		}
-	});
+	}));
 
-	const createMutation_ = createMutation({
+	const createMutation_ = createMutation(() => ({
 		mutationFn: async (data: CreateDiskRequest) => {
 			const disk = await disksApi.create(projectId, data);
 			await disksApi.attach(projectId, disk.id, { service_id: resId });
@@ -51,11 +57,11 @@
 			mountPath = '';
 			volumeSize = '';
 		}
-	});
+	}));
 
-	const database = $derived($databaseQuery.data);
-	const allDisks = $derived($disksQuery.data ?? []);
-	const mountedVolumes = $derived(allDisks.filter(disk => disk.service_id === resId));
+	const database = $derived(databaseQuery.data);
+	const allDisks = $derived(disksQuery.data ?? []);
+	const mountedVolumes = $derived(allDisks.filter((disk) => disk.service_id === resId));
 
 	let mountPath = $state('');
 	let volumeSize = $state('');
@@ -82,22 +88,22 @@
 	}
 </script>
 
-	<div class="space-y-6">
-		<div>
-			<h2 class="text-2xl font-bold tracking-tight">Persistent Storage</h2>
-			<p class="text-muted-foreground">Manage persistent storage volumes for {database?.name || 'database'}</p>
-		</div>
+<div class="space-y-6">
+	<div>
+		<h2 class="text-2xl font-bold tracking-tight">Persistent Storage</h2>
+		<p class="text-muted-foreground">
+			Manage persistent storage volumes for {database?.name || 'database'}
+		</p>
+	</div>
 
 	<Card>
 		<CardHeader>
 			<CardTitle>Mounted Volumes</CardTitle>
-			<CardDescription>
-				Persistent volumes attached to this database container
-			</CardDescription>
+			<CardDescription>Persistent volumes attached to this database container</CardDescription>
 		</CardHeader>
 		<CardContent>
 			<div class="space-y-4">
-				{#if $disksQuery.isLoading}
+				{#if disksQuery.isLoading}
 					<div class="text-center py-8 text-muted-foreground">
 						<p>Loading volumes...</p>
 					</div>
@@ -121,11 +127,11 @@
 								</div>
 								<div class="flex items-center gap-2">
 									<Badge variant="secondary">{volume.status}</Badge>
-									<Button 
-										variant="ghost" 
+									<Button
+										variant="ghost"
 										size="icon"
 										onclick={() => handleDetach(volume.id)}
-										disabled={$detachMutation.isPending}
+										disabled={detachMutation.isPending}
 									>
 										<Trash2 class="h-4 w-4" />
 									</Button>
@@ -148,12 +154,7 @@
 				<div class="grid gap-4 sm:grid-cols-2">
 					<div class="space-y-2">
 						<Label for="mount-path">Mount Path</Label>
-						<Input
-							id="mount-path"
-							placeholder="/data"
-							type="text"
-							bind:value={mountPath}
-						/>
+						<Input id="mount-path" placeholder="/data" type="text" bind:value={mountPath} />
 					</div>
 					<div class="space-y-2">
 						<Label for="volume-size">Size (GB)</Label>
@@ -166,13 +167,13 @@
 						/>
 					</div>
 				</div>
-				<Button 
-					type="submit" 
+				<Button
+					type="submit"
 					class="w-full sm:w-auto"
-					disabled={$createMutation_.isPending || !mountPath || !volumeSize}
+					disabled={createMutation_.isPending || !mountPath || !volumeSize}
 				>
 					<Plus class="h-4 w-4 mr-2" />
-					{$createMutation_.isPending ? 'Adding...' : 'Add Volume'}
+					{createMutation_.isPending ? 'Adding...' : 'Add Volume'}
 				</Button>
 			</form>
 		</CardContent>

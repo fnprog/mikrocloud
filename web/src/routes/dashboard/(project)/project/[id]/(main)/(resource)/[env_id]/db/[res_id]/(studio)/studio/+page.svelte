@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
 	import { studioApi, type QueryResult } from '$lib/api';
 	import { Button } from '$lib/components/ui/button';
@@ -14,25 +14,14 @@
 		SheetHeader,
 		SheetTitle
 	} from '$lib/components/ui/sheet';
-	import {
-		Select,
-		SelectContent,
-		SelectItem,
-		SelectTrigger
-	} from '$lib/components/ui/select';
+	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
 	import MonacoEditor from '$lib/components/MonacoEditor.svelte';
-	import {
-		Database,
-		Table2,
-		RefreshCw,
-		Play,
-		Plus
-	} from 'lucide-svelte';
+	import { Database, Table2, RefreshCw, Play, Plus } from 'lucide-svelte';
 	import DataTable from './data-table.svelte';
 	import { createColumns } from './columns';
 
-	let projectId = $derived($page.params.id);
-	let resId = $derived($page.params.res_id);
+	let projectId = $derived(page.params.id);
+	let resId = $derived(page.params.res_id);
 
 	let selectedSchema = $state('public');
 	let selectedTable = $state<string | null>(null);
@@ -51,26 +40,36 @@
 
 	const queryClient = useQueryClient();
 
-	const schemasQuery = createQuery({
+	const schemasQuery = createQuery(() => ({
 		queryKey: ['studio', 'schemas', projectId, resId] as const,
 		queryFn: async () => studioApi.listSchemas(projectId!, resId!),
 		refetchOnWindowFocus: false
-	});
+	}));
 
-	const tablesQuery = createQuery({
+	const tablesQuery = createQuery(() => ({
 		queryKey: ['studio', 'tables', projectId, resId, selectedSchema] as const,
 		queryFn: async () => studioApi.listTables(projectId!, resId!, { schema: selectedSchema }),
 		refetchOnWindowFocus: false
-	});
+	}));
 
-	const schemaQuery = createQuery({
+	const schemaQuery = createQuery(() => ({
 		queryKey: ['studio', 'schema', projectId, resId, selectedSchema, selectedTable] as const,
-		queryFn: async () => studioApi.getTableSchema(projectId!, resId!, selectedTable!, { schema: selectedSchema }),
+		queryFn: async () =>
+			studioApi.getTableSchema(projectId!, resId!, selectedTable!, { schema: selectedSchema }),
 		enabled: !!selectedTable
-	});
+	}));
 
-	const dataQuery = createQuery({
-		queryKey: ['studio', 'data', projectId, resId, selectedSchema, selectedTable, currentPage, pageSize] as const,
+	const dataQuery = createQuery(() => ({
+		queryKey: [
+			'studio',
+			'data',
+			projectId,
+			resId,
+			selectedSchema,
+			selectedTable,
+			currentPage,
+			pageSize
+		] as const,
 		queryFn: async () =>
 			studioApi.getTableData(projectId!, resId!, selectedTable!, {
 				page: currentPage,
@@ -78,16 +77,15 @@
 				schema: selectedSchema
 			}),
 		enabled: !!selectedTable
-	});
+	}));
 
-	const infoQuery = createQuery({
+	const infoQuery = createQuery(() => ({
 		queryKey: ['studio', 'info', projectId, resId] as const,
 		queryFn: async () => studioApi.getDatabaseInfo(projectId!, resId!)
-	});
+	}));
 
-	const executeQueryMutation = createMutation({
-		mutationFn: async (query: string) =>
-			studioApi.executeQuery(projectId!, resId!, { query }),
+	const executeQueryMutation = createMutation(() => ({
+		mutationFn: async (query: string) => studioApi.executeQuery(projectId!, resId!, { query }),
 		onSuccess: (data: QueryResult) => {
 			queryResult = data;
 			queryError = null;
@@ -96,45 +94,58 @@
 			queryError = error.message || 'Failed to execute query';
 			queryResult = null;
 		}
-	});
+	}));
 
-	const insertRowMutation = createMutation({
+	const insertRowMutation = createMutation(() => ({
 		mutationFn: async (data: Record<string, any>) =>
 			studioApi.insertRow(projectId!, resId!, selectedTable!, { data, schema: selectedSchema }),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ['studio', 'data', projectId, resId, selectedSchema, selectedTable] as const });
+			queryClient.invalidateQueries({
+				queryKey: ['studio', 'data', projectId, resId, selectedSchema, selectedTable] as const
+			});
 			showInsertSheet = false;
 			insertFormData = {};
 		}
-	});
+	}));
 
-	const updateRowMutation = createMutation({
+	const updateRowMutation = createMutation(() => ({
 		mutationFn: async (vars: { primary_key: Record<string, any>; data: Record<string, any> }) =>
-			studioApi.updateRow(projectId!, resId!, selectedTable!, { primary_key: vars.primary_key, data: vars.data, schema: selectedSchema }),
+			studioApi.updateRow(projectId!, resId!, selectedTable!, {
+				primary_key: vars.primary_key,
+				data: vars.data,
+				schema: selectedSchema
+			}),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ['studio', 'data', projectId, resId, selectedSchema, selectedTable] as const });
+			queryClient.invalidateQueries({
+				queryKey: ['studio', 'data', projectId, resId, selectedSchema, selectedTable] as const
+			});
 			showEditSheet = false;
 			editFormData = {};
 			selectedRow = null;
 		}
-	});
+	}));
 
-	const deleteRowMutation = createMutation({
+	const deleteRowMutation = createMutation(() => ({
 		mutationFn: async (primary_key: Record<string, any>) =>
-			studioApi.deleteRow(projectId!, resId!, selectedTable!, { primary_key, schema: selectedSchema }),
+			studioApi.deleteRow(projectId!, resId!, selectedTable!, {
+				primary_key,
+				schema: selectedSchema
+			}),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ['studio', 'data', projectId, resId, selectedSchema, selectedTable] as const });
+			queryClient.invalidateQueries({
+				queryKey: ['studio', 'data', projectId, resId, selectedSchema, selectedTable] as const
+			});
 			showDeleteSheet = false;
 			selectedRow = null;
 		}
-	});
+	}));
 
 	let columns = $derived.by(() => {
-		if (!$schemaQuery.data) return [];
-		return createColumns($schemaQuery.data.columns, openEditSheet, openDeleteSheet);
+		if (!schemaQuery.data) return [];
+		return createColumns(schemaQuery.data.columns, openEditSheet, openDeleteSheet);
 	});
 
-	let tableData = $derived($dataQuery.data?.rows ?? []);
+	let tableData = $derived(dataQuery.data?.rows ?? []);
 
 	function selectSchema(schema: string) {
 		selectedSchema = schema;
@@ -156,13 +167,13 @@
 
 	async function executeQuery() {
 		if (!sqlQuery.trim()) return;
-		$executeQueryMutation.mutate(sqlQuery);
+		executeQueryMutation.mutate(sqlQuery);
 	}
 
 	function openInsertSheet() {
 		insertFormData = {};
-		if ($schemaQuery.data) {
-			for (const col of $schemaQuery.data.columns) {
+		if (schemaQuery.data) {
+			for (const col of schemaQuery.data.columns) {
 				insertFormData[col.name] = '';
 			}
 		}
@@ -189,7 +200,7 @@
 				cleanedData[key] = value;
 			}
 		}
-		$insertRowMutation.mutate(cleanedData);
+		insertRowMutation.mutate(cleanedData);
 	}
 
 	function handleUpdate() {
@@ -202,12 +213,12 @@
 				cleanedData[key] = value;
 			}
 		}
-		$updateRowMutation.mutate({ primary_key: selectedRow, data: cleanedData });
+		updateRowMutation.mutate({ primary_key: selectedRow, data: cleanedData });
 	}
 
 	function handleDelete() {
 		if (!selectedRow) return;
-		$deleteRowMutation.mutate(selectedRow);
+		deleteRowMutation.mutate(selectedRow);
 	}
 </script>
 
@@ -222,16 +233,16 @@
 				<Database class="w-5 h-5 text-primary" />
 				<h2 class="font-semibold text-foreground">Database</h2>
 			</div>
-			{#if $infoQuery.data}
-				<p class="text-xs text-muted-foreground mt-1">{$infoQuery.data.version}</p>
+			{#if infoQuery.data}
+				<p class="text-xs text-muted-foreground mt-1">{infoQuery.data.version}</p>
 			{/if}
 		</div>
 
 		<div class="p-3 border-b border-border">
 			<Label class="text-xs text-muted-foreground mb-1.5 block">Schema</Label>
-			{#if $schemasQuery.isLoading}
+			{#if schemasQuery.isLoading}
 				<div class="text-xs text-muted-foreground">Loading...</div>
-			{:else if $schemasQuery.data && $schemasQuery.data.length > 0}
+			{:else if schemasQuery.data && schemasQuery.data.length > 0}
 				<Select
 					selected={{ value: selectedSchema, label: selectedSchema }}
 					onSelectedChange={(v) => v && selectSchema(v.value)}
@@ -240,7 +251,7 @@
 						{selectedSchema}
 					</SelectTrigger>
 					<SelectContent>
-						{#each $schemasQuery.data as schema}
+						{#each schemasQuery.data as schema}
 							<SelectItem value={schema} label={schema}>
 								{schema}
 							</SelectItem>
@@ -257,13 +268,13 @@
 		</div>
 
 		<div class="flex-1 overflow-y-auto">
-			{#if $tablesQuery.isLoading}
+			{#if tablesQuery.isLoading}
 				<div class="p-4 text-sm text-muted-foreground">Loading tables...</div>
-			{:else if $tablesQuery.error}
+			{:else if tablesQuery.error}
 				<div class="p-4 text-sm text-destructive">Failed to load tables</div>
-			{:else if $tablesQuery.data}
+			{:else if tablesQuery.data}
 				<div class="p-2">
-					{#each $tablesQuery.data as table}
+					{#each tablesQuery.data as table}
 						<button
 							onclick={() => selectTable(table)}
 							class="w-full text-left px-3 py-2 rounded text-sm hover:bg-accent transition-colors {selectedTable ===
@@ -299,9 +310,9 @@
 				<div>
 					{#if selectedTable}
 						<h1 class="text-xl font-semibold text-foreground">{selectedTable}</h1>
-						{#if $schemaQuery.data}
+						{#if schemaQuery.data}
 							<p class="text-sm text-muted-foreground mt-1">
-								{$schemaQuery.data.columns.length} columns · {$dataQuery.data?.total_rows ?? 0} rows
+								{schemaQuery.data.columns.length} columns · {dataQuery.data?.total_rows ?? 0} rows
 							</p>
 						{/if}
 					{:else if showSqlEditor}
@@ -320,8 +331,8 @@
 						</Button>
 						<Button
 							onclick={() => {
-								$dataQuery.refetch();
-								$schemaQuery.refetch();
+								dataQuery.refetch();
+								schemaQuery.refetch();
 							}}
 							variant="outline"
 							size="sm"
@@ -343,12 +354,17 @@
 						<div>
 							<Label for="sql-query">Query</Label>
 							<div class="mt-2 border border-border rounded-md overflow-hidden">
-								<MonacoEditor bind:value={sqlQuery} language="sql" height="300px" theme="vs-light" />
+								<MonacoEditor
+									bind:value={sqlQuery}
+									language="sql"
+									height="300px"
+									theme="vs-light"
+								/>
 							</div>
 						</div>
 						<div class="flex justify-end space-x-2">
-							<Button onclick={executeQuery} disabled={$executeQueryMutation.isPending}>
-								{#if $executeQueryMutation.isPending}
+							<Button onclick={executeQuery} disabled={executeQueryMutation.isPending}>
+								{#if executeQueryMutation.isPending}
 									<RefreshCw class="w-4 h-4 mr-2 animate-spin" />
 								{:else}
 									<Play class="w-4 h-4 mr-2" />
@@ -376,7 +392,9 @@
 										<thead class="bg-muted/50 border-b border-border">
 											<tr>
 												{#each queryResult.columns as column}
-													<th class="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">
+													<th
+														class="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase"
+													>
 														{column}
 													</th>
 												{/each}
@@ -408,17 +426,17 @@
 					</CardContent>
 				</Card>
 			{:else if selectedTable}
-				{#if $dataQuery.isLoading}
+				{#if dataQuery.isLoading}
 					<div class="text-center py-12 text-muted-foreground">Loading data...</div>
-				{:else if $dataQuery.error}
+				{:else if dataQuery.error}
 					<div class="text-center py-12 text-destructive">Failed to load data</div>
-				{:else if $dataQuery.data && $schemaQuery.data && columns.length > 0}
-					<DataTable 
+				{:else if dataQuery.data && schemaQuery.data && columns.length > 0}
+					<DataTable
 						data={tableData}
 						{columns}
-						currentPage={currentPage}
-						pageSize={pageSize}
-						totalItems={$dataQuery.data.total_rows}
+						{currentPage}
+						{pageSize}
+						totalItems={dataQuery.data.total_rows}
 						onPageChange={handlePageChange}
 					/>
 				{/if}
@@ -440,8 +458,8 @@
 			<SheetDescription>Add a new row to {selectedTable}</SheetDescription>
 		</SheetHeader>
 		<div class="py-6 space-y-4">
-			{#if $schemaQuery.data}
-				{#each $schemaQuery.data.columns as column}
+			{#if schemaQuery.data}
+				{#each schemaQuery.data.columns as column}
 					<div>
 						<Label for={`insert-${column.name}`}>
 							{column.name}
@@ -464,8 +482,8 @@
 		</div>
 		<SheetFooter>
 			<Button variant="outline" onclick={() => (showInsertSheet = false)}>Cancel</Button>
-			<Button onclick={handleInsert} disabled={$insertRowMutation.isPending}>
-				{#if $insertRowMutation.isPending}
+			<Button onclick={handleInsert} disabled={insertRowMutation.isPending}>
+				{#if insertRowMutation.isPending}
 					<RefreshCw class="w-4 h-4 mr-2 animate-spin" />
 				{/if}
 				Insert Row
@@ -481,8 +499,8 @@
 			<SheetDescription>Update the selected row in {selectedTable}</SheetDescription>
 		</SheetHeader>
 		<div class="py-6 space-y-4">
-			{#if $schemaQuery.data && editFormData}
-				{#each $schemaQuery.data.columns as column}
+			{#if schemaQuery.data && editFormData}
+				{#each schemaQuery.data.columns as column}
 					<div>
 						<Label for={`edit-${column.name}`}>
 							{column.name}
@@ -505,8 +523,8 @@
 		</div>
 		<SheetFooter>
 			<Button variant="outline" onclick={() => (showEditSheet = false)}>Cancel</Button>
-			<Button onclick={handleUpdate} disabled={$updateRowMutation.isPending}>
-				{#if $updateRowMutation.isPending}
+			<Button onclick={handleUpdate} disabled={updateRowMutation.isPending}>
+				{#if updateRowMutation.isPending}
 					<RefreshCw class="w-4 h-4 mr-2 animate-spin" />
 				{/if}
 				Update Row
@@ -519,12 +537,14 @@
 	<SheetContent side="right" class="w-[500px] sm:w-[600px] overflow-y-auto">
 		<SheetHeader>
 			<SheetTitle>Delete Row</SheetTitle>
-			<SheetDescription>Are you sure you want to delete this row from {selectedTable}?</SheetDescription>
+			<SheetDescription
+				>Are you sure you want to delete this row from {selectedTable}?</SheetDescription
+			>
 		</SheetHeader>
 		<div class="py-6">
-			{#if selectedRow && $schemaQuery.data}
+			{#if selectedRow && schemaQuery.data}
 				<div class="space-y-2">
-					{#each $schemaQuery.data.columns as column}
+					{#each schemaQuery.data.columns as column}
 						<div class="flex justify-between py-2 border-b border-border">
 							<span class="font-medium text-foreground">{column.name}</span>
 							<span class="text-foreground">
@@ -545,8 +565,8 @@
 		</div>
 		<SheetFooter>
 			<Button variant="outline" onclick={() => (showDeleteSheet = false)}>Cancel</Button>
-			<Button variant="destructive" onclick={handleDelete} disabled={$deleteRowMutation.isPending}>
-				{#if $deleteRowMutation.isPending}
+			<Button variant="destructive" onclick={handleDelete} disabled={deleteRowMutation.isPending}>
+				{#if deleteRowMutation.isPending}
 					<RefreshCw class="w-4 h-4 mr-2 animate-spin" />
 				{/if}
 				Delete Row

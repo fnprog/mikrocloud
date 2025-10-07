@@ -6,6 +6,9 @@ CREATE TABLE IF NOT EXISTS metrics (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     value REAL NOT NULL,
+    project_id TEXT NOT NULL DEFAULT '',
+    service_id TEXT,
+    unit TEXT NOT NULL DEFAULT 'count',
     tags TEXT NOT NULL DEFAULT '{}', -- JSON object
     timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -15,6 +18,9 @@ CREATE TABLE IF NOT EXISTS metrics (
 CREATE INDEX IF NOT EXISTS idx_metrics_timestamp ON metrics(timestamp);
 CREATE INDEX IF NOT EXISTS idx_metrics_name ON metrics(name);
 CREATE INDEX IF NOT EXISTS idx_metrics_name_timestamp ON metrics(name, timestamp);
+CREATE INDEX IF NOT EXISTS idx_metrics_project_id ON metrics(project_id);
+CREATE INDEX IF NOT EXISTS idx_metrics_service_id ON metrics(service_id);
+CREATE INDEX IF NOT EXISTS idx_metrics_project_service ON metrics(project_id, service_id);
 
 -- Events table for application events
 CREATE TABLE IF NOT EXISTS events (
@@ -64,6 +70,9 @@ DROP INDEX IF EXISTS idx_events_type;
 DROP INDEX IF EXISTS idx_events_timestamp;
 DROP TABLE IF EXISTS events;
 
+DROP INDEX IF EXISTS idx_metrics_project_service;
+DROP INDEX IF EXISTS idx_metrics_service_id;
+DROP INDEX IF EXISTS idx_metrics_project_id;
 DROP INDEX IF EXISTS idx_metrics_name_timestamp;
 DROP INDEX IF EXISTS idx_metrics_name;
 DROP INDEX IF EXISTS idx_metrics_timestamp;

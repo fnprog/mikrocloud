@@ -1,6 +1,12 @@
 <script lang="ts">
-	import { page } from '$app/stores';
-	import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '$lib/components/ui/card';
+	import { page } from '$app/state';
+	import {
+		Card,
+		CardContent,
+		CardDescription,
+		CardHeader,
+		CardTitle
+	} from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -10,16 +16,16 @@
 	import { createQuery } from '@tanstack/svelte-query';
 	import { databasesApi } from '$lib/api/databases';
 
-	const projectId = $derived($page.params.id);
-	const resId = $derived($page.params.res_id);
+	const projectId = $derived(page.params.id);
+	const resId = $derived(page.params.res_id);
 
-	const databaseQuery = createQuery({
+	const databaseQuery = createQuery(() => ({
 		queryKey: ['database', projectId, resId],
 		queryFn: () => databasesApi.get(projectId, resId),
 		enabled: !!projectId && !!resId
-	});
+	}));
 
-	const database = $derived($databaseQuery.data);
+	const database = $derived(databaseQuery.data);
 
 	let cpuLimit = $state([1]);
 	let cpuReservation = $state([0.5]);
@@ -27,11 +33,13 @@
 	let memoryReservation = $state([512]);
 </script>
 
-	<div class="space-y-6">
-		<div>
-			<h2 class="text-2xl font-bold tracking-tight">Resource Limits</h2>
-			<p class="text-muted-foreground">Configure CPU and memory limits for {database?.name || 'database'}</p>
-		</div>
+<div class="space-y-6">
+	<div>
+		<h2 class="text-2xl font-bold tracking-tight">Resource Limits</h2>
+		<p class="text-muted-foreground">
+			Configure CPU and memory limits for {database?.name || 'database'}
+		</p>
+	</div>
 
 	<Card>
 		<CardHeader>
@@ -77,9 +85,7 @@
 	<Card>
 		<CardHeader>
 			<CardTitle>CPU Limits</CardTitle>
-			<CardDescription>
-				Configure CPU allocation and limits for this database
-			</CardDescription>
+			<CardDescription>Configure CPU allocation and limits for this database</CardDescription>
 		</CardHeader>
 		<CardContent>
 			<form class="space-y-6">
@@ -89,16 +95,8 @@
 							<Label for="cpu-limit">CPU Limit (cores)</Label>
 							<Badge variant="secondary">{cpuLimit[0]}</Badge>
 						</div>
-						<Slider
-							id="cpu-limit"
-							bind:value={cpuLimit}
-							min={0.1}
-							max={8}
-							step={0.1}
-						/>
-						<p class="text-xs text-muted-foreground">
-							Maximum CPU cores the database can use
-						</p>
+						<Slider id="cpu-limit" bind:value={cpuLimit} min={0.1} max={8} step={0.1} />
+						<p class="text-xs text-muted-foreground">Maximum CPU cores the database can use</p>
 					</div>
 					<div class="space-y-2">
 						<div class="flex items-center justify-between">
@@ -124,9 +122,7 @@
 	<Card>
 		<CardHeader>
 			<CardTitle>Memory Limits</CardTitle>
-			<CardDescription>
-				Configure memory allocation and limits for this database
-			</CardDescription>
+			<CardDescription>Configure memory allocation and limits for this database</CardDescription>
 		</CardHeader>
 		<CardContent>
 			<form class="space-y-6">
@@ -150,9 +146,7 @@
 							max={16384}
 							step={128}
 						/>
-						<p class="text-xs text-muted-foreground">
-							Maximum memory the database can use
-						</p>
+						<p class="text-xs text-muted-foreground">Maximum memory the database can use</p>
 					</div>
 					<div class="space-y-2">
 						<div class="flex items-center justify-between">
@@ -173,9 +167,7 @@
 							max={memoryLimit[0]}
 							step={128}
 						/>
-						<p class="text-xs text-muted-foreground">
-							Guaranteed memory reserved for the database
-						</p>
+						<p class="text-xs text-muted-foreground">Guaranteed memory reserved for the database</p>
 					</div>
 				</div>
 			</form>

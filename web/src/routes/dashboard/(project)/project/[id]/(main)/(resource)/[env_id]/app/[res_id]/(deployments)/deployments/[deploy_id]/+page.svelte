@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
@@ -7,7 +7,7 @@
 	import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
 	import { deploymentsApi, type DeploymentStatus } from '$lib/api/deployments';
 	import { toast } from 'svelte-sonner';
-	import { onMount, onDestroy } from 'svelte';
+	import { onDestroy } from 'svelte';
 	import {
 		CheckCircle,
 		AlertCircle,
@@ -18,15 +18,14 @@
 		User,
 		RotateCcw,
 		ArrowLeft,
-		Calendar,
 		PlayCircle,
 		StopCircle
 	} from 'lucide-svelte';
 
-	const projectId = $derived($page.params.id);
-	const envId = $derived($page.params.env_id);
-	const resId = $derived($page.params.res_id);
-	const deployId = $derived($page.params.deploy_id);
+	const projectId = $derived(page.params.id);
+	const envId = $derived(page.params.env_id);
+	const resId = $derived(page.params.res_id);
+	const deployId = $derived(page.params.deploy_id);
 
 	const queryClient = useQueryClient();
 
@@ -35,7 +34,7 @@
 	let closeStream: (() => void) | null = null;
 	let logsContainer: HTMLDivElement | null = null;
 
-	const deploymentQuery = createQuery({
+	const deploymentQuery = createQuery(() => ({
 		queryKey: ['deployment', projectId, resId, deployId],
 		queryFn: () => deploymentsApi.get(projectId, resId, deployId),
 		enabled: !!projectId && !!resId && !!deployId,
@@ -46,21 +45,29 @@
 			}
 			return false;
 		}
-	});
+	}));
 
-	const deployment = $derived($deploymentQuery.data);
+	const deployment = $derived(deploymentQuery.data);
 
 	$effect(() => {
-		if (deployment && ['pending', 'building', 'deploying'].includes(deployment.status) && !isStreaming) {
+		if (
+			deployment &&
+			['pending', 'building', 'deploying'].includes(deployment.status) &&
+			!isStreaming
+		) {
 			startLogStream();
-		} else if (deployment && !['pending', 'building', 'deploying'].includes(deployment.status) && isStreaming) {
+		} else if (
+			deployment &&
+			!['pending', 'building', 'deploying'].includes(deployment.status) &&
+			isStreaming
+		) {
 			stopLogStream();
 		}
 	});
 
 	function startLogStream() {
 		if (isStreaming) return;
-		
+
 		isStreaming = true;
 		streamedLogs = [];
 
@@ -101,7 +108,7 @@
 		stopLogStream();
 	});
 
-	const redeployMutation = createMutation({
+	const redeployMutation = createMutation(() => ({
 		mutationFn: () => deploymentsApi.redeploy(projectId, resId, deployId),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['deployment', projectId, resId, deployId] });
@@ -111,9 +118,9 @@
 		onError: (error: Error) => {
 			toast.error(`Failed to redeploy: ${error.message}`);
 		}
-	});
+	}));
 
-	const cancelMutation = createMutation({
+	const cancelMutation = createMutation(() => ({
 		mutationFn: () => deploymentsApi.cancel(projectId, resId, deployId),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['deployment', projectId, resId, deployId] });
@@ -123,7 +130,7 @@
 		onError: (error: Error) => {
 			toast.error(`Failed to cancel deployment: ${error.message}`);
 		}
-	});
+	}));
 
 	function getStatusIcon(status: DeploymentStatus) {
 		switch (status) {
@@ -202,11 +209,11 @@
 	}
 
 	function handleRedeploy() {
-		$redeployMutation.mutate();
+		redeployMutation.mutate();
 	}
 
 	function handleCancel() {
-		$cancelMutation.mutate();
+		cancelMutation.mutate();
 	}
 </script>
 
@@ -229,7 +236,7 @@
 					<Button
 						size="sm"
 						variant="outline"
-						disabled={$cancelMutation.isPending}
+						disabled={cancelMutation.isPending}
 						onclick={handleCancel}
 					>
 						<StopCircle class="w-4 h-4 mr-2" />
@@ -240,10 +247,10 @@
 					<Button
 						size="sm"
 						variant="outline"
-						disabled={$redeployMutation.isPending}
+						disabled={redeployMutation.isPending}
 						onclick={handleRedeploy}
 					>
-						<RotateCcw class="w-4 h-4 mr-2 {$redeployMutation.isPending ? 'animate-spin' : ''}" />
+						<RotateCcw class="w-4 h-4 mr-2 {redeployMutation.isPending ? 'animate-spin' : ''}" />
 						Redeploy
 					</Button>
 				{/if}
@@ -251,18 +258,18 @@
 		{/if}
 	</div>
 
-	{#if $deploymentQuery.isLoading}
+	{#if deploymentQuery.isLoading}
 		<div class="flex items-center justify-center py-12">
 			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
 		</div>
-	{:else if $deploymentQuery.isError}
+	{:else if deploymentQuery.isError}
 		<Card>
 			<CardContent class="p-6">
 				<div class="text-center">
 					<AlertCircle class="mx-auto h-12 w-12 text-destructive mb-4" />
 					<h3 class="text-lg font-medium">Failed to load deployment</h3>
 					<p class="text-muted-foreground mt-2">
-						{$deploymentQuery.error?.message || 'An error occurred'}
+						{deploymentQuery.error?.message || 'An error occurred'}
 					</p>
 					<Button variant="outline" class="mt-4" onclick={goBack}>Go Back</Button>
 				</div>
@@ -373,33 +380,34 @@
 				</CardContent>
 			</Card>
 
-		<Card>
-			<CardHeader>
-				<CardTitle class="flex items-center justify-between">
-					<span>Build Logs</span>
-					{#if isStreaming}
-						<Badge variant="outline" class="text-xs">
-							<span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
-							Live
-						</Badge>
-					{/if}
-				</CardTitle>
-			</CardHeader>
-			<CardContent>
-				<div 
-					bind:this={logsContainer}
-					class="bg-muted rounded-md p-4 overflow-x-auto overflow-y-auto max-h-[600px]"
-				>
-					{#if isStreaming && streamedLogs.length > 0}
-						<pre class="text-sm font-mono whitespace-pre-wrap">{streamedLogs.join('\n')}</pre>
-					{:else if deployment.logs}
-						<pre class="text-sm font-mono whitespace-pre-wrap">{deployment.logs}</pre>
-					{:else}
-						<p class="text-sm text-muted-foreground">No logs available yet...</p>
-					{/if}
-				</div>
-			</CardContent>
-		</Card>
+			<Card>
+				<CardHeader>
+					<CardTitle class="flex items-center justify-between">
+						<span>Build Logs</span>
+						{#if isStreaming}
+							<Badge variant="outline" class="text-xs">
+								<span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"
+								></span>
+								Live
+							</Badge>
+						{/if}
+					</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<div
+						bind:this={logsContainer}
+						class="bg-muted rounded-md p-4 overflow-x-auto overflow-y-auto max-h-[600px]"
+					>
+						{#if isStreaming && streamedLogs.length > 0}
+							<pre class="text-sm font-mono whitespace-pre-wrap">{streamedLogs.join('\n')}</pre>
+						{:else if deployment.logs}
+							<pre class="text-sm font-mono whitespace-pre-wrap">{deployment.logs}</pre>
+						{:else}
+							<p class="text-sm text-muted-foreground">No logs available yet...</p>
+						{/if}
+					</div>
+				</CardContent>
+			</Card>
 		</div>
 	{/if}
 </div>

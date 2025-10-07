@@ -46,8 +46,6 @@
 	}
 
 	$effect(() => {
-		console.log('active Tab', activeTab);
-		console.log('pathname', pathname);
 		updateIndicator();
 	});
 
@@ -62,18 +60,13 @@
 		getIsScrolled() ? 'top-0' : 'top-14'
 	)}
 >
-	<div class="mx-auto md:px-6">
-		<div
-			class={cn(
-				'flex items-center justify-between transition-all duration-300',
-				getIsScrolled() ? 'h-14' : 'h-12'
-			)}
-		>
+	<div class="mx-auto md:px-2">
+		<div class={cn('flex items-center justify-between transition-all duration-300 h-12')}>
 			<div class="flex items-center gap-4 flex-1 min-w-0 h-full">
 				<div
 					class={cn(
 						'hidden md:flex items-center gap-4 transition-all duration-300 ease-in-out flex-shrink-0',
-						getIsScrolled() ? 'w-[44px]' : 'w-0'
+						getIsScrolled() ? 'w-[35px]' : 'md:w-0 w-5'
 					)}
 				></div>
 				<div
