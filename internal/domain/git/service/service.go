@@ -149,15 +149,18 @@ func (s *GitService) DetectBuildMethod(ctx context.Context, req git.DetectBuildM
 
 func (s *GitService) CreateGitSource(ctx context.Context, orgID, userID string, req git.CreateGitSourceRequest) (*git.GitSource, error) {
 	source := &git.GitSource{
-		ID:          uuid.New().String(),
-		OrgID:       orgID,
-		UserID:      userID,
-		Provider:    req.Provider,
-		Name:        req.Name,
-		AccessToken: req.AccessToken,
-		CustomURL:   req.CustomURL,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		ID:                      uuid.New().String(),
+		OrgID:                   orgID,
+		UserID:                  userID,
+		Provider:                req.Provider,
+		Name:                    req.Name,
+		AccessToken:             req.AccessToken,
+		RefreshToken:            req.RefreshToken,
+		CustomURL:               req.CustomURL,
+		WebhookURL:              req.WebhookURL,
+		AllowPreviewDeployments: req.AllowPreviewDeployments,
+		CreatedAt:               time.Now(),
+		UpdatedAt:               time.Now(),
 	}
 
 	if err := s.repo.Create(ctx, source); err != nil {

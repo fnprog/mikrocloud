@@ -14,17 +14,19 @@ const (
 )
 
 type GitSource struct {
-	ID             string      `json:"id"`
-	OrgID          string      `json:"org_id"`
-	UserID         string      `json:"user_id"`
-	Provider       GitProvider `json:"provider"`
-	Name           string      `json:"name"`
-	AccessToken    string      `json:"-"`
-	RefreshToken   string      `json:"-"`
-	TokenExpiresAt *time.Time  `json:"token_expires_at,omitempty"`
-	CustomURL      *string     `json:"custom_url,omitempty"`
-	CreatedAt      time.Time   `json:"created_at"`
-	UpdatedAt      time.Time   `json:"updated_at"`
+	ID                      string      `json:"id"`
+	OrgID                   string      `json:"org_id"`
+	UserID                  string      `json:"user_id"`
+	Provider                GitProvider `json:"provider"`
+	Name                    string      `json:"name"`
+	AccessToken             string      `json:"-"`
+	RefreshToken            string      `json:"-"`
+	TokenExpiresAt          *time.Time  `json:"token_expires_at,omitempty"`
+	CustomURL               *string     `json:"custom_url,omitempty"`
+	WebhookURL              *string     `json:"webhook_url,omitempty"`
+	AllowPreviewDeployments bool        `json:"allow_preview_deployments"`
+	CreatedAt               time.Time   `json:"created_at"`
+	UpdatedAt               time.Time   `json:"updated_at"`
 }
 
 type Repository struct {
@@ -95,10 +97,14 @@ type DetectBuildMethodResponse struct {
 }
 
 type CreateGitSourceRequest struct {
-	Provider    GitProvider `json:"provider"`
-	Name        string      `json:"name"`
-	AccessToken string      `json:"access_token"`
-	CustomURL   *string     `json:"custom_url,omitempty"`
+	Provider                GitProvider `json:"provider"`
+	Name                    string      `json:"name"`
+	AccessToken             string      `json:"access_token"`
+	RefreshToken            string      `json:"refresh_token,omitempty"`
+	TokenExpiresAt          *time.Time  `json:"token_expires_at,omitempty"`
+	CustomURL               *string     `json:"custom_url,omitempty"`
+	WebhookURL              *string     `json:"webhook_url,omitempty"`
+	AllowPreviewDeployments bool        `json:"allow_preview_deployments"`
 }
 
 type UpdateGitSourceRequest struct {

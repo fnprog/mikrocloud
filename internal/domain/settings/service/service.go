@@ -36,3 +36,16 @@ func (s *SettingsService) GetUpdateSettings() (*settings.UpdateSettings, error) 
 func (s *SettingsService) SaveUpdateSettings(updateSettings *settings.UpdateSettings) error {
 	return s.repo.SaveUpdateSettings(updateSettings)
 }
+
+func (s *SettingsService) GetInstanceInfo() (*settings.InstanceInfo, error) {
+	generalSettings, err := s.repo.GetGeneralSettings()
+	if err != nil {
+		return nil, err
+	}
+
+	return &settings.InstanceInfo{
+		FQDN: generalSettings.Domain,
+		IPv4: generalSettings.IPv4,
+		IPv6: generalSettings.IPv6,
+	}, nil
+}

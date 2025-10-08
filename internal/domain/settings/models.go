@@ -22,3 +22,9 @@ type UpdateSettings struct {
 	AutoUpdateFrequency  string `json:"auto_update_frequency"`
 	AutoUpdateTime       string `json:"auto_update_time"`
 }
+
+type InstanceInfo struct {
+	FQDN string `json:"fqdn"`
+	IPv4 string `json:"ipv4"`
+	IPv6 string `json:"ipv6"`
+}

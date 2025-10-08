@@ -104,3 +104,13 @@ func (h *SettingsHandler) CreateBackup(w http.ResponseWriter, r *http.Request) {
 func (h *SettingsHandler) RestoreBackup(w http.ResponseWriter, r *http.Request) {
 	utils.SendError(w, http.StatusNotImplemented, "Restore feature not implemented yet", "")
 }
+
+func (h *SettingsHandler) GetInstanceInfo(w http.ResponseWriter, r *http.Request) {
+	instanceInfo, err := h.service.GetInstanceInfo()
+	if err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "Failed to retrieve instance info", err.Error())
+		return
+	}
+
+	utils.SendJSON(w, http.StatusOK, instanceInfo)
+}

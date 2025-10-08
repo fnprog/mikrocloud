@@ -7,6 +7,7 @@
 		{ path: 'general', label: 'General', icon: Settings },
 		{ path: 'advanced', label: 'Advanced', icon: Shield },
 		{ path: 'updates', label: 'Updates', icon: RefreshCw },
+		{ path: 'backup-location', label: 'S3 Destinations', icon: Database },
 		{ path: 'backup', label: 'Backup', icon: Database }
 	];
 

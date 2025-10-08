@@ -68,15 +68,17 @@
 	<title>Servers - Dashboard</title>
 </svelte:head>
 
-<div class="flex h-screen bg-gray-50">
+<div class="flex h-screen">
 	<!-- Main Content -->
 	<div class="flex-1 flex flex-col overflow-hidden">
 		<!-- Header -->
-		<div class="bg-white border-b border-gray-200 px-6 py-4">
+		<div class="px-6 py-4">
 			<div class="flex items-center justify-between">
 				<div>
-					<h1 class="text-2xl font-semibold text-gray-900">Servers</h1>
-					<p class="text-sm text-gray-500 mt-1">Monitor and manage your server infrastructure.</p>
+					<h1 class="text-2xl font-semibold">Servers</h1>
+					<p class="text-sm text-muted-foreground mt-1">
+						Monitor and manage your server infrastructure.
+					</p>
 				</div>
 				<Button>
 					<Plus class="w-4 h-4 mr-2" />

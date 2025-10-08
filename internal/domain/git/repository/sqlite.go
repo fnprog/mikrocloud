@@ -19,8 +19,8 @@ func NewSQLiteGitRepository(db *sql.DB) GitRepository {
 
 func (r *SQLiteGitRepository) Create(ctx context.Context, source *git.GitSource) error {
 	query := `
-		INSERT INTO git_sources (id, org_id, user_id, provider, name, access_token, refresh_token, token_expires_at, custom_url, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO git_sources (id, org_id, user_id, provider, name, access_token, refresh_token, token_expires_at, custom_url, webhook_url, allow_preview_deployments, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	var tokenExpiresAt interface{}
@@ -33,6 +33,11 @@ func (r *SQLiteGitRepository) Create(ctx context.Context, source *git.GitSource)
 		customURL = *source.CustomURL
 	}
 
+	var webhookURL interface{}
+	if source.WebhookURL != nil {
+		webhookURL = *source.WebhookURL
+	}
+
 	_, err := r.db.ExecContext(ctx, query,
 		source.ID,
 		source.OrgID,
@@ -43,6 +48,8 @@ func (r *SQLiteGitRepository) Create(ctx context.Context, source *git.GitSource)
 		source.RefreshToken,
 		tokenExpiresAt,
 		customURL,
+		webhookURL,
+		source.AllowPreviewDeployments,
 		source.CreatedAt.Format(time.RFC3339),
 		source.UpdatedAt.Format(time.RFC3339),
 	)
@@ -56,7 +63,7 @@ func (r *SQLiteGitRepository) Create(ctx context.Context, source *git.GitSource)
 
 func (r *SQLiteGitRepository) GetByID(ctx context.Context, id string) (*git.GitSource, error) {
 	query := `
-		SELECT id, org_id, user_id, provider, name, access_token, refresh_token, token_expires_at, custom_url, created_at, updated_at
+		SELECT id, org_id, user_id, provider, name, access_token, refresh_token, token_expires_at, custom_url, webhook_url, allow_preview_deployments, created_at, updated_at
 		FROM git_sources
 		WHERE id = ?
 	`
@@ -72,6 +79,8 @@ func (r *SQLiteGitRepository) GetByID(ctx context.Context, id string) (*git.GitS
 		&row.RefreshToken,
 		&row.TokenExpiresAt,
 		&row.CustomURL,
+		&row.WebhookURL,
+		&row.AllowPreviewDeployments,
 		&row.CreatedAt,
 		&row.UpdatedAt,
 	)
@@ -88,7 +97,7 @@ func (r *SQLiteGitRepository) GetByID(ctx context.Context, id string) (*git.GitS
 
 func (r *SQLiteGitRepository) GetByUserID(ctx context.Context, userID string) ([]*git.GitSource, error) {
 	query := `
-		SELECT id, org_id, user_id, provider, name, access_token, refresh_token, token_expires_at, custom_url, created_at, updated_at
+		SELECT id, org_id, user_id, provider, name, access_token, refresh_token, token_expires_at, custom_url, webhook_url, allow_preview_deployments, created_at, updated_at
 		FROM git_sources
 		WHERE user_id = ?
 		ORDER BY created_at DESC
@@ -113,6 +122,8 @@ func (r *SQLiteGitRepository) GetByUserID(ctx context.Context, userID string) ([
 			&row.RefreshToken,
 			&row.TokenExpiresAt,
 			&row.CustomURL,
+			&row.WebhookURL,
+			&row.AllowPreviewDeployments,
 			&row.CreatedAt,
 			&row.UpdatedAt,
 		)
@@ -137,7 +148,7 @@ func (r *SQLiteGitRepository) GetByUserID(ctx context.Context, userID string) ([
 
 func (r *SQLiteGitRepository) GetByOrgID(ctx context.Context, orgID string) ([]*git.GitSource, error) {
 	query := `
-		SELECT id, org_id, user_id, provider, name, access_token, refresh_token, token_expires_at, custom_url, created_at, updated_at
+		SELECT id, org_id, user_id, provider, name, access_token, refresh_token, token_expires_at, custom_url, webhook_url, allow_preview_deployments, created_at, updated_at
 		FROM git_sources
 		WHERE org_id = ?
 		ORDER BY created_at DESC
@@ -162,6 +173,8 @@ func (r *SQLiteGitRepository) GetByOrgID(ctx context.Context, orgID string) ([]*
 			&row.RefreshToken,
 			&row.TokenExpiresAt,
 			&row.CustomURL,
+			&row.WebhookURL,
+			&row.AllowPreviewDeployments,
 			&row.CreatedAt,
 			&row.UpdatedAt,
 		)
@@ -187,7 +200,7 @@ func (r *SQLiteGitRepository) GetByOrgID(ctx context.Context, orgID string) ([]*
 func (r *SQLiteGitRepository) Update(ctx context.Context, id string, source *git.GitSource) error {
 	query := `
 		UPDATE git_sources
-		SET name = ?, access_token = ?, refresh_token = ?, token_expires_at = ?, updated_at = ?
+		SET name = ?, access_token = ?, refresh_token = ?, token_expires_at = ?, webhook_url = ?, allow_preview_deployments = ?, updated_at = ?
 		WHERE id = ?
 	`
 
@@ -196,11 +209,18 @@ func (r *SQLiteGitRepository) Update(ctx context.Context, id string, source *git
 		tokenExpiresAt = source.TokenExpiresAt.Format(time.RFC3339)
 	}
 
+	var webhookURL interface{}
+	if source.WebhookURL != nil {
+		webhookURL = *source.WebhookURL
+	}
+
 	result, err := r.db.ExecContext(ctx, query,
 		source.Name,
 		source.AccessToken,
 		source.RefreshToken,
 		tokenExpiresAt,
+		webhookURL,
+		source.AllowPreviewDeployments,
 		source.UpdatedAt.Format(time.RFC3339),
 		id,
 	)
@@ -242,17 +262,19 @@ func (r *SQLiteGitRepository) Delete(ctx context.Context, id string) error {
 }
 
 type gitSourceRow struct {
-	ID             string
-	OrgID          string
-	UserID         string
-	Provider       string
-	Name           string
-	AccessToken    string
-	RefreshToken   sql.NullString
-	TokenExpiresAt sql.NullString
-	CustomURL      sql.NullString
-	CreatedAt      string
-	UpdatedAt      string
+	ID                      string
+	OrgID                   string
+	UserID                  string
+	Provider                string
+	Name                    string
+	AccessToken             string
+	RefreshToken            sql.NullString
+	TokenExpiresAt          sql.NullString
+	CustomURL               sql.NullString
+	WebhookURL              sql.NullString
+	AllowPreviewDeployments bool
+	CreatedAt               string
+	UpdatedAt               string
 }
 
 func (r *SQLiteGitRepository) mapRowToGitSource(row gitSourceRow) (*git.GitSource, error) {
@@ -280,17 +302,24 @@ func (r *SQLiteGitRepository) mapRowToGitSource(row gitSourceRow) (*git.GitSourc
 		customURL = &row.CustomURL.String
 	}
 
+	var webhookURL *string
+	if row.WebhookURL.Valid {
+		webhookURL = &row.WebhookURL.String
+	}
+
 	return &git.GitSource{
-		ID:             row.ID,
-		OrgID:          row.OrgID,
-		UserID:         row.UserID,
-		Provider:       git.GitProvider(row.Provider),
-		Name:           row.Name,
-		AccessToken:    row.AccessToken,
-		RefreshToken:   row.RefreshToken.String,
-		TokenExpiresAt: tokenExpiresAt,
-		CustomURL:      customURL,
-		CreatedAt:      createdAt,
-		UpdatedAt:      updatedAt,
+		ID:                      row.ID,
+		OrgID:                   row.OrgID,
+		UserID:                  row.UserID,
+		Provider:                git.GitProvider(row.Provider),
+		Name:                    row.Name,
+		AccessToken:             row.AccessToken,
+		RefreshToken:            row.RefreshToken.String,
+		TokenExpiresAt:          tokenExpiresAt,
+		CustomURL:               customURL,
+		WebhookURL:              webhookURL,
+		AllowPreviewDeployments: row.AllowPreviewDeployments,
+		CreatedAt:               createdAt,
+		UpdatedAt:               updatedAt,
 	}, nil
 }

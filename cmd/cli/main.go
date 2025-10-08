@@ -4,12 +4,16 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/exp/slog"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/mikrocloud/mikrocloud/internal/config"
 )
 
 var (
@@ -64,6 +68,143 @@ func init() {
 	dbCmd.AddCommand(dbDeleteCmd)
 }
 
+func startMikrocloud() error {
+	slog.Info("Starting Mikrocloud server...")
+
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	runtime := cfg.Docker.Runtime
+	port := cfg.Server.Port
+	dataDir := cfg.Server.DataDir
+	socketPath := cfg.Docker.SocketPath
+
+	if isContainerRunning(runtime) {
+		fmt.Println("✅ Mikrocloud is already running")
+		return nil
+	}
+
+	if !isContainerExists(runtime) {
+		slog.Info("Pulling Mikrocloud container image...", "image", containerImage)
+		fmt.Printf("⬇️  Pulling %s...\n", containerImage)
+
+		pullCmd := exec.Command(runtime, "pull", containerImage)
+		pullCmd.Stdout = os.Stdout
+		pullCmd.Stderr = os.Stderr
+
+		if err := pullCmd.Run(); err != nil {
+			return fmt.Errorf("failed to pull container image: %w", err)
+		}
+	}
+
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create data directory: %w", err)
+	}
+
+	slog.Info("Starting container...", "name", containerName)
+	fmt.Printf("🚀 Starting Mikrocloud container...\n")
+
+	runCmd := exec.Command(runtime, "run",
+		"-d",
+		"--name", containerName,
+		"--restart", "unless-stopped",
+		"-p", fmt.Sprintf("%d:%d", port, port),
+		"-v", fmt.Sprintf("%s:/app/data", dataDir),
+		"-v", fmt.Sprintf("%s:/var/run/docker.sock", socketPath),
+		containerImage,
+		"serve",
+	)
+
+	output, err := runCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to start container: %w\n%s", err, string(output))
+	}
+
+	fmt.Println("✅ Mikrocloud started successfully!")
+	fmt.Printf("🌐 Dashboard: http://localhost:%d\n", port)
+	return nil
+}
+
+func stopMikrocloud() error {
+	slog.Info("Stopping Mikrocloud server...")
+
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	runtime := cfg.Docker.Runtime
+
+	if !isContainerRunning(runtime) {
+		fmt.Println("⚠️  Mikrocloud is not running")
+		return nil
+	}
+
+	fmt.Printf("⏹️  Stopping Mikrocloud container...\n")
+
+	stopCmd := exec.Command(runtime, "stop", containerName)
+	if err := stopCmd.Run(); err != nil {
+		return fmt.Errorf("failed to stop container: %w", err)
+	}
+
+	fmt.Println("✅ Mikrocloud stopped")
+	return nil
+}
+
+func statusMikrocloud() error {
+	slog.Info("Checking Mikrocloud status...")
+
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	runtime := cfg.Docker.Runtime
+	port := cfg.Server.Port
+
+	if !isContainerExists(runtime) {
+		fmt.Println("❌ Mikrocloud container does not exist")
+		fmt.Printf("   Run 'mikrocloud-cli start' to create and start the container\n")
+		return nil
+	}
+
+	if isContainerRunning(runtime) {
+		fmt.Println("✅ Mikrocloud is running")
+		fmt.Printf("🌐 Dashboard: http://localhost:%d\n", port)
+
+		inspectCmd := exec.Command(runtime, "inspect", "--format", "{{.State.StartedAt}}", containerName)
+		output, err := inspectCmd.Output()
+		if err == nil {
+			fmt.Printf("   Started: %s", strings.TrimSpace(string(output)))
+		}
+	} else {
+		fmt.Println("⏹️  Mikrocloud container exists but is not running")
+		fmt.Printf("   Run 'mikrocloud-cli start' to start it\n")
+	}
+
+	return nil
+}
+
+func isContainerExists(runtime string) bool {
+	cmd := exec.Command(runtime, "ps", "-a", "--filter", fmt.Sprintf("name=^%s$", containerName), "--format", "{{.Names}}")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(output)) == containerName
+}
+
+func isContainerRunning(runtime string) bool {
+	cmd := exec.Command(runtime, "ps", "--filter", fmt.Sprintf("name=^%s$", containerName), "--format", "{{.Names}}")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(output)) == containerName
+}
+
 func initConfig() {
 	if configFile != "" {
 		viper.SetConfigFile(configFile)
@@ -93,8 +234,7 @@ var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the Mikrocloud server in the background",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		slog.Info("Starting Mikrocloud server...")
-		return fmt.Errorf("not yet implemented - use 'mikrocloud-server serve' directly for now")
+		return startMikrocloud()
 	},
 }
 
@@ -102,8 +242,7 @@ var stopCmd = &cobra.Command{
 	Use:   "stop",
 	Short: "Stop the Mikrocloud server",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		slog.Info("Stopping Mikrocloud server...")
-		return fmt.Errorf("not yet implemented")
+		return stopMikrocloud()
 	},
 }
 
@@ -111,10 +250,14 @@ var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show status of Mikrocloud services",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		slog.Info("Checking Mikrocloud status...")
-		return fmt.Errorf("not yet implemented")
+		return statusMikrocloud()
 	},
 }
+
+const (
+	containerName  = "mikrocloud"
+	containerImage = "ghcr.io/fnprog/mikrocloud/mikrocloud:latest"
+)
 
 var projectCmd = &cobra.Command{
 	Use:   "project",

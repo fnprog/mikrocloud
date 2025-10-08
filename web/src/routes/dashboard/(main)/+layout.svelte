@@ -6,7 +6,11 @@
 		{ name: 'Overview', href: '/dashboard/overview' },
 		{ name: 'Projects', href: '/dashboard/projects' },
 		{ name: 'Infrastructure', href: '/dashboard/infra' },
+		{ name: 'Observability', href: '/dashboard/monitoring' },
 		{ name: 'Version Control', href: '/dashboard/git' },
+		{ name: 'Notifications', href: '/dashboard/notifications' },
+		{ name: 'Users', href: '/dashboard/users' },
+		{ name: 'Agent', href: '/dashboard/agent' },
 		{ name: 'Settings', href: '/dashboard/settings' }
 	];
 </script>

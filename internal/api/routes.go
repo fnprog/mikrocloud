@@ -125,6 +125,8 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	gitRepository := gitRepo.NewSQLiteGitRepository(db.DB())
 	gitSvc := gitService.NewGitService(gitRepository)
 	gitHandler := gitHandlers.NewGitHandler(gitSvc)
+	gitOAuthHandler := gitHandlers.NewOAuthHandlers(gitSvc, cfg)
+	gitWebhookHandler := gitHandlers.NewWebhookHandlers(gitSvc)
 
 	settingsSvc := settingsService.NewSettingsService(db.SettingsRepository)
 	settingsHandler := settingsHandlers.NewSettingsHandler(settingsSvc)
@@ -281,7 +283,13 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 				r.Delete("/", gitHandler.DeleteGitSource)
 			})
 		})
+
+		// Git OAuth routes (protected)
+		gitHandlers.RegisterOAuthRoutes(r, gitOAuthHandler)
 	})
+
+	// Public webhook routes (no authentication required)
+	gitHandlers.RegisterWebhookRoutes(api, gitWebhookHandler)
 
 	// Public routes (no authentication required)
 	api.Route("/auth", func(r chi.Router) {
@@ -289,6 +297,9 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 		r.Post("/login", authHandler.Login)
 		r.Post("/register", authHandler.Register)
 		r.Post("/refresh", authHandler.RefreshToken)
+
+		// Git OAuth callback (public route - OAuth provider redirects here)
+		r.Get("/git/oauth/callback", gitOAuthHandler.Callback)
 
 		// Protected auth routes
 		r.Group(func(r chi.Router) {
@@ -328,6 +339,7 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 		r.Post("/advanced", settingsHandler.SaveAdvancedSettings)
 		r.Get("/updates", settingsHandler.GetUpdateSettings)
 		r.Post("/updates", settingsHandler.SaveUpdateSettings)
+		r.Get("/instance", settingsHandler.GetInstanceInfo)
 		r.Post("/backup", settingsHandler.CreateBackup)
 		r.Post("/restore", settingsHandler.RestoreBackup)
 	})

@@ -58,8 +58,33 @@ type SSLConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret string `mapstructure:"jwt_secret"`
-	Enabled   bool   `mapstructure:"enabled"`
+	JWTSecret string         `mapstructure:"jwt_secret"`
+	Enabled   bool           `mapstructure:"enabled"`
+	GitOAuth  GitOAuthConfig `mapstructure:"git_oauth"`
+}
+
+type GitOAuthConfig struct {
+	GitHub    GitHubOAuthConfig    `mapstructure:"github"`
+	GitLab    GitLabOAuthConfig    `mapstructure:"gitlab"`
+	Bitbucket BitbucketOAuthConfig `mapstructure:"bitbucket"`
+}
+
+type GitHubOAuthConfig struct {
+	ClientID     string `mapstructure:"client_id"`
+	ClientSecret string `mapstructure:"client_secret"`
+	RedirectURL  string `mapstructure:"redirect_url"`
+}
+
+type GitLabOAuthConfig struct {
+	ClientID     string `mapstructure:"client_id"`
+	ClientSecret string `mapstructure:"client_secret"`
+	RedirectURL  string `mapstructure:"redirect_url"`
+}
+
+type BitbucketOAuthConfig struct {
+	ClientID     string `mapstructure:"client_id"`
+	ClientSecret string `mapstructure:"client_secret"`
+	RedirectURL  string `mapstructure:"redirect_url"`
 }
 
 func Load() (*Config, error) {
@@ -119,6 +144,17 @@ func setDefaults() {
 	// Auth defaults
 	viper.SetDefault("auth.enabled", false)
 	viper.SetDefault("auth.jwt_secret", "")
+
+	// Git OAuth defaults - these should be set via environment variables
+	viper.SetDefault("auth.git_oauth.github.client_id", "")
+	viper.SetDefault("auth.git_oauth.github.client_secret", "")
+	viper.SetDefault("auth.git_oauth.github.redirect_url", "")
+	viper.SetDefault("auth.git_oauth.gitlab.client_id", "")
+	viper.SetDefault("auth.git_oauth.gitlab.client_secret", "")
+	viper.SetDefault("auth.git_oauth.gitlab.redirect_url", "")
+	viper.SetDefault("auth.git_oauth.bitbucket.client_id", "")
+	viper.SetDefault("auth.git_oauth.bitbucket.client_secret", "")
+	viper.SetDefault("auth.git_oauth.bitbucket.redirect_url", "")
 }
 
 func expandEnvVars(path string) string {

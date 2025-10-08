@@ -1,14 +1,17 @@
 <script lang="ts">
 	let { children } = $props();
-
+	import { page } from '$app/state';
 	import { NavBarBottom } from '$lib/components/ui/navbar';
 
-	const tabs = [
-		{ name: 'Overview', href: 'dashboard' },
-		{ name: 'Shared Variables', href: 'shared-vars' },
-		{ name: 'Architecture', href: 'schema' },
-		{ name: 'Settings', href: 'settings' }
-	];
+	const projectId = $derived(page.params.id);
+
+	const tabs = $derived([
+		{ name: 'Overview', href: `/dashboard/project/${projectId}` },
+		{ name: 'Infrastructure', href: `/dashboard/project/${projectId}/infrastructure` },
+		{ name: 'Shared Variables', href: `/dashboard/project/${projectId}/shared-vars` },
+		{ name: 'Architecture', href: `/dashboard/project/${projectId}/schema` },
+		{ name: 'Settings', href: `/dashboard/project/${projectId}/settings` }
+	]);
 </script>
 
 <NavBarBottom {tabs} />

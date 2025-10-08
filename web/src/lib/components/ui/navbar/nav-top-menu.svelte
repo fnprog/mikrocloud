@@ -65,7 +65,7 @@
 		</DropdownMenuItem>
 
 		<!-- Account Settings -->
-		<DropdownMenuItem class="cursor-pointer" onSelect={() => goto('/dashboard/account/general')}>
+		<DropdownMenuItem class="cursor-pointer" onSelect={() => goto('/dashboard/account/general/profile')}>
 			<span class="text-sm">Account Settings</span>
 		</DropdownMenuItem>
 
