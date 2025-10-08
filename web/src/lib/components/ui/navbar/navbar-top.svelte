@@ -11,7 +11,7 @@
 		<Logo
 			class={cn(
 				'h-[24px] absolute left-6 hidden md:flex items-center gap-4 transition-all duration-300 ease-in-out z-10',
-				getIsScrolled() ? 'translate-y-[15px] scale-[0.8]' : 'translate-y-[18px]'
+				getIsScrolled() ? 'translate-y-[12px] scale-[0.8]' : 'translate-y-[18px]'
 			)}
 		/>
 

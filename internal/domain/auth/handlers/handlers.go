@@ -45,9 +45,10 @@ type AuthResponse struct {
 
 // User represents user data in responses
 type User struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	ID       string  `json:"id"`
+	Name     string  `json:"name"`
+	Email    string  `json:"email"`
+	Username *string `json:"username,omitempty"`
 }
 
 // Login authenticates a user and returns a token
@@ -92,12 +93,19 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   60 * 60 * 24 * 7,
 	})
 
+	var username *string
+	if result.User.Username() != nil {
+		usernameStr := result.User.Username().String()
+		username = &usernameStr
+	}
+
 	response := AuthResponse{
 		Token: result.Token,
 		User: User{
-			ID:    result.User.ID().String(),
-			Name:  result.User.Name(),
-			Email: result.User.Email().String(),
+			ID:       result.User.ID().String(),
+			Name:     result.User.Name(),
+			Email:    result.User.Email().String(),
+			Username: username,
 		},
 	}
 
@@ -140,12 +148,19 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var username *string
+	if result.User.Username() != nil {
+		usernameStr := result.User.Username().String()
+		username = &usernameStr
+	}
+
 	response := AuthResponse{
 		Token: result.Token,
 		User: User{
-			ID:    result.User.ID().String(),
-			Name:  result.User.Name(),
-			Email: result.User.Email().String(),
+			ID:       result.User.ID().String(),
+			Name:     result.User.Name(),
+			Email:    result.User.Email().String(),
+			Username: username,
 		},
 	}
 
@@ -275,10 +290,17 @@ func (h *AuthHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var username *string
+	if user.Username() != nil {
+		usernameStr := user.Username().String()
+		username = &usernameStr
+	}
+
 	response := User{
-		ID:    user.ID().String(),
-		Name:  user.Name(),
-		Email: user.Email().String(),
+		ID:       user.ID().String(),
+		Name:     user.Name(),
+		Email:    user.Email().String(),
+		Username: username,
 	}
 
 	utils.SendJSON(w, http.StatusOK, response)

@@ -28,14 +28,14 @@
 		const activeIndex = tabs.findIndex((tab) => tab.name === activeTab);
 		const activeElement = tabsRef[activeIndex];
 
+		console.log('active index', activeIndex);
+
 		if (activeElement && tabsContainerRef) {
 			const containerRect = tabsContainerRef.getBoundingClientRect();
 			const elementRect = activeElement.getBoundingClientRect();
 
-			indicatorStyle = {
-				left: elementRect.left - containerRect.left + tabsContainerRef.scrollLeft,
-				width: activeElement.offsetWidth
-			};
+			indicatorStyle.left = elementRect.left - containerRect.left + tabsContainerRef.scrollLeft;
+			indicatorStyle.width = activeElement.offsetWidth;
 		}
 	}
 
@@ -46,6 +46,7 @@
 	}
 
 	$effect(() => {
+		activeTab;
 		updateIndicator();
 	});
 
@@ -60,7 +61,7 @@
 		getIsScrolled() ? 'top-0' : 'top-14'
 	)}
 >
-	<div class="mx-auto md:px-2">
+	<div class="mx-auto px-4 md:px-2">
 		<div class={cn('flex items-center justify-between transition-all duration-300 h-12')}>
 			<div class="flex items-center gap-4 flex-1 min-w-0 h-full">
 				<div

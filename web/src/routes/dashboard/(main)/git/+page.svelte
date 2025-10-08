@@ -1,13 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
-	import {
-		Card,
-		CardContent,
-		CardDescription,
-		CardHeader,
-		CardTitle
-	} from '$lib/components/ui/card';
+	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import {
@@ -15,15 +9,9 @@
 		SheetContent,
 		SheetDescription,
 		SheetHeader,
-		SheetTitle,
-		SheetTrigger
+		SheetTitle
 	} from '$lib/components/ui/sheet';
-	import {
-		Select,
-		SelectContent,
-		SelectItem,
-		SelectTrigger
-	} from '$lib/components/ui/select';
+	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
 	import { Plus, Trash2, Github, GitBranch, Server } from 'lucide-svelte';
 	import { gitApi, type GitProvider, type GitSource } from '$lib/api/git';
 	import { onMount } from 'svelte';
@@ -146,9 +134,7 @@
 		<div class="flex items-center justify-between">
 			<div>
 				<h1 class="text-2xl font-semibold text-gray-900">Git Sources</h1>
-				<p class="text-sm text-gray-500 mt-1">
-					Manage Git provider connections and access tokens
-				</p>
+				<p class="text-sm text-gray-500 mt-1">Manage Git provider connections and access tokens</p>
 			</div>
 			<Button onclick={() => (isCreateSheetOpen = true)}>
 				<Plus class="h-4 w-4 mr-2" />
@@ -161,97 +147,82 @@
 		<SheetContent class="overflow-y-auto">
 			<SheetHeader>
 				<SheetTitle>Add Git Source</SheetTitle>
-				<SheetDescription>
-					Connect a Git provider by providing an access token
-				</SheetDescription>
+				<SheetDescription>Connect a Git provider by providing an access token</SheetDescription>
 			</SheetHeader>
-					<div class="space-y-4 py-4">
-						<div class="space-y-2">
-							<Label for="name">Name</Label>
-							<Input
-								id="name"
-								placeholder="My GitHub Account"
-								bind:value={formData.name}
-							/>
-						</div>
+			<div class="space-y-4 py-4">
+				<div class="space-y-2">
+					<Label for="name">Name</Label>
+					<Input id="name" placeholder="My GitHub Account" bind:value={formData.name} />
+				</div>
 
-						<div class="space-y-2">
-							<Label for="provider">Provider</Label>
-							<Select
-								value={formData.provider}
-								onValueChange={(v) => v && (formData.provider = v as GitProvider)}
-							>
-								<SelectTrigger id="provider">
-									{formData.provider.charAt(0).toUpperCase() + formData.provider.slice(1)}
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="github">GitHub</SelectItem>
-									<SelectItem value="gitlab">GitLab</SelectItem>
-									<SelectItem value="bitbucket">Bitbucket</SelectItem>
-									<SelectItem value="custom">Custom/Self-hosted</SelectItem>
-								</SelectContent>
-							</Select>
-						</div>
-
-						{#if formData.provider === 'custom'}
-							<div class="space-y-2">
-								<Label for="custom_url">Custom Git URL</Label>
-								<Input
-									id="custom_url"
-									placeholder="https://git.example.com"
-									bind:value={formData.custom_url}
-								/>
-								<p class="text-xs text-muted-foreground">
-									Base URL of your self-hosted Git instance
-								</p>
-							</div>
-						{/if}
-
-						<div class="space-y-2">
-							<Label for="access_token">Access Token</Label>
-							<Input
-								id="access_token"
-								type="password"
-								placeholder="ghp_xxxxxxxxxxxx"
-								bind:value={formData.access_token}
-							/>
-							<p class="text-xs text-muted-foreground">
-								{#if formData.provider === 'github'}
-									Create a personal access token at GitHub Settings → Developer settings
-								{:else if formData.provider === 'gitlab'}
-									Create an access token at GitLab Settings → Access Tokens
-								{:else if formData.provider === 'bitbucket'}
-									Create an app password at Bitbucket Settings → App passwords
-								{:else}
-									Create an access token in your Git provider's settings
-								{/if}
-							</p>
-						</div>
-
-						<div class="space-y-2">
-							<Label for="refresh_token">Refresh Token (Optional)</Label>
-							<Input
-								id="refresh_token"
-								type="password"
-								placeholder="Optional refresh token"
-								bind:value={formData.refresh_token}
-							/>
-							<p class="text-xs text-muted-foreground">
-								If your provider supports token refresh
-							</p>
-						</div>
-					</div>
-					<div class="flex justify-end gap-2">
-					<Button variant="outline" onclick={() => (isCreateSheetOpen = false)}>
-						Cancel
-					</Button>
-					<Button
-						onclick={createSource}
-						disabled={!formData.name || !formData.access_token}
+				<div class="space-y-2">
+					<Label for="provider">Provider</Label>
+					<Select
+						value={formData.provider}
+						onValueChange={(v) => v && (formData.provider = v as GitProvider)}
 					>
-						Add Source
-					</Button>
+						<SelectTrigger id="provider">
+							{formData.provider.charAt(0).toUpperCase() + formData.provider.slice(1)}
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="github">GitHub</SelectItem>
+							<SelectItem value="gitlab">GitLab</SelectItem>
+							<SelectItem value="bitbucket">Bitbucket</SelectItem>
+							<SelectItem value="custom">Custom/Self-hosted</SelectItem>
+						</SelectContent>
+					</Select>
+				</div>
+
+				{#if formData.provider === 'custom'}
+					<div class="space-y-2">
+						<Label for="custom_url">Custom Git URL</Label>
+						<Input
+							id="custom_url"
+							placeholder="https://git.example.com"
+							bind:value={formData.custom_url}
+						/>
+						<p class="text-xs text-muted-foreground">Base URL of your self-hosted Git instance</p>
 					</div>
+				{/if}
+
+				<div class="space-y-2">
+					<Label for="access_token">Access Token</Label>
+					<Input
+						id="access_token"
+						type="password"
+						placeholder="ghp_xxxxxxxxxxxx"
+						bind:value={formData.access_token}
+					/>
+					<p class="text-xs text-muted-foreground">
+						{#if formData.provider === 'github'}
+							Create a personal access token at GitHub Settings → Developer settings
+						{:else if formData.provider === 'gitlab'}
+							Create an access token at GitLab Settings → Access Tokens
+						{:else if formData.provider === 'bitbucket'}
+							Create an app password at Bitbucket Settings → App passwords
+						{:else}
+							Create an access token in your Git provider's settings
+						{/if}
+					</p>
+				</div>
+
+				<div class="space-y-2">
+					<Label for="refresh_token">Refresh Token (Optional)</Label>
+					<Input
+						id="refresh_token"
+						type="password"
+						placeholder="Optional refresh token"
+						bind:value={formData.refresh_token}
+					/>
+					<p class="text-xs text-muted-foreground">If your provider supports token refresh</p>
+				</div>
+			</div>
+			<div class="flex justify-end gap-2">
+				<Button variant="outline" onclick={() => (isCreateSheetOpen = false)}>Cancel</Button>
+				<Button onclick={createSource} disabled={!formData.name || !formData.access_token}>
+					Add Source
+				</Button>
+			</div>
 		</SheetContent>
 	</Sheet>
 
@@ -295,17 +266,13 @@
 		{:else}
 			<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
 				{#each sources as source (source.id)}
+					{@const Icon = getProviderIcon(source.provider)}
 					<Card>
 						<CardHeader>
 							<div class="flex items-start justify-between">
 								<div class="flex items-center gap-3">
-									<div
-										class="p-2 rounded-lg {getProviderBadgeColor(source.provider)}"
-									>
-										<svelte:component
-											this={getProviderIcon(source.provider)}
-											class="h-5 w-5"
-										/>
+									<div class="p-2 rounded-lg {getProviderBadgeColor(source.provider)}">
+										<Icon class="h-5 w-5" />
 									</div>
 									<div>
 										<CardTitle class="text-lg">{source.name}</CardTitle>
@@ -318,8 +285,8 @@
 									variant="ghost"
 									size="sm"
 									onclick={() => {
-									selectedSource = source;
-									isDeleteModalOpen = true;
+										selectedSource = source;
+										isDeleteModalOpen = true;
 									}}
 								>
 									<Trash2 class="h-4 w-4 text-red-600" />
@@ -358,9 +325,7 @@
 				Are you sure you want to delete "{selectedSource.name}"? This action cannot be undone.
 			</p>
 			<div class="flex justify-end gap-2">
-				<Button variant="outline" onclick={() => (isDeleteModalOpen = false)}>
-					Cancel
-				</Button>
+				<Button variant="outline" onclick={() => (isDeleteModalOpen = false)}>Cancel</Button>
 				<Button variant="destructive" onclick={deleteSource}>Delete</Button>
 			</div>
 		</div>

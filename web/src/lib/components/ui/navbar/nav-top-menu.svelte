@@ -2,6 +2,7 @@
 	import { cn } from '$lib/utils';
 	import { goto } from '$app/navigation';
 	import { authApi } from '$lib/api/auth';
+	import { createQuery } from '@tanstack/svelte-query';
 
 	import {
 		DropdownMenu,
@@ -16,6 +17,18 @@
 	import { LogOut, Monitor, Sun, Moon, Plus } from 'lucide-svelte';
 
 	let theme: 'light' | 'dark' | 'system' = 'system';
+
+	const userQuery = createQuery(() => ({
+		queryKey: ['user', 'profile'],
+		queryFn: () => authApi.getProfile(),
+		staleTime: 5 * 60 * 1000
+	}));
+
+	const user = $derived(userQuery.data);
+	const displayName = $derived(user?.username || user?.name || 'User');
+	const initials = $derived(
+		displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+	);
 
 	function cycleTheme() {
 		const themes: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system'];
@@ -34,7 +47,7 @@
 	<DropdownMenuTrigger>
 		<Button variant="ghost" size="icon" class="rounded-full h-8 w-8">
 			<Avatar class="h-8 w-8">
-				<AvatarFallback class="bg-orange-500 text-white text-xs">GN</AvatarFallback>
+				<AvatarFallback class="bg-orange-500 text-white text-xs">{initials}</AvatarFallback>
 			</Avatar>
 		</Button>
 	</DropdownMenuTrigger>
@@ -42,17 +55,17 @@
 	<DropdownMenuContent align="end" class="w-[280px] p-2">
 		<!-- Header -->
 		<div class="px-2 py-3 border-b border-border mb-2">
-			<div class="font-medium text-sm">gamernewone</div>
-			<div class="text-xs text-muted-foreground">rickrichard80@gmail.com</div>
+			<div class="font-medium text-sm">{displayName}</div>
+			<div class="text-xs text-muted-foreground">{user?.email || ''}</div>
 		</div>
 
 		<!-- Dashboard -->
-		<DropdownMenuItem class="cursor-pointer">
+		<DropdownMenuItem class="cursor-pointer" onSelect={() => goto('/dashboard/overview')}>
 			<span class="text-sm">Dashboard</span>
 		</DropdownMenuItem>
 
 		<!-- Account Settings -->
-		<DropdownMenuItem class="cursor-pointer">
+		<DropdownMenuItem class="cursor-pointer" onSelect={() => goto('/dashboard/account/general')}>
 			<span class="text-sm">Account Settings</span>
 		</DropdownMenuItem>
 

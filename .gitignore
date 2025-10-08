@@ -30,6 +30,7 @@ go.work
 web/dist/
 web/.svelte-kit/
 web/node_modules/
+assets/dist
 
 # Database files
 *.db

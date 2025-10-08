@@ -1,59 +1,76 @@
-package cmd
+package main
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/pressly/goose/v3"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"golang.org/x/exp/slog"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/mikrocloud/mikrocloud/assets"
 	"github.com/mikrocloud/mikrocloud/internal/config"
 	"github.com/mikrocloud/mikrocloud/internal/server"
 )
 
 var (
-	cfgFile  string
-	staticFS fs.FS
-	rootCmd  = &cobra.Command{
+	configFile string
+	staticFS   fs.FS
+	rootCmd    = &cobra.Command{
 		Use:   "mikrocloud",
 		Short: "Ultra-lightweight Platform as a Service (PaaS)",
 		Long:  `Mikrocloud is a next-generation, multi-region Platform as a Service (PaaS) built for ultra-lightweight performance (<50MB memory usage) with enterprise features.`,
 	}
 )
 
-func Execute(ctx context.Context) error {
-	return rootCmd.ExecuteContext(ctx)
-}
+func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
 
-// SetStaticFS sets the static filesystem for the server
-func SetStaticFS(fs fs.FS) {
-	staticFS = fs
+	slog.SetDefault(logger)
+
+	// Set up static filesystem
+	frontendFS, err := fs.Sub(assets.FrontendFS, "dist")
+	if err != nil {
+		slog.Error("Failed to get static filesystem", "error", err)
+		os.Exit(1)
+	}
+
+	staticFS = frontendFS
+
+	ctx := context.Background()
+
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
+		slog.Error("Application failed", "error", err)
+		os.Exit(1)
+	}
 }
 
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ./mikrocloud.toml)")
+	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "config file (default is ./mikrocloud.toml)")
 	rootCmd.PersistentFlags().String("log-level", "info", "Log level (debug, info, warn, error)")
 
 	viper.BindPFlag("log_level", rootCmd.PersistentFlags().Lookup("log-level"))
 
 	// Add subcommands
+	// TODO: The migration should be automatic, no need for commmand
 	rootCmd.AddCommand(serveCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(migrateCmd)
 }
 
 func initConfig() {
-	if cfgFile != "" {
-		viper.SetConfigFile(cfgFile)
+	if configFile != "" {
+		viper.SetConfigFile(configFile)
 	} else {
 		viper.SetConfigName("mikrocloud")
 		viper.SetConfigType("toml")

@@ -1,9 +1,11 @@
 # Default target
 help:
 	@echo "Available targets:"
-	@echo "  build        - Build the mikrocloud binary (backend only)"
+	@echo "  build-server - Build the mikrocloud-server binary with embedded frontend"
+	@echo "  build-cli    - Build the mikrocloud-cli binary (management tool)"
+	@echo "  build-all    - Build both server and CLI binaries"
+	@echo "  build        - Alias for build-all"
 	@echo "  build-web    - Build the frontend assets"
-	@echo "  build-full   - Build frontend assets and backend with embedded frontend"
 	@echo "  run          - Run the mikrocloud server"
 	@echo "  clean        - Clean build artifacts"
 	@echo "  test         - Run tests"
@@ -15,9 +17,24 @@ help:
 	@echo "  docker-build - Build Docker image"
 	@echo "  docker-run   - Run with Docker Compose"
 
-# Build the binary (backend only)
-build: deps
-	go build -o bin/mikrocloud ./main.go
+# Build the CLI binary (no embedded frontend)
+build-cli: deps
+	@echo "Building CLI binary..."
+	go build -o bin/mikrocloud-cli ./cmd/cli/main.go
+	@echo "✅ CLI built successfully at bin/mikrocloud-cli"
+
+# Build the server binary (with embedded frontend)
+build-server: build-web deps
+	@echo "Building server binary with embedded frontend..."
+	go build -o bin/mikrocloud-server ./cmd/api/main.go
+	@echo "✅ Server built successfully at bin/mikrocloud-server"
+
+# Build both binaries
+build-all: build-server build-cli
+	@echo "✅ All binaries built successfully"
+
+# Alias for backward compatibility
+build: build-all
 
 # Build the frontend assets
 build-web:
@@ -26,19 +43,13 @@ build-web:
 	cd web && pnpm run build
 	@echo "✅ Frontend built successfully at web/dist/"
 
-# Build everything: frontend + backend with embedded assets
-build-full: build-web deps
-	@echo "Building backend with embedded frontend..."
-	go build -o bin/mikrocloud ./main.go
-	@echo "✅ Full build complete! Frontend is embedded in the binary."
+# Run the server (builds server if binary doesn't exist)
+run: bin/mikrocloud-server
+	./bin/mikrocloud-server serve
 
-# Run the server (builds full if binary doesn't exist)
-run: bin/mikrocloud
-	./bin/mikrocloud serve
-
-# Ensure the binary exists
-bin/mikrocloud:
-	$(MAKE) build-full
+# Ensure the server binary exists
+bin/mikrocloud-server:
+	$(MAKE) build-server
 
 # Run in development mode with auto-reload (requires air)
 dev:

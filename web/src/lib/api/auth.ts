@@ -4,7 +4,8 @@ export interface User {
 	id: string;
 	name: string;
 	email: string;
-	role: string;
+	username?: string;
+	role?: string;
 }
 
 export interface LoginRequest {
@@ -34,6 +35,10 @@ export const authApi = {
 		const response = await apiClient.post<AuthResponse>('/auth/register', data);
 		localStorage.setItem('auth_token', response.token);
 		return response;
+	},
+
+	async getProfile(): Promise<User> {
+		return apiClient.get<User>('/auth/profile');
 	},
 
 	logout(): void {
