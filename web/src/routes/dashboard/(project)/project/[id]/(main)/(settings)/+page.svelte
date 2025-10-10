@@ -1,46 +1,28 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
-	import {
-		getProject,
-		listEnvironments,
-		listApplications,
-		listDatabases,
-		type Application,
-		type Database
-	} from '$lib/api';
 	import { Input } from '$lib/components/ui/input';
 	import { Search } from 'lucide-svelte';
 	import EnvironmentTabs from '$lib/components/projects/environment-tabs.svelte';
 	import AddResourceMenu from '$lib/components/projects/add-resource-menu.svelte';
 	import ApplicationCard from '$lib/components/projects/application-card.svelte';
 	import DatabaseCard from '$lib/components/projects/database-card.svelte';
+	import { createProjectQuery } from '$lib/features/projects/queries';
+	import { createEnvironmentsListQuery } from '$lib/features/environments/queries';
+	import { createApplicationsFetchQuery } from '$lib/features/applications/queries';
+	import { createDatabasesFetchQuery } from '$lib/features/databases/queries';
+	import type { Application } from '$lib/features/applications/types';
+	import type { Database } from '$lib/features/databases/types';
 
-	const projectId = $derived(page.params.id);
+	const projectId = $derived(page.params.id!);
 
 	let selectedEnvironmentId = $state<string | undefined>(undefined);
 	let searchQuery = $state('');
 
-	const projectQuery = createQuery(() => ({
-		queryKey: ['project', projectId],
-		queryFn: () => getProject(projectId)
-	}));
-
-	const environmentsQuery = createQuery(() => ({
-		queryKey: ['environments', projectId],
-		queryFn: () => listEnvironments(projectId)
-	}));
-
-	const applicationsQuery = createQuery(() => ({
-		queryKey: ['applications', projectId],
-		queryFn: () => listApplications(projectId)
-	}));
-
-	const databasesQuery = createQuery(() => ({
-		queryKey: ['databases', projectId],
-		queryFn: () => listDatabases(projectId)
-	}));
+	const projectQuery = $derived(createProjectQuery(projectId));
+	const environmentsQuery = $derived(createEnvironmentsListQuery(projectId));
+	const applicationsQuery = $derived(createApplicationsFetchQuery(projectId, ''));
+	const databasesQuery = $derived(createDatabasesFetchQuery(projectId, ''));
 
 	$effect(() => {
 		if (environmentsQuery.data && !selectedEnvironmentId) {

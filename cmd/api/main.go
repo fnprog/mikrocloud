@@ -61,8 +61,6 @@ func init() {
 
 	viper.BindPFlag("log_level", rootCmd.PersistentFlags().Lookup("log-level"))
 
-	// Add subcommands
-	// TODO: The migration should be automatic, no need for commmand
 	rootCmd.AddCommand(serveCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(migrateCmd)
@@ -94,6 +92,13 @@ var serveCmd = &cobra.Command{
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
+		// Run migrations automatically before starting server
+		slog.Info("Running database migrations...")
+		if err := runMigrations(cfg); err != nil {
+			return fmt.Errorf("failed to run migrations: %w", err)
+		}
+		slog.Info("Database migrations completed successfully")
+
 		srv := server.New(cfg, staticFS)
 
 		return srv.Start(cmd.Context())
@@ -108,6 +113,23 @@ var versionCmd = &cobra.Command{
 	},
 }
 
+func runMigrations(cfg *config.Config) error {
+	// Migrate main database
+	if err := migrateMainDatabase(cfg); err != nil {
+		return fmt.Errorf("failed to migrate main database: %w", err)
+	}
+
+	// Migrate analytics database
+	if err := migrateAnalyticsDatabase(cfg); err != nil {
+		return fmt.Errorf("failed to migrate analytics database: %w", err)
+	}
+
+	// Queue database doesn't typically need migrations for Redis/Dragonfly
+	slog.Info("Queue database initialized", "type", cfg.Queue.Type, "url", cfg.Queue.URL)
+
+	return nil
+}
+
 var migrateCmd = &cobra.Command{
 	Use:   "migrate",
 	Short: "Run database migrations for all database systems",
@@ -117,18 +139,9 @@ var migrateCmd = &cobra.Command{
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		// Migrate main database
-		if err := migrateMainDatabase(cfg); err != nil {
-			return fmt.Errorf("failed to migrate main database: %w", err)
+		if err := runMigrations(cfg); err != nil {
+			return err
 		}
-
-		// Migrate analytics database
-		if err := migrateAnalyticsDatabase(cfg); err != nil {
-			return fmt.Errorf("failed to migrate analytics database: %w", err)
-		}
-
-		// Queue database doesn't typically need migrations for Redis/Dragonfly
-		slog.Info("Queue database initialized", "type", cfg.Queue.Type, "url", cfg.Queue.URL)
 
 		slog.Info("All database migrations completed successfully")
 		return nil

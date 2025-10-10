@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+
 	import { Button } from '$lib/components/ui/button';
 	import {
 		Card,
@@ -12,16 +13,17 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
-	import { applicationsApi, type CreateApplicationRequest } from '$lib/api/applications';
+	import { Loader2 } from 'lucide-svelte';
+
 	import SourceTypeSelector from '$lib/components/applications/source-type-selector.svelte';
 	import GitConfigForm from '$lib/components/applications/git-config-form.svelte';
 	import DockerConfigForm from '$lib/components/applications/docker-config-form.svelte';
 	import BuildTypeSelector from '$lib/components/applications/build-type-selector.svelte';
-	import {  Loader2 } from 'lucide-svelte';
-	import { createMutation } from '@tanstack/svelte-query';
+	import { createApplicationMutationQuery } from '$lib/features/applications/mutations';
+	import type { CreateApplicationRequest } from '$lib/features/applications/types';
 
-	let projectId = $state(page.params.id);
-	let envId = $state(page.params.env_id);
+	let projectId = page.params.id!;
+	let envId = page.params.env_id!;
 
 	let sourceType = $state<'git' | 'docker' | 'zip'>('git');
 	let buildType = $state<'nixpacks' | 'heroku' | 'paketo' | 'static' | 'dockerfile' | 'compose'>(
@@ -45,18 +47,14 @@
 
 	let dockerType = $state<'dockerfile' | 'compose'>('dockerfile');
 	let dockerfileContent = $state('');
-	let composeContent = $state('');
-
+	let dockerfileUploadMethod = $state<'paste' | 'upload'>('paste');
 	let zipFile = $state<File | null>(null);
 
-	const createMutation_ = createMutation(() => ({
-		mutationFn: async (data: CreateApplicationRequest) => {
-			return applicationsApi.create(projectId, data);
-		},
+	const createApplicationMutation = createApplicationMutationQuery({
 		onSuccess: () => {
 			goto(`/dashboard/project/${projectId}`);
 		}
-	}));
+	});
 
 	function handleSubmit() {
 		const deploymentSource =
@@ -118,17 +116,13 @@
 			name: appName,
 			description: appDescription,
 			environment_id: envId,
+			project_id: projectId,
 			deployment_source: deploymentSource,
 			buildpack
 		};
 
-		createMutation_.mutate(data);
+		createApplicationMutation.mutate(data);
 	}
-
-	$effect(() => {
-		projectId = page.params.id;
-		envId = page.params.env_id;
-	});
 </script>
 
 <div class="container mx-auto max-w-4xl py-8 px-4">
@@ -198,12 +192,9 @@
 				</CardHeader>
 				<CardContent>
 					<DockerConfigForm
-						type={dockerType}
-						onTypeChange={(t) => (dockerType = t)}
-						{dockerfileContent}
-						onDockerfileChange={(c) => (dockerfileContent = c)}
-						{composeContent}
-						onComposeChange={(c) => (composeContent = c)}
+						method={dockerfileUploadMethod}
+						fileType={dockerType}
+						content={dockerfileContent}
 					/>
 				</CardContent>
 			</Card>
@@ -274,7 +265,7 @@
 
 				<div class="space-y-2">
 					<Label for="location">Location</Label>
-					<Select value={location} onValueChange={(v) => v && (location = v)}>
+					<Select type="single" bind:value={location}>
 						<SelectTrigger id="location">
 							{location || 'Select location'}
 						</SelectTrigger>
@@ -298,10 +289,10 @@
 						: sourceType === 'docker'
 							? !dockerfileContent && !composeContent
 							: !zipFile) ||
-					createMutation_.isPending}
+					createApplicationMutation.isPending}
 				class="flex-1"
 			>
-				{#if createMutation_.isPending}
+				{#if createApplicationMutation.isPending}
 					<Loader2 class="h-4 w-4 mr-2 animate-spin" />
 					Creating...
 				{:else}
@@ -310,9 +301,9 @@
 			</Button>
 		</div>
 
-		{#if createMutation_.isError}
+		{#if createApplicationMutation.isError}
 			<div class="text-sm text-destructive">
-				Failed to create application: {createMutation_.error?.message || 'Unknown error'}
+				Failed to create application: {createApplicationMutation.error?.message || 'Unknown error'}
 			</div>
 		{/if}
 	</div>

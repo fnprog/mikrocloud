@@ -1,18 +1,15 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { createQuery } from '@tanstack/svelte-query';
-	import {
-		projectsApi,
-		environmentsApi,
-		databasesApi,
-		applicationsApi,
-		organizationsApi
-	} from '$lib/api';
 	import { LoaderCircle } from 'lucide-svelte';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb';
 	import OrgSwitcher from './org-switcher.svelte';
 	import ProjectSwitcher from './project-switcher.svelte';
 	import ResourceSwitcher from './resource-switcher.svelte';
+	import { createOrganizationsListQuery } from '$lib/features/organizations/queries';
+	import { createProjectQuery } from '$lib/features/projects/queries';
+	import { createEnvironmentQuery } from '$lib/features/environments/queries';
+	import { createDatabaseFetchQuery } from '$lib/features/databases/queries';
+	import { createApplicationFetchQuery } from '$lib/features/applications/queries';
 
 	const projectId = $derived(page.params.id);
 	const envId = $derived(page.params.env_id);
@@ -26,40 +23,15 @@
 				: null
 	);
 
-	const orgQuery = createQuery(() => ({
-		queryKey: ['organizations'],
-		queryFn: () => {
-			console.log('Organizations query executing...');
-			return organizationsApi.list();
-		},
-		staleTime: 5 * 60 * 1000,
-		refetchOnMount: true,
-		enabled: true
-	}));
-
-	const projectQuery = createQuery(() => ({
-		queryKey: ['project', projectId],
-		queryFn: () => projectsApi.get(projectId!),
-		enabled: !!projectId
-	}));
-
-	const environmentQuery = createQuery(() => ({
-		queryKey: ['environment', projectId, envId],
-		queryFn: () => environmentsApi.get(projectId!, envId!),
-		enabled: !!projectId && !!envId
-	}));
-
-	const databaseQuery = createQuery(() => ({
-		queryKey: ['database', projectId, resId],
-		queryFn: () => databasesApi.get(projectId!, resId!),
-		enabled: !!projectId && !!resId && resourceType === 'database'
-	}));
-
-	const applicationQuery = createQuery(() => ({
-		queryKey: ['application', projectId, resId],
-		queryFn: () => applicationsApi.get(projectId!, resId!),
-		enabled: !!projectId && !!resId && resourceType === 'application'
-	}));
+	const orgQuery = createOrganizationsListQuery();
+	const projectQuery = $derived(createProjectQuery(projectId));
+	const environmentQuery = $derived(createEnvironmentQuery(projectId, envId));
+	const databaseQuery = $derived(
+		createDatabaseFetchQuery(projectId, resourceType === 'database' ? resId : '')
+	);
+	const applicationQuery = $derived(
+		createApplicationFetchQuery(projectId, envId, resourceType === 'application' ? resId : '')
+	);
 
 	const currentOrg = $derived(orgQuery.data?.[0]);
 	const shouldShowBreadcrumbs = $derived(true);
@@ -108,12 +80,18 @@
 				<Breadcrumb.Separator>/</Breadcrumb.Separator>
 				<Breadcrumb.Item>
 					{#if resourceType === 'database' && databaseQuery.data}
-						<ResourceSwitcher {projectId} currentResourceId={resId} currentResourceType="database">
+						<ResourceSwitcher
+							environmentId={envId}
+							{projectId}
+							currentResourceId={resId}
+							currentResourceType="database"
+						>
 							{databaseQuery.data.name}
 						</ResourceSwitcher>
 					{:else if resourceType === 'application' && applicationQuery.data}
 						<ResourceSwitcher
 							{projectId}
+							environmentId={envId}
 							currentResourceId={resId}
 							currentResourceType="application"
 						>

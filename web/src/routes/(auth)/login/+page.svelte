@@ -3,27 +3,18 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input/index';
 	import Logo from '$lib/components/logo/logo.svelte';
-	import { authApi, type ApiError } from '$lib/api';
-	import { authStore } from '$lib/stores/auth.svelte';
-	import { onMount } from 'svelte';
+	import { type ApiError } from '$lib/api/client';
+	import { authStore } from '$lib/features/auth/stores/auth.svelte';
+	import { createGeneralSettingsQuery } from '$lib/features/settings/queries/settings';
+	import { createLoginMutation } from '$lib/features/auth/mutations';
 
 	let email = $state('');
 	let password = $state('');
-	let isLoading = $state(false);
 	let error = $state('');
 	let allowRegistrations = $state(true);
 
-	onMount(async () => {
-		try {
-			const response = await fetch('/api/settings/general');
-			if (response.ok) {
-				const data = await response.json();
-				allowRegistrations = data.allow_registrations ?? true;
-			}
-		} catch (error) {
-			console.error('Failed to load settings:', error);
-		}
-	});
+	const generalSettingsQuery = createGeneralSettingsQuery();
+	const loginMutation = createLoginMutation();
 
 	async function handleSubmit(event: SubmitEvent) {
 		event.preventDefault();
@@ -33,20 +24,21 @@
 			return;
 		}
 
-		isLoading = true;
 		error = '';
 
 		try {
-			const response = await authApi.login({ email, password });
+			const response = await loginMutation.mutateAsync({ email, password });
 			authStore.setUser(response.user);
 			goto('/dashboard');
 		} catch (err) {
 			const apiError = err as ApiError;
 			error = apiError.message || 'An error occurred. Please try again.';
-		} finally {
-			isLoading = false;
 		}
 	}
+
+	$effect(() => {
+		allowRegistrations = generalSettingsQuery.data?.allow_registrations ?? true;
+	});
 
 	$effect(() => {
 		if (email || password) {
@@ -92,9 +84,9 @@
 				<Button
 					type="submit"
 					class="w-full bg-white text-black hover:bg-gray-200"
-					disabled={isLoading}
+					disabled={loginMutation.isPending}
 				>
-					{#if isLoading}
+					{#if loginMutation.isPending}
 						<div class="flex items-center">
 							<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-black mr-2"></div>
 							Signing in...

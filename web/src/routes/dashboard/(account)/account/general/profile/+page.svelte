@@ -1,17 +1,20 @@
 <script lang="ts">
-	import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
-	import { authApi } from '$lib/api';
+	import { createProfileQuery } from '$lib/features/auth/queries';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Copy, Trash2 } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
+	import {
+		createDeleteAccountMutation,
+		createLogoutMutation,
+		createUpdateAccountMutation,
+		createUploadAvatarMutation
+	} from '$lib/features/auth/mutations';
 
-	const queryClient = useQueryClient();
+	const userQuery = createProfileQuery();
 
-	const userQuery = createQuery(() => ({
-		queryKey: ['user-profile'],
-		queryFn: () => authApi.getProfile()
-	}));
+	let user = $derived(userQuery.data);
+	let isLoading = $derived(userQuery.isLoading);
 
 	let avatarFile: File | null = $state(null);
 	let avatarPreview: string | null = $state(null);
@@ -20,9 +23,24 @@
 	let isDeleteModalOpen = $state(false);
 
 	$effect(() => {
-		if (userQuery.data) {
-			displayName = userQuery.data.name || '';
-			username = userQuery.data.username || '';
+		if (user) {
+			displayName = user.name || '';
+			username = user.username || '';
+			if (user.avatarUrl && !avatarPreview) {
+				avatarPreview = user.avatarUrl;
+			}
+		}
+	});
+
+	const uploadAvatarMutation = createUploadAvatarMutation({
+		onSuccess: () => {
+			toast.success('Avatar uploaded successfully');
+			avatarFile = null;
+		},
+		onError: () => {
+			toast.error('Failed to upload avatar');
+			avatarPreview = user?.avatarUrl || null;
+			avatarFile = null;
 		}
 	});
 
@@ -49,27 +67,20 @@
 			avatarPreview = e.target?.result as string;
 		};
 		reader.readAsDataURL(file);
+
+		uploadAvatarMutation.mutate(file);
 	}
 
-	const updateProfileMutation = createMutation(() => ({
-		mutationFn: async (data: { name?: string; username?: string; avatar?: string }) => {
-			return fetch('/api/auth/profile', {
-				method: 'PUT',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${authApi.getToken()}`
-				},
-				body: JSON.stringify(data)
-			});
-		},
+	const updateProfileMutation = createUpdateAccountMutation({
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ['user-profile'] });
 			toast.success('Profile updated successfully');
 		},
 		onError: () => {
 			toast.error('Failed to update profile');
 		}
-	}));
+	});
+
+	let isPending = $derived(updateProfileMutation.isPending);
 
 	async function handleSaveDisplayName() {
 		if (!displayName || displayName.length > 32) {
@@ -77,12 +88,7 @@
 			return;
 		}
 
-		let avatarData: string | undefined;
-		if (avatarPreview) {
-			avatarData = avatarPreview;
-		}
-
-		updateProfileMutation.mutate({ name: displayName, avatar: avatarData });
+		updateProfileMutation.mutate({ name: displayName });
 	}
 
 	async function handleSaveUsername() {
@@ -95,8 +101,8 @@
 	}
 
 	function copyUserId() {
-		if (userQuery.data?.id) {
-			navigator.clipboard.writeText(userQuery.data.id);
+		if (user?.id) {
+			navigator.clipboard.writeText(user.id);
 			toast.success('User ID copied to clipboard');
 		}
 	}
@@ -105,23 +111,19 @@
 		isDeleteModalOpen = true;
 	}
 
-	const deleteAccountMutation = createMutation(() => ({
-		mutationFn: async () => {
-			return fetch('/api/auth/profile', {
-				method: 'DELETE',
-				headers: {
-					Authorization: `Bearer ${authApi.getToken()}`
-				}
-			});
-		},
+	const logoutMutation = createLogoutMutation();
+
+	const deleteAccountMutation = createDeleteAccountMutation({
 		onSuccess: () => {
-			authApi.logout();
+			logoutMutation.mutate();
 			window.location.href = '/auth/login';
 		},
 		onError: () => {
 			toast.error('Failed to delete account');
 		}
-	}));
+	});
+
+	let isDeleting = $derived(deleteAccountMutation.isPending);
 
 	function confirmDeleteAccount() {
 		deleteAccountMutation.mutate();
@@ -152,11 +154,11 @@
 							alt="Avatar preview"
 							class="w-20 h-20 rounded-full object-cover"
 						/>
-					{:else if userQuery.data?.name}
+					{:else if user?.name}
 						<div
 							class="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-2xl font-bold text-primary-foreground"
 						>
-							{userQuery.data.name.charAt(0).toUpperCase()}
+							{user.name.charAt(0).toUpperCase()}
 						</div>
 					{/if}
 					<input
@@ -188,14 +190,14 @@
 						bind:value={displayName}
 						placeholder="Enter display name"
 						maxlength={32}
-						disabled={userQuery.isLoading}
+						disabled={isLoading}
 					/>
 				</div>
 
 				<div class="flex items-center justify-between">
 					<p class="text-sm text-muted-foreground">Please use 32 characters at maximum.</p>
-					<Button onclick={handleSaveDisplayName} disabled={updateProfileMutation.isPending}>
-						{updateProfileMutation.isPending ? 'Saving...' : 'Save'}
+					<Button onclick={handleSaveDisplayName} disabled={isPending}>
+						{isPending ? 'Saving...' : 'Save'}
 					</Button>
 				</div>
 			</div>
@@ -209,16 +211,12 @@
 				</div>
 
 				<div class="space-y-2">
-					<Input
-						bind:value={username}
-						placeholder="Enter username"
-						disabled={userQuery.isLoading}
-					/>
+					<Input bind:value={username} placeholder="Enter username" disabled={isLoading} />
 				</div>
 
 				<div class="flex items-center justify-end">
-					<Button onclick={handleSaveUsername} disabled={updateProfileMutation.isPending}>
-						{updateProfileMutation.isPending ? 'Saving...' : 'Save'}
+					<Button onclick={handleSaveUsername} disabled={isPending}>
+						{isPending ? 'Saving...' : 'Save'}
 					</Button>
 				</div>
 			</div>
@@ -232,7 +230,7 @@
 				</div>
 
 				<div class="flex items-center gap-2">
-					<Input value={userQuery.data?.id || ''} readonly class="font-mono" />
+					<Input value={user?.id || ''} readonly class="font-mono" />
 					<Button variant="outline" size="icon" onclick={copyUserId}>
 						<Copy class="w-4 h-4" />
 					</Button>
@@ -289,12 +287,8 @@
 			</p>
 			<div class="flex gap-3 justify-end">
 				<Button variant="outline" onclick={() => (isDeleteModalOpen = false)}>Cancel</Button>
-				<Button
-					variant="destructive"
-					onclick={confirmDeleteAccount}
-					disabled={deleteAccountMutation.isPending}
-				>
-					{deleteAccountMutation.isPending ? 'Deleting...' : 'Delete Account'}
+				<Button variant="destructive" onclick={confirmDeleteAccount} disabled={isDeleting}>
+					{isDeleting ? 'Deleting...' : 'Delete Account'}
 				</Button>
 			</div>
 		</div>

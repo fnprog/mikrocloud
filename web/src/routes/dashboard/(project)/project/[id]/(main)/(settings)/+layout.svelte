@@ -7,9 +7,8 @@
 
 	const tabs = $derived([
 		{ name: 'Overview', href: `/dashboard/project/${projectId}` },
-		{ name: 'Infrastructure', href: `/dashboard/project/${projectId}/infrastructure` },
-		{ name: 'Shared Variables', href: `/dashboard/project/${projectId}/shared-vars` },
 		{ name: 'Architecture', href: `/dashboard/project/${projectId}/schema` },
+		{ name: 'Shared Variables', href: `/dashboard/project/${projectId}/shared-vars` },
 		{ name: 'Settings', href: `/dashboard/project/${projectId}/settings` }
 	]);
 </script>

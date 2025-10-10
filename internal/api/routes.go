@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"path/filepath"
 	"time"
 
@@ -139,6 +140,10 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 
 	organizationsSvc := organizationsService.NewOrganizationService(db.OrganizationRepository)
 	organizationsHandler := organizationsHandlers.NewOrganizationHandler(organizationsSvc)
+
+	// Serve storage files (public access)
+	storageDir := "./storage"
+	api.Handle("/storage/*", http.StripPrefix("/storage/", http.FileServer(http.Dir(storageDir))))
 
 	// Protected routes that require authentication
 	api.Group(func(r chi.Router) {
@@ -307,6 +312,11 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 			r.Use(jwtauth.Authenticator(tokenAuth))
 			r.Post("/logout", authHandler.Logout)
 			r.Get("/profile", authHandler.GetProfile)
+			r.Put("/profile", authHandler.UpdateProfile)
+			r.Post("/avatar", authHandler.UploadAvatar)
+			r.Delete("/profile", authHandler.DeleteAccount)
+			r.Put("/email", authHandler.UpdateEmail)
+			r.Put("/password", authHandler.UpdatePassword)
 		})
 	})
 
@@ -340,6 +350,7 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 		r.Get("/updates", settingsHandler.GetUpdateSettings)
 		r.Post("/updates", settingsHandler.SaveUpdateSettings)
 		r.Get("/instance", settingsHandler.GetInstanceInfo)
+		r.Get("/detect-ips", settingsHandler.DetectIPAddresses)
 		r.Post("/backup", settingsHandler.CreateBackup)
 		r.Post("/restore", settingsHandler.RestoreBackup)
 	})
@@ -357,6 +368,7 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	api.Route("/servers", func(r chi.Router) {
 		r.Use(jwtauth.Verifier(tokenAuth))
 		r.Use(jwtauth.Authenticator(tokenAuth))
+		r.Use(middleware.ExtractUserOrg())
 
 		r.Get("/", serversHandler.ListServers)
 		r.Post("/", serversHandler.CreateServer)

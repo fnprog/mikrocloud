@@ -114,7 +114,6 @@ func startMikrocloud() error {
 		"-v", fmt.Sprintf("%s:/app/data", dataDir),
 		"-v", fmt.Sprintf("%s:/var/run/docker.sock", socketPath),
 		containerImage,
-		"serve",
 	)
 
 	output, err := runCmd.CombinedOutput()

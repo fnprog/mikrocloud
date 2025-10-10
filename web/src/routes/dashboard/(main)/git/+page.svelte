@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
@@ -14,7 +13,12 @@
 	} from '$lib/components/ui/sheet';
 	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
 	import { Plus, Trash2, Github, GitBranch, Server } from 'lucide-svelte';
-	import { gitApi, type GitProvider, type GitSource } from '$lib/api/git';
+	import { createGitSourcesListQuery } from '$lib/features/git-sources/queries';
+	import {
+		createGitSourceMutationQuery,
+		deleteGitSourceMutationQuery
+	} from '$lib/features/git-sources/mutations';
+	import type { GitSource, GitProvider } from '$lib/features/git-sources/types';
 
 	let isCreateSheetOpen = $state(false);
 	let isDeleteModalOpen = $state(false);
@@ -34,37 +38,21 @@
 		manual_setup: false
 	});
 
-	const queryClient = useQueryClient();
+	const sourcesQuery = createGitSourcesListQuery();
 
-	const sourcesQuery = createQuery(() => ({
-		queryKey: ['git-sources'],
-		queryFn: () => gitApi.listGitSources(),
-		staleTime: 30 * 1000
-	}));
-
-	const createFn = createMutation(() => ({
-		mutationFn: (data: {
-			name: string;
-			provider: GitProvider;
-			access_token: string;
-			refresh_token?: string;
-			custom_url?: string;
-		}) => gitApi.createGitSource(data),
+	const createFn = createGitSourceMutationQuery({
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ['git-sources'] });
 			isCreateSheetOpen = false;
 			resetForm();
 		}
-	}));
+	});
 
-	const deleteFn = createMutation(() => ({
-		mutationFn: (sourceId: string) => gitApi.deleteGitSource(sourceId),
+	const deleteFn = deleteGitSourceMutationQuery({
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ['git-sources'] });
 			isDeleteModalOpen = false;
 			selectedSource = null;
 		}
-	}));
+	});
 
 	function createSource() {
 		createFn.mutate({
@@ -78,7 +66,7 @@
 
 	function deleteSource() {
 		if (!selectedSource) return;
-		deleteMutation.mutate(selectedSource.id);
+		deleteFn.mutate(selectedSource.id);
 	}
 
 	function resetForm() {
@@ -196,7 +184,7 @@
 
 				<div class="space-y-2">
 					<Label for="provider">Provider</Label>
-					<Select value={formData.provider} onValueChange={(v) => v && (formData.provider = v)}>
+					<Select type="single" bind:value={formData.provider}>
 						<SelectTrigger id="provider">
 							{formData.provider === 'github'
 								? 'GitHub'
@@ -218,10 +206,7 @@
 				{#if formData.provider === 'github'}
 					<div class="space-y-2">
 						<Label for="github_type">GitHub Type</Label>
-						<Select
-							value={formData.github_type}
-							onValueChange={(v) => v && (formData.github_type = v)}
-						>
+						<Select type="single" bind:value={formData.github_type}>
 							<SelectTrigger id="github_type">
 								{formData.github_type === 'cloud' ? 'GitHub Cloud' : 'GitHub Enterprise Server'}
 							</SelectTrigger>
@@ -257,10 +242,7 @@
 
 				<div class="space-y-2">
 					<Label>Webhook Endpoint</Label>
-					<Select
-						value={formData.webhook_endpoint_type}
-						onValueChange={(v) => v && (formData.webhook_endpoint_type = v)}
-					>
+					<Select type="single" bind:value={formData.webhook_endpoint_type}>
 						<SelectTrigger>
 							{formData.webhook_endpoint_type === 'ip' ? 'Use IP Address' : 'Use Domain Name'}
 						</SelectTrigger>
@@ -418,7 +400,7 @@
 							<Button
 								class="flex-1"
 								onclick={createSource}
-								disabled={!formData.name || !formData.access_token || $createMutation.isPending}
+								disabled={!formData.name || !formData.access_token || createFn.isPending}
 							>
 								Add Source
 							</Button>

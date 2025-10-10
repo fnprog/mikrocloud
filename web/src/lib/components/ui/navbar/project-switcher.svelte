@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { createQuery } from '@tanstack/svelte-query';
-	import { projectsApi } from '$lib/api';
+	import { createProjectsQuery } from '$lib/features/projects/queries';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { FolderGit2, Check, ChevronDown } from 'lucide-svelte';
 	import type { Snippet } from 'svelte';
@@ -12,14 +11,9 @@
 
 	let { currentProjectId, children }: Props = $props();
 
-	const projectsQuery = createQuery(() => ({
-		queryKey: ['projects'],
-		queryFn: () => projectsApi.list()
-	}));
+	const projectsQuery = createProjectsQuery();
 
-	const currentProject = $derived(
-		projectsQuery.data?.find((proj) => proj.id === currentProjectId)
-	);
+	const currentProject = $derived(projectsQuery.data?.find((proj) => proj.id === currentProjectId));
 </script>
 
 <DropdownMenu.Root>

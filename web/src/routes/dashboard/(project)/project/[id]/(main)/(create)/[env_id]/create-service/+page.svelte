@@ -23,8 +23,7 @@
 		SheetDescription,
 		SheetFooter,
 		SheetHeader,
-		SheetTitle,
-		SheetTrigger
+		SheetTitle
 	} from '$lib/components/ui/sheet';
 	import { Badge } from '$lib/components/ui/badge';
 	import { createQuery, createMutation } from '@tanstack/svelte-query';
@@ -137,7 +136,7 @@
 			/>
 		</div>
 
-		<Select bind:value={selectedCategory}>
+		<Select type="single" bind:value={selectedCategory}>
 			<SelectTrigger class="w-[200px]">
 				{categories.find((c) => c.value === selectedCategory)?.label || 'Select category'}
 			</SelectTrigger>

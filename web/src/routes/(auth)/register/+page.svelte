@@ -3,15 +3,17 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import Logo from '$lib/components/logo/logo.svelte';
-	import { authApi, type ApiError } from '$lib/api';
-	import { authStore } from '$lib/stores/auth.svelte';
+	import { type ApiError } from '$lib/api/client';
+	import { authStore } from '$lib/features/auth/stores/auth.svelte';
+	import { createRegisterMutation } from '$lib/features/auth/mutations';
 
 	let name = $state('');
 	let email = $state('');
 	let password = $state('');
 	let confirmPassword = $state('');
-	let isLoading = $state(false);
 	let error = $state('');
+
+	const signupMutation = createRegisterMutation();
 
 	async function handleSubmit(event: SubmitEvent) {
 		event.preventDefault();
@@ -26,18 +28,15 @@
 			return;
 		}
 
-		isLoading = true;
 		error = '';
 
 		try {
-			const response = await authApi.register({ name, email, password });
+			const response = await signupMutation.mutateAsync({ name, email, password });
 			authStore.setUser(response.user);
 			goto('/dashboard');
 		} catch (err) {
 			const apiError = err as ApiError;
 			error = apiError.message || 'Registration failed. Please try again.';
-		} finally {
-			isLoading = false;
 		}
 	}
 
@@ -119,9 +118,9 @@
 				<Button
 					type="submit"
 					class="w-full bg-white text-black hover:bg-gray-200"
-					disabled={isLoading}
+					disabled={signupMutation.isPending}
 				>
-					{#if isLoading}
+					{#if signupMutation.isPending}
 						<div class="flex items-center">
 							<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-black mr-2"></div>
 							Creating account...

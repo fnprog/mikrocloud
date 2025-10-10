@@ -48,22 +48,26 @@ func (r *SQLiteUserRepository) Save(ctx context.Context, user *users.User) error
 			sqlite.Arg(user.Email().String()),
 			sqlite.Arg(user.PasswordHash()),
 			sqlite.Arg(user.Username().String()),
+			sqlite.Arg(user.AvatarURL()),
 			sqlite.Arg(string(user.Status())),
 			sqlite.Arg(user.EmailVerifiedAt()),
 			sqlite.Arg(user.LastLoginAt()),
 			sqlite.Arg(user.Timezone()),
 			sqlite.Arg(user.CreatedAt().Format(time.RFC3339)),
 			sqlite.Arg(user.UpdatedAt().Format(time.RFC3339)),
+			sqlite.Arg(user.Name()),
 		),
 		im.OnConflict("id").DoUpdate(
 			im.SetCol("email").ToArg(user.Email().String()),
 			im.SetCol("password_hash").ToArg(user.PasswordHash()),
 			im.SetCol("username").ToArg(user.Username().String()),
+			im.SetCol("avatar_url").ToArg(user.AvatarURL()),
 			im.SetCol("status").ToArg(string(user.Status())),
 			im.SetCol("email_verified_at").ToArg(user.EmailVerifiedAt()),
 			im.SetCol("last_login_at").ToArg(user.LastLoginAt()),
 			im.SetCol("timezone").ToArg(user.Timezone()),
 			im.SetCol("updated_at").ToArg(user.UpdatedAt().Format(time.RFC3339)),
+			im.SetCol("name").ToArg(user.Name()),
 		),
 	)
 
@@ -121,7 +125,7 @@ func (r *SQLiteUserRepository) SaveOrganization(ctx context.Context, org *users.
 
 func (r *SQLiteUserRepository) FindByID(ctx context.Context, id users.UserID) (*users.User, error) {
 	query := sqlite.Select(
-		sm.Columns("id", "email", "password_hash", "username", "status", "email_verified_at", "last_login_at", "timezone", "created_at", "updated_at"),
+		sm.Columns("id", "email", "password_hash", "username", "avatar_url", "status", "email_verified_at", "last_login_at", "timezone", "created_at", "updated_at", "name"),
 		sm.From("users"),
 		sm.Where(sqlite.Quote("id").EQ(sqlite.Arg(id.String()))),
 	)
@@ -133,8 +137,8 @@ func (r *SQLiteUserRepository) FindByID(ctx context.Context, id users.UserID) (*
 
 	var row userRow
 	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(
-		&row.ID, &row.Email, &row.PasswordHash, &row.Username, &row.Status,
-		&row.EmailVerifiedAt, &row.LastLoginAt, &row.Timezone, &row.CreatedAt, &row.UpdatedAt)
+		&row.ID, &row.Email, &row.PasswordHash, &row.Username, &row.AvatarURL, &row.Status,
+		&row.EmailVerifiedAt, &row.LastLoginAt, &row.Timezone, &row.CreatedAt, &row.UpdatedAt, &row.Name)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -148,7 +152,7 @@ func (r *SQLiteUserRepository) FindByID(ctx context.Context, id users.UserID) (*
 
 func (r *SQLiteUserRepository) FindByEmail(ctx context.Context, email users.Email) (*users.User, error) {
 	query := sqlite.Select(
-		sm.Columns("id", "email", "password_hash", "username", "status", "email_verified_at", "last_login_at", "timezone", "created_at", "updated_at"),
+		sm.Columns("id", "email", "password_hash", "username", "avatar_url", "status", "email_verified_at", "last_login_at", "timezone", "created_at", "updated_at", "name"),
 		sm.From("users"),
 		sm.Where(sqlite.Quote("email").EQ(sqlite.Arg(email.String()))),
 	)
@@ -160,8 +164,8 @@ func (r *SQLiteUserRepository) FindByEmail(ctx context.Context, email users.Emai
 
 	var row userRow
 	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(
-		&row.ID, &row.Email, &row.PasswordHash, &row.Username, &row.Status,
-		&row.EmailVerifiedAt, &row.LastLoginAt, &row.Timezone, &row.CreatedAt, &row.UpdatedAt)
+		&row.ID, &row.Email, &row.PasswordHash, &row.Username, &row.AvatarURL, &row.Status,
+		&row.EmailVerifiedAt, &row.LastLoginAt, &row.Timezone, &row.CreatedAt, &row.UpdatedAt, &row.Name)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -175,7 +179,7 @@ func (r *SQLiteUserRepository) FindByEmail(ctx context.Context, email users.Emai
 
 func (r *SQLiteUserRepository) FindByUsername(ctx context.Context, username string) (*users.User, error) {
 	query := sqlite.Select(
-		sm.Columns("id", "email", "password_hash", "username", "status", "email_verified_at", "last_login_at", "timezone", "created_at", "updated_at"),
+		sm.Columns("id", "email", "password_hash", "username", "avatar_url", "status", "email_verified_at", "last_login_at", "timezone", "created_at", "updated_at", "name"),
 		sm.From("users"),
 		sm.Where(sqlite.Quote("username").EQ(sqlite.Arg(username))),
 	)
@@ -187,8 +191,8 @@ func (r *SQLiteUserRepository) FindByUsername(ctx context.Context, username stri
 
 	var row userRow
 	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(
-		&row.ID, &row.Email, &row.PasswordHash, &row.Username, &row.Status,
-		&row.EmailVerifiedAt, &row.LastLoginAt, &row.Timezone, &row.CreatedAt, &row.UpdatedAt)
+		&row.ID, &row.Email, &row.PasswordHash, &row.Username, &row.AvatarURL, &row.Status,
+		&row.EmailVerifiedAt, &row.LastLoginAt, &row.Timezone, &row.CreatedAt, &row.UpdatedAt, &row.Name)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -296,7 +300,7 @@ func (r *SQLiteUserRepository) FindOrganizationsByUser(ctx context.Context, user
 
 func (r *SQLiteUserRepository) FindAll(ctx context.Context) ([]*users.User, error) {
 	query := sqlite.Select(
-		sm.Columns("id", "email", "password_hash", "username", "status", "email_verified_at", "last_login_at", "timezone", "created_at", "updated_at"),
+		sm.Columns("id", "email", "password_hash", "username", "avatar_url", "status", "email_verified_at", "last_login_at", "timezone", "created_at", "updated_at", "name"),
 		sm.From("users"),
 		sm.OrderBy("created_at").Desc(),
 	)
@@ -315,8 +319,8 @@ func (r *SQLiteUserRepository) FindAll(ctx context.Context) ([]*users.User, erro
 	var userList []*users.User
 	for rows.Next() {
 		var row userRow
-		err := rows.Scan(&row.ID, &row.Email, &row.PasswordHash, &row.Username, &row.Status,
-			&row.EmailVerifiedAt, &row.LastLoginAt, &row.Timezone, &row.CreatedAt, &row.UpdatedAt)
+		err := rows.Scan(&row.ID, &row.Email, &row.PasswordHash, &row.Username, &row.AvatarURL, &row.Status,
+			&row.EmailVerifiedAt, &row.LastLoginAt, &row.Timezone, &row.CreatedAt, &row.UpdatedAt, &row.Name)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan user row: %w", err)
 		}
@@ -487,12 +491,14 @@ type userRow struct {
 	Email           string
 	PasswordHash    string
 	Username        sql.NullString
+	AvatarURL       sql.NullString
 	Status          string
 	EmailVerifiedAt sql.NullTime
 	LastLoginAt     sql.NullTime
 	Timezone        string
 	CreatedAt       string
 	UpdatedAt       string
+	Name            string
 }
 
 type organizationRow struct {
@@ -549,10 +555,13 @@ func (r *SQLiteUserRepository) mapRowToUser(row userRow) (*users.User, error) {
 		}
 	}
 
-	// For now, use empty string for name since it's not in the database schema yet
-	name := ""
+	var avatarURL *string
+	if row.AvatarURL.Valid {
+		avatarURL = &row.AvatarURL.String
+	}
+
 	return users.ReconstructUser(
-		userID, email, row.PasswordHash, name, username, status,
+		userID, email, row.PasswordHash, row.Name, username, avatarURL, status,
 		emailVerifiedAt, lastLoginAt, row.Timezone, createdAt, updatedAt), nil
 }
 

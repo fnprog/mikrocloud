@@ -26,9 +26,23 @@
 		queryFn: () => authApi.getProfile()
 	}));
 
+	let user = $derived(userQuery.data);
+
 	const updateEmailMutation = createMutation(() => ({
 		mutationFn: async (data: { email: string; password: string }) => {
-			throw new Error('API endpoint not implemented yet');
+			const response = await fetch('/api/auth/email', {
+				method: 'PUT',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${authApi.getToken()}`
+				},
+				body: JSON.stringify(data)
+			});
+			if (!response.ok) {
+				const error = await response.json();
+				throw new Error(error.message || 'Failed to update email');
+			}
+			return response.json();
 		},
 		onSuccess: () => {
 			toast.success('Email updated successfully');
@@ -40,13 +54,27 @@
 		}
 	}));
 
+	let isEmailPending = $derived(updateEmailMutation.isPending);
+
 	const updatePasswordMutation = createMutation(() => ({
 		mutationFn: async (data: {
 			currentPassword: string;
 			newPassword: string;
 			confirmPassword: string;
 		}) => {
-			throw new Error('API endpoint not implemented yet');
+			const response = await fetch('/api/auth/password', {
+				method: 'PUT',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${authApi.getToken()}`
+				},
+				body: JSON.stringify(data)
+			});
+			if (!response.ok) {
+				const error = await response.json();
+				throw new Error(error.message || 'Failed to update password');
+			}
+			return response.json();
 		},
 		onSuccess: () => {
 			toast.success('Password updated successfully');
@@ -58,6 +86,8 @@
 			toast.error('Failed to update password', { description: error.message });
 		}
 	}));
+
+	let isPasswordPending = $derived(updatePasswordMutation.isPending);
 
 	function handleEmailUpdate() {
 		if (!emailForm.newEmail || !emailForm.currentPassword) {
@@ -137,7 +167,7 @@
 					<Input
 						id="current-email"
 						type="email"
-						value={userQuery.data?.email || ''}
+						value={user?.email || ''}
 						disabled
 						class="bg-muted"
 					/>
@@ -160,8 +190,8 @@
 						placeholder="Enter your current password"
 					/>
 				</div>
-				<Button onclick={handleEmailUpdate} disabled={updateEmailMutation.isPending}>
-					{updateEmailMutation.isPending ? 'Updating...' : 'Update Email'}
+				<Button onclick={handleEmailUpdate} disabled={isEmailPending}>
+					{isEmailPending ? 'Updating...' : 'Update Email'}
 				</Button>
 			</div>
 		</div>
@@ -199,8 +229,8 @@
 						placeholder="Confirm new password"
 					/>
 				</div>
-				<Button onclick={handlePasswordUpdate} disabled={updatePasswordMutation.isPending}>
-					{updatePasswordMutation.isPending ? 'Updating...' : 'Update Password'}
+				<Button onclick={handlePasswordUpdate} disabled={isPasswordPending}>
+					{isPasswordPending ? 'Updating...' : 'Update Password'}
 				</Button>
 			</div>
 		</div>
@@ -219,7 +249,7 @@
 						<Mail class="w-5 h-5 text-muted-foreground" />
 						<div>
 							<p class="font-medium">Email</p>
-							<p class="text-sm text-muted-foreground">{userQuery.data?.email || 'Loading...'}</p>
+							<p class="text-sm text-muted-foreground">{user?.email || 'Loading...'}</p>
 						</div>
 					</div>
 					<Button variant="outline" size="sm">Manage</Button>

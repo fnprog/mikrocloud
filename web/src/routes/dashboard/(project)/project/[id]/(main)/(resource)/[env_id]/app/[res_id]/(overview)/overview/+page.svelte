@@ -4,9 +4,6 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Separator } from '$lib/components/ui/separator';
-	import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
-	import { applicationsApi } from '$lib/api/applications';
-	import { deploymentsApi } from '$lib/api/deployments';
 	import { toast } from 'svelte-sonner';
 	import {
 		Play,
@@ -21,61 +18,71 @@
 		Eye,
 		RotateCcw
 	} from 'lucide-svelte';
+	import { createApplicationFetchQuery } from '$lib/features/applications/queries';
+	import { createDeploymentsListQuery } from '$lib/features/deployments/queries';
+	import {
+		restartApplicationMutationQuery,
+		startApplicationMutationQuery,
+		stopApplicationMutationQuery
+	} from '$lib/features/applications/mutations';
 
-	const projectId = $derived(page.params.id);
-	const resId = $derived(page.params.res_id);
-	const envId = $derived(page.params.env_id);
+	const projectId = page.params.id!;
+	const resId = page.params.res_id!;
+	const envId = page.params.env_id!;
 
-	const queryClient = useQueryClient();
-
-	const applicationQuery = createQuery(() => ({
-		queryKey: ['application', projectId, resId],
-		queryFn: () => applicationsApi.get(projectId, resId),
-		enabled: !!projectId && !!resId
-	}));
-
-	const deploymentsQuery = createQuery(() => ({
-		queryKey: ['deployments', projectId, resId],
-		queryFn: () => deploymentsApi.list(projectId, resId),
-		enabled: !!projectId && !!resId,
-		refetchInterval: 5000
-	}));
+	const applicationQuery = createApplicationFetchQuery(projectId, envId, resId);
+	const deploymentsQuery = createDeploymentsListQuery(projectId, resId);
 
 	const application = $derived(applicationQuery.data);
 	const latestDeployment = $derived(deploymentsQuery.data?.[0]);
 
-	const startMutation = createMutation(() => ({
-		mutationFn: () => applicationsApi.start(projectId, resId),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ['application', projectId, resId] });
-			toast.success('Application started successfully');
+	const startMutation = startApplicationMutationQuery(
+		{
+			projectId: projectId,
+			environmentId: envId,
+			resourceID: resId
 		},
-		onError: (error: Error) => {
-			toast.error(`Failed to start application: ${error.message}`);
+		{
+			onSuccess: () => {
+				toast.success('Application started successfully');
+			},
+			onError: (error: Error) => {
+				toast.error(`Failed to start application: ${error.message}`);
+			}
 		}
-	}));
+	);
 
-	const stopMutation = createMutation(() => ({
-		mutationFn: () => applicationsApi.stop(projectId, resId),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ['application', projectId, resId] });
-			toast.success('Application stopped successfully');
+	const stopMutation = stopApplicationMutationQuery(
+		{
+			projectId: projectId,
+			environmentId: envId,
+			resourceID: resId
 		},
-		onError: (error: Error) => {
-			toast.error(`Failed to stop application: ${error.message}`);
+		{
+			onSuccess: () => {
+				toast.success('Application stopped successfully');
+			},
+			onError: (error: Error) => {
+				toast.error(`Failed to stop application: ${error.message}`);
+			}
 		}
-	}));
+	);
 
-	const restartMutation = createMutation(() => ({
-		mutationFn: () => applicationsApi.restart(projectId, resId),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ['application', projectId, resId] });
-			toast.success('Application restarted successfully');
+	const restartMutation = restartApplicationMutationQuery(
+		{
+			projectId: projectId,
+			environmentId: envId,
+			resourceID: resId
 		},
-		onError: (error: Error) => {
-			toast.error(`Failed to restart application: ${error.message}`);
+		{
+			onSuccess: () => {
+				toast.success('Application restarted successfully');
+			},
+			onError: (error: Error) => {
+				toast.error(`Failed to restart application: ${error.message}`);
+			}
 		}
-	}));
+	);
 
 	const isAnyActionPending = $derived(
 		startMutation.isPending || stopMutation.isPending || restartMutation.isPending

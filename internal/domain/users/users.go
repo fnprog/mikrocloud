@@ -13,6 +13,7 @@ type User struct {
 	passwordHash    string
 	name            string
 	username        *Username
+	avatarURL       *string
 	status          UserStatus
 	emailVerifiedAt *time.Time
 	lastLoginAt     *time.Time
@@ -129,6 +130,10 @@ func (u *User) Username() *Username {
 	return u.username
 }
 
+func (u *User) AvatarURL() *string {
+	return u.avatarURL
+}
+
 func (u *User) Status() UserStatus {
 	return u.status
 }
@@ -160,6 +165,11 @@ func (u *User) SetName(name string) {
 
 func (u *User) SetUsername(username *Username) {
 	u.username = username
+	u.updatedAt = time.Now()
+}
+
+func (u *User) SetAvatarURL(avatarURL *string) {
+	u.avatarURL = avatarURL
 	u.updatedAt = time.Now()
 }
 
@@ -197,6 +207,7 @@ func ReconstructUser(
 	passwordHash string,
 	name string,
 	username *Username,
+	avatarURL *string,
 	status UserStatus,
 	emailVerifiedAt *time.Time,
 	lastLoginAt *time.Time,
@@ -210,6 +221,7 @@ func ReconstructUser(
 		passwordHash:    passwordHash,
 		name:            name,
 		username:        username,
+		avatarURL:       avatarURL,
 		status:          status,
 		emailVerifiedAt: emailVerifiedAt,
 		lastLoginAt:     lastLoginAt,

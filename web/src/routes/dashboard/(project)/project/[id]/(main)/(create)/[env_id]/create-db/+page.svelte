@@ -1,38 +1,39 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+
 	import { Button } from '$lib/components/ui/button';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Textarea } from '$lib/components/ui/textarea';
-	import DatabaseTypeSelector from '$lib/components/databases/database-type-selector.svelte';
-	import PostgresqlForm from '$lib/components/databases/postgresql-form.svelte';
-	import MysqlForm from '$lib/components/databases/mysql-form.svelte';
-	import MariadbForm from '$lib/components/databases/mariadb-form.svelte';
-	import RedisForm from '$lib/components/databases/redis-form.svelte';
-	import KeydbForm from '$lib/components/databases/keydb-form.svelte';
-	import DragonflyForm from '$lib/components/databases/dragonfly-form.svelte';
-	import MongodbForm from '$lib/components/databases/mongodb-form.svelte';
-	import ClickhouseForm from '$lib/components/databases/clickhouse-form.svelte';
 
-	import { createMutation } from '@tanstack/svelte-query';
-	import {
-		databasesApi,
-		type DatabaseType,
-		type CreateDatabaseRequest,
-		type PostgreSQLConfig,
-		type MySQLConfig,
-		type MariaDBConfig,
-		type RedisConfig,
-		type KeyDBConfig,
-		type DragonflyConfig,
-		type MongoDBConfig,
-		type ClickHouseConfig
-	} from '$lib/api/databases';
+	import DatabaseTypeSelector from '$lib/features/databases/components/forms/database-type-selector.svelte';
+	import PostgresqlForm from '$lib/features/databases/components/forms/postgresql-form.svelte';
+	import MysqlForm from '$lib/features/databases/components/forms/mysql-form.svelte';
+	import MariadbForm from '$lib/features/databases/components/forms/mariadb-form.svelte';
+	import RedisForm from '$lib/features/databases/components/forms/redis-form.svelte';
+	import KeydbForm from '$lib/features/databases/components/forms/keydb-form.svelte';
+	import DragonflyForm from '$lib/features/databases/components/forms/dragonfly-form.svelte';
+	import MongodbForm from '$lib/features/databases/components/forms/mongodb-form.svelte';
+	import ClickhouseForm from '$lib/features/databases/components/forms/clickhouse-form.svelte';
 
-	const projectId = $derived(page.params.id);
-	const envId = $derived(page.params.env_id);
+	import type {
+		DatabaseType,
+		CreateDatabaseRequest,
+		PostgreSQLConfig,
+		MySQLConfig,
+		MariaDBConfig,
+		RedisConfig,
+		KeyDBConfig,
+		DragonflyConfig,
+		MongoDBConfig,
+		ClickHouseConfig
+	} from '$lib/features/databases/types';
+	import { createDatabaseMutationQuery } from '$lib/features/databases/mutations';
+
+	const projectId = page.params.id!;
+	const envId = page.params.env_id!;
 
 	let step = $state<'type' | 'config'>('type');
 	let selectedType = $state<DatabaseType | null>(null);
@@ -104,12 +105,11 @@
 		http_port: 8123
 	});
 
-	const createDatabaseMutation = createMutation(() => ({
-		mutationFn: (data: CreateDatabaseRequest) => databasesApi.create(projectId, data),
+	const createDatabaseMutation = createDatabaseMutationQuery(projectId, {
 		onSuccess: () => {
 			goto(`/dashboard/project/${projectId}`);
 		}
-	}));
+	});
 
 	function handleTypeSelect(type: DatabaseType) {
 		selectedType = type;

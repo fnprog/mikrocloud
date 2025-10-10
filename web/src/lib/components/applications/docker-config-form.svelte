@@ -9,15 +9,9 @@
 		content: string;
 		method: 'paste' | 'upload';
 		fileType: 'dockerfile' | 'compose';
-		onUpdate: (config: { content: string; method: string; fileType: string }) => void;
 	}
 
-	let {
-		content = $bindable(),
-		method = $bindable(),
-		fileType = $bindable(),
-		onUpdate
-	}: Props = $props();
+	let { content = $bindable(), method = $bindable(), fileType = $bindable() }: Props = $props();
 
 	let fileInput: HTMLInputElement;
 
@@ -35,14 +29,14 @@
 </script>
 
 <div class="space-y-6">
-	<Tabs value={fileType} onValueChange={(v) => (fileType = v)}>
+	<Tabs bind:value={fileType}>
 		<TabsList class="grid w-full grid-cols-2">
 			<TabsTrigger value="dockerfile">Dockerfile</TabsTrigger>
 			<TabsTrigger value="compose">Docker Compose</TabsTrigger>
 		</TabsList>
 	</Tabs>
 
-	<Tabs value={method} onValueChange={(v) => (method = v)}>
+	<Tabs bind:value={method}>
 		<TabsList class="grid w-full grid-cols-2">
 			<TabsTrigger value="paste">Paste content</TabsTrigger>
 			<TabsTrigger value="upload">Upload file</TabsTrigger>

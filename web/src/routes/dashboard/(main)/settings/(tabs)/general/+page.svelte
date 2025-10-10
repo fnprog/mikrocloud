@@ -1,16 +1,23 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Switch } from '$lib/components/ui/switch';
 	import * as Card from '$lib/components/ui/card';
+	import { createGeneralSettingsQuery } from '$lib/features/settings/queries/settings';
+	import { createUpdateGeneralSettingsMutation } from '$lib/features/settings/mutations';
+	import { settingsApi } from '$lib/features/settings/api';
+
+	const settingsQuery = createGeneralSettingsQuery();
+	const updateSettingsMutation = createUpdateGeneralSettingsMutation();
+
 	let domain = $state('');
 	let timezone = $state('UTC');
 	let ipv4 = $state('');
 	let ipv6 = $state('');
 	let allowRegistrations = $state(true);
 	let doNotTrack = $state(false);
+	let isDetecting = $state(false);
 
 	const timezones = [
 		'UTC',
@@ -26,43 +33,42 @@
 		'Australia/Sydney'
 	];
 
-	onMount(async () => {
-		try {
-			const response = await fetch('/api/settings/general');
-			if (response.ok) {
-				const data = await response.json();
-				domain = data.domain || '';
-				timezone = data.timezone || 'UTC';
-				ipv4 = data.ipv4 || '';
-				ipv6 = data.ipv6 || '';
-				allowRegistrations = data.allow_registrations ?? true;
-				doNotTrack = data.do_not_track ?? false;
-			}
-		} catch (error) {
-			console.error('Failed to load settings:', error);
+	$effect(() => {
+		if (settingsQuery.data) {
+			domain = settingsQuery.data.domain || '';
+			timezone = settingsQuery.data.timezone || 'UTC';
+			ipv4 = settingsQuery.data.ipv4 || '';
+			ipv6 = settingsQuery.data.ipv6 || '';
+			allowRegistrations = settingsQuery.data.allow_registrations ?? true;
+			doNotTrack = settingsQuery.data.do_not_track ?? false;
 		}
 	});
 
-	async function handleSave() {
-		try {
-			const response = await fetch('/api/settings/general', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					domain,
-					timezone,
-					ipv4,
-					ipv6,
-					allow_registrations: allowRegistrations,
-					do_not_track: doNotTrack
-				})
-			});
+	function handleSave() {
+		updateSettingsMutation.mutate({
+			domain,
+			timezone,
+			ipv4,
+			ipv6,
+			allow_registrations: allowRegistrations,
+			do_not_track: doNotTrack
+		});
+	}
 
-			if (!response.ok) {
-				throw new Error('Failed to save settings');
+	async function handleDetectIPs() {
+		isDetecting = true;
+		try {
+			const detected = await settingsApi.detectIPs();
+			if (detected.ipv4) {
+				ipv4 = detected.ipv4;
+			}
+			if (detected.ipv6) {
+				ipv6 = detected.ipv6;
 			}
 		} catch (error) {
-			console.error('Failed to save settings:', error);
+			console.error('Failed to detect IP addresses:', error);
+		} finally {
+			isDetecting = false;
 		}
 	}
 </script>
@@ -106,7 +112,12 @@
 
 			<div class="space-y-2">
 				<Label for="ipv4">Public IPv4 Address</Label>
-				<Input id="ipv4" type="text" bind:value={ipv4} placeholder="192.168.1.100" />
+				<div class="flex gap-2">
+					<Input id="ipv4" type="text" bind:value={ipv4} placeholder="192.168.1.100" class="flex-1" />
+					<Button variant="outline" onclick={handleDetectIPs} disabled={isDetecting} size="sm">
+						{isDetecting ? 'Detecting...' : 'Auto-detect'}
+					</Button>
+				</div>
 				<p class="text-xs text-muted-foreground">
 					Enter the IPv4 address of the instance. It is useful if you have several IPv4 addresses.
 				</p>
@@ -114,7 +125,12 @@
 
 			<div class="space-y-2">
 				<Label for="ipv6">Public IPv6 Address</Label>
-				<Input id="ipv6" type="text" bind:value={ipv6} placeholder="2001:db8::1" />
+				<div class="flex gap-2">
+					<Input id="ipv6" type="text" bind:value={ipv6} placeholder="2001:db8::1" class="flex-1" />
+					<Button variant="outline" onclick={handleDetectIPs} disabled={isDetecting} size="sm">
+						{isDetecting ? 'Detecting...' : 'Auto-detect'}
+					</Button>
+				</div>
 				<p class="text-xs text-muted-foreground">
 					Enter the IPv6 address of the instance. It is useful if you have several IPv6 addresses.
 				</p>
@@ -156,6 +172,8 @@
 	</Card.Root>
 
 	<div class="flex justify-end">
-		<Button onclick={handleSave}>Save Changes</Button>
+		<Button onclick={handleSave} disabled={updateSettingsMutation.isPending}>
+			{updateSettingsMutation.isPending ? 'Saving...' : 'Save Changes'}
+		</Button>
 	</div>
 </div>

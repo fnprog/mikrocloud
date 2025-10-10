@@ -21,13 +21,16 @@ import (
 
 // Service errors
 var (
-	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrUserNotFound       = errors.New("user not found")
-	ErrUserAlreadyExists  = errors.New("user already exists")
-	ErrWeakPassword       = errors.New("password does not meet requirements")
-	ErrInvalidEmail       = errors.New("invalid email format")
-	ErrInvalidToken       = errors.New("invalid or expired token")
-	ErrSessionExpired     = errors.New("session has expired")
+	ErrInvalidCredentials    = errors.New("invalid credentials")
+	ErrUserNotFound          = errors.New("user not found")
+	ErrUserAlreadyExists     = errors.New("user already exists")
+	ErrWeakPassword          = errors.New("password does not meet requirements")
+	ErrInvalidEmail          = errors.New("invalid email format")
+	ErrInvalidToken          = errors.New("invalid or expired token")
+	ErrSessionExpired        = errors.New("session has expired")
+	ErrUsernameAlreadyExists = errors.New("username already exists")
+	ErrEmailAlreadyExists    = errors.New("email already exists")
+	ErrIncorrectPassword     = errors.New("incorrect password")
 )
 
 // AuthService handles authentication business logic
@@ -499,6 +502,144 @@ func (s *AuthService) setupFirstUser(ctx context.Context, user *users.User) erro
 
 	if err := s.usersRepo.AddUserRole(ctx, user.ID(), adminRoleID, nil); err != nil {
 		return fmt.Errorf("failed to assign admin role: %w", err)
+	}
+
+	return nil
+}
+
+type UpdateProfileCommand struct {
+	Name     *string
+	Username *string
+	Avatar   *string
+}
+
+func (s *AuthService) UpdateProfile(ctx context.Context, userID users.UserID, cmd UpdateProfileCommand) (*users.User, error) {
+	user, err := s.authRepo.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	if cmd.Name != nil {
+		user.SetName(*cmd.Name)
+	}
+
+	if cmd.Username != nil {
+		if *cmd.Username != "" {
+			username, err := users.NewUsername(*cmd.Username)
+			if err != nil {
+				return nil, fmt.Errorf("invalid username: %w", err)
+			}
+
+			existingUser, err := s.usersRepo.FindByUsername(ctx, *cmd.Username)
+			if err == nil && existingUser.ID().String() != userID.String() {
+				return nil, ErrUsernameAlreadyExists
+			}
+
+			user.SetUsername(username)
+		} else {
+			user.SetUsername(nil)
+		}
+	}
+
+	if cmd.Avatar != nil {
+		if *cmd.Avatar != "" {
+			user.SetAvatarURL(cmd.Avatar)
+		} else {
+			user.SetAvatarURL(nil)
+		}
+	}
+
+	if err := s.usersRepo.Save(ctx, user); err != nil {
+		return nil, fmt.Errorf("failed to update user profile: %w", err)
+	}
+
+	return user, nil
+}
+
+type UpdateEmailCommand struct {
+	Email    string
+	Password string
+}
+
+func (s *AuthService) UpdateEmail(ctx context.Context, userID users.UserID, cmd UpdateEmailCommand) (*users.User, error) {
+	user, err := s.authRepo.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash()), []byte(cmd.Password)); err != nil {
+		return nil, ErrIncorrectPassword
+	}
+
+	newEmail, err := users.NewEmail(cmd.Email)
+	if err != nil {
+		return nil, ErrInvalidEmail
+	}
+
+	exists, err := s.authRepo.UserExistsByEmail(ctx, newEmail)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check email existence: %w", err)
+	}
+	if exists {
+		return nil, ErrEmailAlreadyExists
+	}
+
+	reconstructed := users.ReconstructUser(
+		user.ID(),
+		newEmail,
+		user.PasswordHash(),
+		user.Name(),
+		user.Username(),
+		user.AvatarURL(),
+		user.Status(),
+		user.EmailVerifiedAt(),
+		user.LastLoginAt(),
+		user.Timezone(),
+		user.CreatedAt(),
+		time.Now(),
+	)
+
+	if err := s.usersRepo.Save(ctx, reconstructed); err != nil {
+		return nil, fmt.Errorf("failed to update user email: %w", err)
+	}
+
+	return reconstructed, nil
+}
+
+type UpdatePasswordCommand struct {
+	CurrentPassword string
+	NewPassword     string
+}
+
+func (s *AuthService) UpdatePassword(ctx context.Context, userID users.UserID, cmd UpdatePasswordCommand) error {
+	user, err := s.authRepo.GetUserByID(ctx, userID)
+	if err != nil {
+		return ErrUserNotFound
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash()), []byte(cmd.CurrentPassword)); err != nil {
+		return ErrIncorrectPassword
+	}
+
+	if len(cmd.NewPassword) < 8 {
+		return ErrWeakPassword
+	}
+
+	newPasswordHash, err := bcrypt.GenerateFromPassword([]byte(cmd.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	if err := s.authRepo.UpdateUserPassword(ctx, userID, string(newPasswordHash)); err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+
+	return nil
+}
+
+func (s *AuthService) DeleteAccount(ctx context.Context, userID users.UserID) error {
+	if err := s.usersRepo.Delete(ctx, userID); err != nil {
+		return fmt.Errorf("failed to delete user account: %w", err)
 	}
 
 	return nil

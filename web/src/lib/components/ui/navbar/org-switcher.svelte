@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { createQuery } from '@tanstack/svelte-query';
-	import { organizationsApi } from '$lib/api';
+	import { createOrganizationsListQuery } from '$lib/features/organizations/queries';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Building2, Check, ChevronDown } from 'lucide-svelte';
 	import type { Snippet } from 'svelte';
@@ -11,11 +10,7 @@
 	}
 
 	let { currentOrgId, children }: Props = $props();
-
-	const orgsQuery = createQuery(() => ({
-		queryKey: ['organizations'],
-		queryFn: () => organizationsApi.list()
-	}));
+	const orgsQuery = createOrganizationsListQuery();
 
 	const currentOrg = $derived(
 		orgsQuery.data?.find((org) => org.id === currentOrgId) || orgsQuery.data?.[0]

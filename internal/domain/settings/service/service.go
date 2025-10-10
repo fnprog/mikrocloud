@@ -1,6 +1,12 @@
 package service
 
 import (
+	"io"
+	"net"
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/mikrocloud/mikrocloud/internal/domain/settings"
 	"github.com/mikrocloud/mikrocloud/internal/domain/settings/repository"
 )
@@ -48,4 +54,57 @@ func (s *SettingsService) GetInstanceInfo() (*settings.InstanceInfo, error) {
 		IPv4: generalSettings.IPv4,
 		IPv6: generalSettings.IPv6,
 	}, nil
+}
+
+func (s *SettingsService) DetectIPAddresses() (*settings.DetectedIPs, error) {
+	detected := &settings.DetectedIPs{}
+
+	ipv4, err := detectPublicIPv4()
+	if err == nil {
+		detected.IPv4 = ipv4
+	}
+
+	ipv6, err := detectPublicIPv6()
+	if err == nil {
+		detected.IPv6 = ipv6
+	}
+
+	return detected, nil
+}
+
+func detectPublicIPv4() (string, error) {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get("https://api.ipify.org")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(string(body)), nil
+}
+
+func detectPublicIPv6() (string, error) {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get("https://api64.ipify.org")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	ip := strings.TrimSpace(string(body))
+	if net.ParseIP(ip).To4() != nil {
+		return "", nil
+	}
+
+	return ip, nil
 }

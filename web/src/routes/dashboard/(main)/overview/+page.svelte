@@ -2,51 +2,14 @@
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Ellipsis, Globe, Plus } from 'lucide-svelte';
-	import {
-		activitiesApi,
-		serversApi,
-		projectsApi,
-		type Activity,
-		type Server,
-		type Project
-	} from '$lib/api';
-	import { onMount } from 'svelte';
 	import Skeleton from '$lib/components/ui/skeleton/skeleton.svelte';
+	import { createProjectsQuery } from '$lib/features/projects/queries';
+	import { createActivitiesQuery } from '$lib/features/activities/queries';
+	import { createServersListQuery } from '$lib/features/servers/queries';
 
-	let projects = $state<Project[]>([]);
-	let activities = $state<Activity[]>([]);
-	let servers = $state<Server[]>([]);
-	let loadingProjects = $state(true);
-	let loadingActivities = $state(true);
-	let loadingServers = $state(true);
-
-	onMount(async () => {
-		try {
-			projects = await projectsApi.list();
-		} catch (error) {
-			console.error('Failed to load projects:', error);
-		} finally {
-			loadingProjects = false;
-		}
-
-		try {
-			const orgId = '00000000-0000-0000-0000-000000000000';
-			const response = await activitiesApi.getRecent(orgId, 10);
-			activities = response.activities;
-		} catch (error) {
-			console.error('Failed to load activities:', error);
-		} finally {
-			loadingActivities = false;
-		}
-
-		try {
-			servers = await serversApi.list();
-		} catch (error) {
-			console.error('Failed to load servers:', error);
-		} finally {
-			loadingServers = false;
-		}
-	});
+	const projects = createProjectsQuery();
+	const activitiesQuery = createActivitiesQuery(10);
+	const serversQuery = createServersListQuery();
 
 	function goToProject(projectId: string) {
 		goto(`/dashboard/project/${projectId}`);
@@ -103,23 +66,23 @@
 	<div class="lg:col-span-2 space-y-6">
 		<div>
 			<h2 class="text-lg font-semibold mb-4">Projects</h2>
-			{#if loadingProjects}
+			{#if projects.isLoading}
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-					{#each Array(4) as _, i}
+					{#each Array(4) as _}
 						<Skeleton class="h-32 w-full rounded-lg" />
 					{/each}
 				</div>
-			{:else if projects.length === 0}
+			{:else if projects.data && projects.data.length === 0}
 				<div class="bg-white/5 border border-white/10 rounded-lg p-8 text-center">
 					<p class="text-gray-400 text-sm mb-4">No projects yet</p>
-					<Button onclick={() => goto('/dashboard/projects/new')}>
+					<Button href="/dashboard/projects/new">
 						<Plus class="w-4 h-4 mr-2" />
 						Create Project
 					</Button>
 				</div>
-			{:else}
+			{:else if projects.data}
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-					{#each projects as project (project.id)}
+					{#each projects.data as project (project.id)}
 						<div
 							class="bg-white/5 border border-white/10 rounded-lg p-4 hover:bg-white/10 transition-colors cursor-pointer"
 							onclick={() => goToProject(project.id)}
@@ -132,9 +95,15 @@
 									<Globe class="w-4 h-4 text-gray-400" />
 									<span class="text-sm">{project.name}</span>
 								</div>
-								<button class="text-gray-400 hover:text-white" onclick={(e) => e.stopPropagation()}>
+								<div 
+									class="text-gray-400 hover:text-white cursor-pointer" 
+									onclick={(e) => e.stopPropagation()}
+									role="button"
+									tabindex="0"
+									onkeydown={(e) => e.key === 'Enter' && e.stopPropagation()}
+								>
 									<Ellipsis class="w-5 h-5" />
-								</button>
+								</div>
 							</div>
 							<div class="flex items-center justify-between">
 								<span class="text-xs text-gray-500">
@@ -155,15 +124,15 @@
 		<div>
 			<h2 class="text-lg font-semibold mb-4">Servers</h2>
 			<div class="bg-white/5 border border-white/10 rounded-lg p-4">
-				{#if loadingServers}
+				{#if serversQuery.isLoading}
 					<div class="space-y-4">
 						<Skeleton class="h-24 w-full" />
 						<Skeleton class="h-24 w-full" />
 					</div>
-				{:else if servers.length === 0}
+				{:else if serversQuery.data && serversQuery.data.length === 0}
 					<div class="text-center text-gray-400 text-sm py-4">No servers configured</div>
-				{:else}
-					{#each servers as server (server.id)}
+				{:else if serversQuery.data}
+					{#each serversQuery.data as server (server.id)}
 						<div class="pb-4 mb-4 last:pb-0 last:mb-0 border-b border-white/10 last:border-0">
 							<div class="flex items-center justify-between mb-2">
 								<div class="flex items-center space-x-2">
@@ -195,9 +164,9 @@
 	<div>
 		<h2 class="text-lg font-semibold mb-4">Activity</h2>
 		<div class="bg-white/5 border border-white/10 rounded-lg p-4">
-			{#if loadingActivities}
+			{#if activitiesQuery.isLoading}
 				<div class="space-y-6">
-					{#each Array(5) as _, i}
+					{#each Array(5) as _}
 						<div class="flex items-start space-x-3">
 							<Skeleton class="h-8 w-8 rounded-full" />
 							<div class="flex-1 space-y-2">
@@ -208,11 +177,11 @@
 						</div>
 					{/each}
 				</div>
-			{:else if activities.length === 0}
+			{:else if activitiesQuery.data && activitiesQuery.data.activities.length === 0}
 				<div class="text-center text-gray-400 text-sm py-8">No recent activity</div>
-			{:else}
+			{:else if activitiesQuery.data}
 				<div class="space-y-6">
-					{#each activities as activity, index (activity.id)}
+					{#each activitiesQuery.data.activities as activity, index (activity.id)}
 						<div class="flex items-start space-x-3">
 							<div class="relative">
 								<div
@@ -222,7 +191,7 @@
 								>
 									{getActivityIcon(activity.activity_type)}
 								</div>
-								{#if index !== activities.length - 1}
+								{#if index !== activitiesQuery.data.activities.length - 1}
 									<div class="absolute top-8 left-4 w-px h-8 bg-white/10"></div>
 								{/if}
 							</div>

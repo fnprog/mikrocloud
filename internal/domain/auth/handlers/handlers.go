@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/mikrocloud/mikrocloud/internal/domain/auth/service"
+	"github.com/mikrocloud/mikrocloud/internal/domain/users"
 	"github.com/mikrocloud/mikrocloud/internal/utils"
 )
 
@@ -45,10 +46,11 @@ type AuthResponse struct {
 
 // User represents user data in responses
 type User struct {
-	ID       string  `json:"id"`
-	Name     string  `json:"name"`
-	Email    string  `json:"email"`
-	Username *string `json:"username,omitempty"`
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	Email     string  `json:"email"`
+	Username  *string `json:"username,omitempty"`
+	AvatarURL *string `json:"avatarUrl,omitempty"`
 }
 
 // Login authenticates a user and returns a token
@@ -102,10 +104,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	response := AuthResponse{
 		Token: result.Token,
 		User: User{
-			ID:       result.User.ID().String(),
-			Name:     result.User.Name(),
-			Email:    result.User.Email().String(),
-			Username: username,
+			ID:        result.User.ID().String(),
+			Name:      result.User.Name(),
+			Email:     result.User.Email().String(),
+			Username:  username,
+			AvatarURL: result.User.AvatarURL(),
 		},
 	}
 
@@ -157,10 +160,11 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	response := AuthResponse{
 		Token: result.Token,
 		User: User{
-			ID:       result.User.ID().String(),
-			Name:     result.User.Name(),
-			Email:    result.User.Email().String(),
-			Username: username,
+			ID:        result.User.ID().String(),
+			Name:      result.User.Name(),
+			Email:     result.User.Email().String(),
+			Username:  username,
+			AvatarURL: result.User.AvatarURL(),
 		},
 	}
 
@@ -297,10 +301,11 @@ func (h *AuthHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := User{
-		ID:       user.ID().String(),
-		Name:     user.Name(),
-		Email:    user.Email().String(),
-		Username: username,
+		ID:        user.ID().String(),
+		Name:      user.Name(),
+		Email:     user.Email().String(),
+		Username:  username,
+		AvatarURL: user.AvatarURL(),
 	}
 
 	utils.SendJSON(w, http.StatusOK, response)
@@ -321,6 +326,326 @@ func (h *AuthHandler) GetSetupStatus(w http.ResponseWriter, r *http.Request) {
 
 	response := SetupStatus{
 		IsSetup: hasUsers,
+	}
+
+	utils.SendJSON(w, http.StatusOK, response)
+}
+
+type UpdateProfileRequest struct {
+	Name     *string `json:"name,omitempty"`
+	Username *string `json:"username,omitempty"`
+	Avatar   *string `json:"avatar,omitempty"`
+}
+
+func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	_, claims, err := jwtauth.FromContext(r.Context())
+	if err != nil {
+		utils.SendError(w, http.StatusUnauthorized, "unauthorized", "Invalid token")
+		return
+	}
+
+	userIDStr, ok := claims["user_id"].(string)
+	if !ok || userIDStr == "" {
+		utils.SendError(w, http.StatusUnauthorized, "unauthorized", "User not authenticated")
+		return
+	}
+
+	var req UpdateProfileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_json", "Invalid JSON format")
+		return
+	}
+
+	userID, err := users.UserIDFromString(userIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_user_id", "Invalid user ID")
+		return
+	}
+
+	cmd := service.UpdateProfileCommand{
+		Name:     req.Name,
+		Username: req.Username,
+		Avatar:   req.Avatar,
+	}
+
+	user, err := h.authService.UpdateProfile(r.Context(), userID, cmd)
+	if err != nil {
+		switch err {
+		case service.ErrUserNotFound:
+			utils.SendError(w, http.StatusNotFound, "user_not_found", "User not found")
+		case service.ErrUsernameAlreadyExists:
+			utils.SendError(w, http.StatusConflict, "username_exists", "Username is already taken")
+		default:
+			utils.SendError(w, http.StatusInternalServerError, "update_failed", "Failed to update profile: "+err.Error())
+		}
+		return
+	}
+
+	var username *string
+	if user.Username() != nil {
+		usernameStr := user.Username().String()
+		username = &usernameStr
+	}
+
+	response := User{
+		ID:        user.ID().String(),
+		Name:      user.Name(),
+		Email:     user.Email().String(),
+		Username:  username,
+		AvatarURL: user.AvatarURL(),
+	}
+
+	utils.SendJSON(w, http.StatusOK, response)
+}
+
+func (h *AuthHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
+	_, claims, err := jwtauth.FromContext(r.Context())
+	if err != nil {
+		utils.SendError(w, http.StatusUnauthorized, "unauthorized", "Invalid token")
+		return
+	}
+
+	userIDStr, ok := claims["user_id"].(string)
+	if !ok || userIDStr == "" {
+		utils.SendError(w, http.StatusUnauthorized, "unauthorized", "User not authenticated")
+		return
+	}
+
+	if err := r.ParseMultipartForm(utils.MaxAvatarSize); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_form", "Invalid multipart form data")
+		return
+	}
+
+	file, fileHeader, err := r.FormFile("avatar")
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "missing_file", "Avatar file is required")
+		return
+	}
+	defer file.Close()
+
+	user, err := h.authService.GetUserByID(r.Context(), userIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusNotFound, "user_not_found", "User not found")
+		return
+	}
+
+	if user.AvatarURL() != nil {
+		if err := utils.DeleteAvatar(*user.AvatarURL()); err != nil {
+		}
+	}
+
+	avatarURL, err := utils.SaveAvatar(fileHeader, userIDStr)
+	if err != nil {
+		if validationErr, ok := err.(*utils.FileValidationError); ok {
+			utils.SendError(w, http.StatusBadRequest, "validation_error", validationErr.Message)
+		} else {
+			utils.SendError(w, http.StatusInternalServerError, "upload_failed", "Failed to upload avatar")
+		}
+		return
+	}
+
+	userID, err := users.UserIDFromString(userIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_user_id", "Invalid user ID")
+		return
+	}
+
+	cmd := service.UpdateProfileCommand{
+		Avatar: &avatarURL,
+	}
+
+	user, err = h.authService.UpdateProfile(r.Context(), userID, cmd)
+	if err != nil {
+		utils.DeleteAvatar(avatarURL)
+		utils.SendError(w, http.StatusInternalServerError, "update_failed", "Failed to update profile")
+		return
+	}
+
+	var username *string
+	if user.Username() != nil {
+		usernameStr := user.Username().String()
+		username = &usernameStr
+	}
+
+	response := User{
+		ID:        user.ID().String(),
+		Name:      user.Name(),
+		Email:     user.Email().String(),
+		Username:  username,
+		AvatarURL: user.AvatarURL(),
+	}
+
+	utils.SendJSON(w, http.StatusOK, response)
+}
+
+type UpdateEmailRequest struct {
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required"`
+}
+
+func (h *AuthHandler) UpdateEmail(w http.ResponseWriter, r *http.Request) {
+	_, claims, err := jwtauth.FromContext(r.Context())
+	if err != nil {
+		utils.SendError(w, http.StatusUnauthorized, "unauthorized", "Invalid token")
+		return
+	}
+
+	userIDStr, ok := claims["user_id"].(string)
+	if !ok || userIDStr == "" {
+		utils.SendError(w, http.StatusUnauthorized, "unauthorized", "User not authenticated")
+		return
+	}
+
+	var req UpdateEmailRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_json", "Invalid JSON format")
+		return
+	}
+
+	if err := h.validator.Struct(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "validation_error", err.Error())
+		return
+	}
+
+	userID, err := users.UserIDFromString(userIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_user_id", "Invalid user ID")
+		return
+	}
+
+	cmd := service.UpdateEmailCommand{
+		Email:    req.Email,
+		Password: req.Password,
+	}
+
+	user, err := h.authService.UpdateEmail(r.Context(), userID, cmd)
+	if err != nil {
+		switch err {
+		case service.ErrUserNotFound:
+			utils.SendError(w, http.StatusNotFound, "user_not_found", "User not found")
+		case service.ErrIncorrectPassword:
+			utils.SendError(w, http.StatusUnauthorized, "incorrect_password", "Incorrect password")
+		case service.ErrEmailAlreadyExists:
+			utils.SendError(w, http.StatusConflict, "email_exists", "Email is already in use")
+		case service.ErrInvalidEmail:
+			utils.SendError(w, http.StatusBadRequest, "invalid_email", "Invalid email format")
+		default:
+			utils.SendError(w, http.StatusInternalServerError, "update_failed", "Failed to update email: "+err.Error())
+		}
+		return
+	}
+
+	var username *string
+	if user.Username() != nil {
+		usernameStr := user.Username().String()
+		username = &usernameStr
+	}
+
+	response := User{
+		ID:        user.ID().String(),
+		Name:      user.Name(),
+		Email:     user.Email().String(),
+		Username:  username,
+		AvatarURL: user.AvatarURL(),
+	}
+
+	utils.SendJSON(w, http.StatusOK, response)
+}
+
+type UpdatePasswordRequest struct {
+	CurrentPassword string `json:"currentPassword" validate:"required"`
+	NewPassword     string `json:"newPassword" validate:"required,min=8"`
+}
+
+func (h *AuthHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
+	_, claims, err := jwtauth.FromContext(r.Context())
+	if err != nil {
+		utils.SendError(w, http.StatusUnauthorized, "unauthorized", "Invalid token")
+		return
+	}
+
+	userIDStr, ok := claims["user_id"].(string)
+	if !ok || userIDStr == "" {
+		utils.SendError(w, http.StatusUnauthorized, "unauthorized", "User not authenticated")
+		return
+	}
+
+	var req UpdatePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_json", "Invalid JSON format")
+		return
+	}
+
+	if err := h.validator.Struct(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "validation_error", err.Error())
+		return
+	}
+
+	userID, err := users.UserIDFromString(userIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_user_id", "Invalid user ID")
+		return
+	}
+
+	cmd := service.UpdatePasswordCommand{
+		CurrentPassword: req.CurrentPassword,
+		NewPassword:     req.NewPassword,
+	}
+
+	err = h.authService.UpdatePassword(r.Context(), userID, cmd)
+	if err != nil {
+		switch err {
+		case service.ErrUserNotFound:
+			utils.SendError(w, http.StatusNotFound, "user_not_found", "User not found")
+		case service.ErrIncorrectPassword:
+			utils.SendError(w, http.StatusUnauthorized, "incorrect_password", "Current password is incorrect")
+		case service.ErrWeakPassword:
+			utils.SendError(w, http.StatusBadRequest, "weak_password", "New password does not meet security requirements")
+		default:
+			utils.SendError(w, http.StatusInternalServerError, "update_failed", "Failed to update password: "+err.Error())
+		}
+		return
+	}
+
+	response := utils.SuccessResponse{
+		Message: "Password updated successfully",
+	}
+
+	utils.SendJSON(w, http.StatusOK, response)
+}
+
+func (h *AuthHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
+	_, claims, err := jwtauth.FromContext(r.Context())
+	if err != nil {
+		utils.SendError(w, http.StatusUnauthorized, "unauthorized", "Invalid token")
+		return
+	}
+
+	userIDStr, ok := claims["user_id"].(string)
+	if !ok || userIDStr == "" {
+		utils.SendError(w, http.StatusUnauthorized, "unauthorized", "User not authenticated")
+		return
+	}
+
+	userID, err := users.UserIDFromString(userIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_user_id", "Invalid user ID")
+		return
+	}
+
+	err = h.authService.DeleteAccount(r.Context(), userID)
+	if err != nil {
+		switch err {
+		case service.ErrUserNotFound:
+			utils.SendError(w, http.StatusNotFound, "user_not_found", "User not found")
+		default:
+			utils.SendError(w, http.StatusInternalServerError, "delete_failed", "Failed to delete account: "+err.Error())
+		}
+		return
+	}
+
+	response := utils.SuccessResponse{
+		Message: "Account deleted successfully",
 	}
 
 	utils.SendJSON(w, http.StatusOK, response)

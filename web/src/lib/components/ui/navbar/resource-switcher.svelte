@@ -1,30 +1,23 @@
 <script lang="ts">
-	import { createQuery } from '@tanstack/svelte-query';
-	import { applicationsApi, databasesApi } from '$lib/api';
+	import { createDatabasesFetchQuery } from '$lib/features/databases/queries';
+	import { createApplicationsFetchQuery } from '$lib/features/applications/queries';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Box, Database, Check, ChevronDown } from 'lucide-svelte';
 	import type { Snippet } from 'svelte';
 
 	interface Props {
 		projectId: string;
+		environmentId?: string;
 		currentResourceId?: string;
 		currentResourceType?: 'application' | 'database';
 		children?: Snippet;
 	}
 
-	let { projectId, currentResourceId, currentResourceType, children }: Props = $props();
+	let { projectId, environmentId, currentResourceId, currentResourceType, children }: Props =
+		$props();
 
-	const appsQuery = createQuery(() => ({
-		queryKey: ['applications', projectId],
-		queryFn: () => applicationsApi.list(projectId),
-		enabled: !!projectId
-	}));
-
-	const dbsQuery = createQuery(() => ({
-		queryKey: ['databases', projectId],
-		queryFn: () => databasesApi.list(projectId),
-		enabled: !!projectId
-	}));
+	const appsQuery = createApplicationsFetchQuery(projectId, environmentId);
+	const dbsQuery = createDatabasesFetchQuery(projectId, environmentId);
 
 	const currentResource = $derived(() => {
 		if (currentResourceType === 'application') {

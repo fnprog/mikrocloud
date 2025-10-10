@@ -114,3 +114,13 @@ func (h *SettingsHandler) GetInstanceInfo(w http.ResponseWriter, r *http.Request
 
 	utils.SendJSON(w, http.StatusOK, instanceInfo)
 }
+
+func (h *SettingsHandler) DetectIPAddresses(w http.ResponseWriter, r *http.Request) {
+	detectedIPs, err := h.service.DetectIPAddresses()
+	if err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "Failed to detect IP addresses", err.Error())
+		return
+	}
+
+	utils.SendJSON(w, http.StatusOK, detectedIPs)
+}

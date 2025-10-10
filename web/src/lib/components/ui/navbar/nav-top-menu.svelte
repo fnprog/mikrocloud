@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { cn } from '$lib/utils';
 	import { goto } from '$app/navigation';
-	import { authApi } from '$lib/api/auth';
-	import { createQuery } from '@tanstack/svelte-query';
 
 	import {
 		DropdownMenu,
@@ -15,19 +13,23 @@
 	import { Button } from '$lib/components/ui/button';
 
 	import { LogOut, Monitor, Sun, Moon, Plus } from 'lucide-svelte';
+	import { createProfileQuery } from '$lib/features/auth/queries';
+	import { createLogoutMutation } from '$lib/features/auth/mutations';
 
 	let theme: 'light' | 'dark' | 'system' = 'system';
 
-	const userQuery = createQuery(() => ({
-		queryKey: ['user', 'profile'],
-		queryFn: () => authApi.getProfile(),
-		staleTime: 5 * 60 * 1000
-	}));
+	const userQuery = createProfileQuery();
+	const logoutMutation = createLogoutMutation();
 
 	const user = $derived(userQuery.data);
 	const displayName = $derived(user?.username || user?.name || 'User');
 	const initials = $derived(
-		displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+		displayName
+			.split(' ')
+			.map((n) => n[0])
+			.join('')
+			.toUpperCase()
+			.slice(0, 2)
 	);
 
 	function cycleTheme() {
@@ -38,7 +40,7 @@
 	}
 
 	function handleLogout() {
-		authApi.logout();
+		logoutMutation.mutate();
 		goto('/login');
 	}
 </script>
@@ -65,7 +67,10 @@
 		</DropdownMenuItem>
 
 		<!-- Account Settings -->
-		<DropdownMenuItem class="cursor-pointer" onSelect={() => goto('/dashboard/account/general/profile')}>
+		<DropdownMenuItem
+			class="cursor-pointer"
+			onSelect={() => goto('/dashboard/account/general/profile')}
+		>
 			<span class="text-sm">Account Settings</span>
 		</DropdownMenuItem>
 
