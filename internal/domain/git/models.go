@@ -25,6 +25,14 @@ type GitSource struct {
 	CustomURL               *string     `json:"custom_url,omitempty"`
 	WebhookURL              *string     `json:"webhook_url,omitempty"`
 	AllowPreviewDeployments bool        `json:"allow_preview_deployments"`
+	IsGitHubApp             bool        `json:"is_github_app"`
+	GitHubAppID             *string     `json:"github_app_id,omitempty"`
+	GitHubInstallationID    *string     `json:"github_installation_id,omitempty"`
+	GitHubClientID          *string     `json:"-"`
+	GitHubClientSecret      *string     `json:"-"`
+	GitHubWebhookSecret     *string     `json:"-"`
+	GitHubPrivateKey        *string     `json:"-"`
+	GitHubAppSlug           *string     `json:"github_app_slug,omitempty"`
 	CreatedAt               time.Time   `json:"created_at"`
 	UpdatedAt               time.Time   `json:"updated_at"`
 }

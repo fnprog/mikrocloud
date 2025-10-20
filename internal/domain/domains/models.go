@@ -28,7 +28,7 @@ type DomainID struct {
 }
 
 func NewDomainID() DomainID {
-	return DomainID{value: uuid.New().String()}
+	return DomainID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func DomainIDFromString(s string) (DomainID, error) {
@@ -104,7 +104,7 @@ type CertificateID struct {
 }
 
 func NewCertificateID() CertificateID {
-	return CertificateID{value: uuid.New().String()}
+	return CertificateID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func (id CertificateID) String() string {
@@ -147,7 +147,7 @@ type DNSRecordID struct {
 }
 
 func NewDNSRecordID() DNSRecordID {
-	return DNSRecordID{value: uuid.New().String()}
+	return DNSRecordID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func (id DNSRecordID) String() string {

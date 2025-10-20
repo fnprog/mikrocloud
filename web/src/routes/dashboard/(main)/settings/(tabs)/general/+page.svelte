@@ -4,6 +4,11 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Switch } from '$lib/components/ui/switch';
 	import * as Card from '$lib/components/ui/card';
+	import * as Command from '$lib/components/ui/command';
+	import * as Popover from '$lib/components/ui/popover';
+	import { Check, ChevronsUpDown } from 'lucide-svelte';
+	import { cn } from '$lib/utils';
+	import { tick } from 'svelte';
 	import { createGeneralSettingsQuery } from '$lib/features/settings/queries/settings';
 	import { createUpdateGeneralSettingsMutation } from '$lib/features/settings/mutations';
 	import { settingsApi } from '$lib/features/settings/api';
@@ -18,20 +23,23 @@
 	let allowRegistrations = $state(true);
 	let doNotTrack = $state(false);
 	let isDetecting = $state(false);
+	let timezoneOpen = $state(false);
+	let timezoneSearch = $state('');
+	let triggerRef = $state<HTMLButtonElement>(null!);
 
-	const timezones = [
-		'UTC',
-		'America/New_York',
-		'America/Chicago',
-		'America/Denver',
-		'America/Los_Angeles',
-		'Europe/London',
-		'Europe/Paris',
-		'Europe/Berlin',
-		'Asia/Tokyo',
-		'Asia/Shanghai',
-		'Australia/Sydney'
-	];
+	const allTimezones = $derived.by(() => {
+		try {
+			return Intl.supportedValuesOf('timeZone');
+		} catch {
+			return ['UTC'];
+		}
+	});
+
+	const filteredTimezones = $derived(
+		timezoneSearch
+			? allTimezones.filter((tz) => tz.toLowerCase().includes(timezoneSearch.toLowerCase()))
+			: allTimezones
+	);
 
 	$effect(() => {
 		if (settingsQuery.data) {
@@ -71,6 +79,13 @@
 			isDetecting = false;
 		}
 	}
+
+	function closeAndFocusTrigger() {
+		timezoneOpen = false;
+		tick().then(() => {
+			triggerRef?.focus();
+		});
+	}
 </script>
 
 <div class="space-y-6">
@@ -96,15 +111,44 @@
 
 			<div class="space-y-2">
 				<Label for="timezone">Timezone</Label>
-				<select
-					id="timezone"
-					bind:value={timezone}
-					class="border-input-new bg-secondary-new selection:bg-primary dark:bg-input/30 selection:text-primary-foreground ring-offset-background shadow-xs flex h-9 w-full min-w-0 rounded-md border px-3 py-1 text-base outline-none transition-[color,box-shadow] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-				>
-					{#each timezones as tz}
-						<option value={tz}>{tz}</option>
-					{/each}
-				</select>
+				<Popover.Root bind:open={timezoneOpen}>
+					<Popover.Trigger bind:ref={triggerRef}>
+						{#snippet child({ props })}
+							<Button
+								variant="outline"
+								class="w-full justify-between"
+								{...props}
+								role="combobox"
+								aria-expanded={timezoneOpen}
+							>
+								{timezone || 'Select timezone...'}
+								<ChevronsUpDown class="ml-2 size-4 shrink-0 opacity-50" />
+							</Button>
+						{/snippet}
+					</Popover.Trigger>
+					<Popover.Content class="w-[400px] p-0">
+						<Command.Root>
+							<Command.Input placeholder="Search timezone..." bind:value={timezoneSearch} />
+							<Command.List>
+								<Command.Empty>No timezone found.</Command.Empty>
+								<Command.Group>
+									{#each filteredTimezones as tz}
+										<Command.Item
+											value={tz}
+											onSelect={() => {
+												timezone = tz;
+												closeAndFocusTrigger();
+											}}
+										>
+											<Check class={cn('mr-2 size-4', timezone !== tz && 'text-transparent')} />
+											{tz}
+										</Command.Item>
+									{/each}
+								</Command.Group>
+							</Command.List>
+						</Command.Root>
+					</Popover.Content>
+				</Popover.Root>
 				<p class="text-xs text-muted-foreground">
 					This is used for the update check and automatic update frequency.
 				</p>

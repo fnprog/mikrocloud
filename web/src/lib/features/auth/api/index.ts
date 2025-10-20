@@ -23,7 +23,7 @@ export const authApi = {
   },
 
   async updateProfile(data: UpdateProfileRequest) {
-    return await apiClient.put('/api/auth/profile', data);
+    return await apiClient.put('/auth/profile', data);
   },
 
   async uploadAvatar(file: File): Promise<User> {
@@ -48,7 +48,7 @@ export const authApi = {
   },
 
   async deleteProfile() {
-    return await apiClient.delete('/api/auth/profile');
+    return await apiClient.delete('/auth/profile');
   },
 
   logout(): void {

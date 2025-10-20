@@ -5,7 +5,7 @@ import { activitiesKeys } from '../keys';
 export const createActivitiesQuery = (limit = 20, offset = 0) =>
   createQuery(() => ({
     queryKey: activitiesKeys.recent(limit, offset),
-    queryFn: () => activitiesApi.getRecent({ organization_id: "", limit: limit, offset: offset })
+    queryFn: () => activitiesApi.getRecent({ limit: limit, offset: offset })
   }));
 
 export const createResourceActivitiesQuery = (

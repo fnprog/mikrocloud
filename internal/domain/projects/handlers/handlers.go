@@ -8,6 +8,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/mikrocloud/mikrocloud/internal/api/middleware"
 	"github.com/mikrocloud/mikrocloud/internal/domain/projects/service"
+	"github.com/mikrocloud/mikrocloud/internal/domain/users"
 	"github.com/mikrocloud/mikrocloud/internal/utils"
 )
 
@@ -98,7 +99,15 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // List lists all projects
 func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
-	projects, err := h.projectService.ListProjects(r.Context())
+	orgID := middleware.GetOrgID(r)
+
+	orgDomainID, err := users.OrganizationIDFromString(orgID)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_org_id", "Invalid organization ID")
+		return
+	}
+
+	projects, err := h.projectService.ListProjects(r.Context(), orgDomainID)
 	if err != nil {
 		utils.SendError(w, http.StatusInternalServerError, "list_failed", "Failed to list projects: "+err.Error())
 		return

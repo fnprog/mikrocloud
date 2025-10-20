@@ -25,46 +25,66 @@ export const createDatabaseMutationQuery = (projectId: string, options: GeneralM
   }));
 };
 
-export const deleteDatabaseMutationQuery = (projectId: string, databaseId: string) => {
+export const deleteDatabaseMutationQuery = (projectId: string, databaseId: string, options: GeneralMutationOptions = {}) => {
   const queryClient = useQueryClient();
   return createMutation(() => ({
     mutationFn: () => databasesApi.delete(projectId, databaseId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: databasesKeys.lists() });
       queryClient.invalidateQueries({ queryKey: databasesKeys.detail(projectId, databaseId) });
+      options.onSuccess?.();
+    },
+    onError: (error: Error) => {
+      console.error(error);
+      options.onError?.(error);
     }
   }));
 };
 
-export const startDatabaseMutationQuery = (projectId: string, databaseId: string) => {
+export const startDatabaseMutationQuery = (projectId: string, databaseId: string, options: GeneralMutationOptions = {}) => {
   const queryClient = useQueryClient();
   return createMutation(() => ({
     mutationFn: () => databasesApi.start(projectId, databaseId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: databasesKeys.detail(projectId, databaseId) });
       queryClient.invalidateQueries({ queryKey: databasesKeys.lists() });
+      options.onSuccess?.();
+    },
+    onError: (error: Error) => {
+      console.error(error);
+      options.onError?.(error);
     }
   }));
 };
 
-export const stopDatabaseMutationQuery = (projectId: string, databaseId: string) => {
+export const stopDatabaseMutationQuery = (projectId: string, databaseId: string, options: GeneralMutationOptions = {}) => {
   const queryClient = useQueryClient();
   return createMutation(() => ({
     mutationFn: () => databasesApi.stop(projectId, databaseId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: databasesKeys.detail(projectId, databaseId) });
       queryClient.invalidateQueries({ queryKey: databasesKeys.lists() });
+      options.onSuccess?.();
+    },
+    onError: (error: Error) => {
+      console.error(error);
+      options.onError?.(error);
     }
   }));
 };
 
-export const restartDatabaseMutationQuery = (projectId: string, databaseId: string) => {
+export const restartDatabaseMutationQuery = (projectId: string, databaseId: string, options: GeneralMutationOptions = {}) => {
   const queryClient = useQueryClient();
   return createMutation(() => ({
     mutationFn: () => databasesApi.restart(projectId, databaseId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: databasesKeys.detail(projectId, databaseId) });
       queryClient.invalidateQueries({ queryKey: databasesKeys.lists() });
+      options.onSuccess?.();
+    },
+    onError: (error: Error) => {
+      console.error(error);
+      options.onError?.(error);
     }
   }));
 };

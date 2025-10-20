@@ -211,5 +211,5 @@ func ReconstructRefreshToken(
 
 // generateID is a helper function for generating unique IDs
 func generateID() string {
-	return uuid.New().String()
+	return uuid.Must(uuid.NewV7()).String()
 }

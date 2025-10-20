@@ -25,7 +25,7 @@ type EnvironmentID struct {
 }
 
 func NewEnvironmentID() EnvironmentID {
-	return EnvironmentID{value: uuid.New()}
+	return EnvironmentID{value: uuid.Must(uuid.NewV7())}
 }
 
 func EnvironmentIDFromString(s string) (EnvironmentID, error) {

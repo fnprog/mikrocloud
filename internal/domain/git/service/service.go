@@ -149,7 +149,7 @@ func (s *GitService) DetectBuildMethod(ctx context.Context, req git.DetectBuildM
 
 func (s *GitService) CreateGitSource(ctx context.Context, orgID, userID string, req git.CreateGitSourceRequest) (*git.GitSource, error) {
 	source := &git.GitSource{
-		ID:                      uuid.New().String(),
+		ID:                      uuid.Must(uuid.NewV7()).String(),
 		OrgID:                   orgID,
 		UserID:                  userID,
 		Provider:                req.Provider,
@@ -769,4 +769,18 @@ func (s *GitService) detectCustomBuildMethod(ctx context.Context, repo, branch, 
 			SuggestedMethod: git.BuildMethodBuildpack,
 		},
 	}, nil
+}
+
+func (s *GitService) CreateGitSourceDirect(ctx context.Context, source *git.GitSource) error {
+	if err := s.repo.Create(ctx, source); err != nil {
+		return fmt.Errorf("failed to create git source: %w", err)
+	}
+	return nil
+}
+
+func (s *GitService) UpdateGitSourceDirect(ctx context.Context, source *git.GitSource) error {
+	if err := s.repo.Update(ctx, source.ID, source); err != nil {
+		return fmt.Errorf("failed to update git source: %w", err)
+	}
+	return nil
 }

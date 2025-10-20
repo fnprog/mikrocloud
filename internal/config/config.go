@@ -25,6 +25,7 @@ type ServerConfig struct {
 	LogLevel       string   `mapstructure:"log_level"`
 	AllowedOrigins []string `mapstructure:"allowed_origins"`
 	PublicIP       string   `mapstructure:"public_ip"`
+	PublicURL      string   `mapstructure:"public_url"`
 }
 
 type DatabaseConfig struct {
@@ -116,6 +117,7 @@ func setDefaults() {
 	viper.SetDefault("server.log_level", "info")
 	viper.SetDefault("server.allowed_origins", []string{"*"})
 	viper.SetDefault("server.public_ip", "")
+	viper.SetDefault("server.public_url", "")
 
 	// Database defaults - SQLite database path
 	viper.SetDefault("database.type", "sqlite")
@@ -162,4 +164,20 @@ func expandEnvVars(path string) string {
 		return os.ExpandEnv(path)
 	}
 	return path
+}
+
+func (c *Config) GetPublicURL() string {
+	if c.Server.PublicURL != "" {
+		return strings.TrimSuffix(c.Server.PublicURL, "/")
+	}
+
+	if c.Server.PublicIP != "" {
+		publicIP := c.Server.PublicIP
+		if strings.HasPrefix(publicIP, "http://") || strings.HasPrefix(publicIP, "https://") {
+			return strings.TrimSuffix(publicIP, "/")
+		}
+		return fmt.Sprintf("https://%s", publicIP)
+	}
+
+	return fmt.Sprintf("http://%s:%d", c.Server.Host, c.Server.Port)
 }

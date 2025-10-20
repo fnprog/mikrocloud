@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
+	"github.com/mikrocloud/mikrocloud/internal/domain/activities"
+	activitiesService "github.com/mikrocloud/mikrocloud/internal/domain/activities/service"
 	"github.com/mikrocloud/mikrocloud/internal/domain/environments"
 	envRepo "github.com/mikrocloud/mikrocloud/internal/domain/environments/repository"
 	"github.com/mikrocloud/mikrocloud/internal/domain/projects"
@@ -13,15 +16,17 @@ import (
 
 // ProjectService handles projects-related business operations
 type ProjectService struct {
-	projectRepo repository.Repository
-	envRepo     envRepo.Repository
+	projectRepo       repository.Repository
+	envRepo           envRepo.Repository
+	activitiesService *activitiesService.ActivitiesService
 }
 
 // NewProjectService creates a new projects service
-func NewProjectService(projectRepo repository.Repository, envRepo envRepo.Repository) *ProjectService {
+func NewProjectService(projectRepo repository.Repository, envRepo envRepo.Repository, activitiesSvc *activitiesService.ActivitiesService) *ProjectService {
 	return &ProjectService{
-		projectRepo: projectRepo,
-		envRepo:     envRepo,
+		projectRepo:       projectRepo,
+		envRepo:           envRepo,
+		activitiesService: activitiesSvc,
 	}
 }
 
@@ -80,12 +85,32 @@ func (s *ProjectService) CreateProject(ctx context.Context, cmd CreateProjectCom
 		return nil, fmt.Errorf("failed to create default environment: %w", err)
 	}
 
+	// Log activity
+	if s.activitiesService != nil {
+		projIDUUID := proj.ID().UUID()
+		projNameStr := proj.Name().String()
+		resourceType := "project"
+		userUUID, _ := uuid.Parse(userID.String())
+		orgUUID, _ := uuid.Parse(orgID.String())
+		_ = s.activitiesService.LogActivity(
+			activities.ActivityTypeProjectCreated,
+			fmt.Sprintf("Project '%s' created", projNameStr),
+			&userUUID,
+			"",
+			&resourceType,
+			&projIDUUID,
+			&projNameStr,
+			nil,
+			orgUUID,
+		)
+	}
+
 	return proj, nil
 }
 
 // ListProjects retrieves all projects
-func (s *ProjectService) ListProjects(ctx context.Context) ([]*projects.Project, error) {
-	return s.projectRepo.FindAll(ctx)
+func (s *ProjectService) ListProjects(ctx context.Context, orgID users.OrganizationID) ([]*projects.Project, error) {
+	return s.projectRepo.FindAll(ctx, orgID)
 }
 
 // GetProject retrieves a projects by ID

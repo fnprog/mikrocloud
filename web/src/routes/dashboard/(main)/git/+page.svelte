@@ -12,7 +12,7 @@
 		SheetTitle
 	} from '$lib/components/ui/sheet';
 	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
-	import { Plus, Trash2, Github, GitBranch, Server } from 'lucide-svelte';
+	import { Plus, Trash2, Github, GitBranch, Server, ExternalLink } from 'lucide-svelte';
 	import { createGitSourcesListQuery } from '$lib/features/git-sources/queries';
 	import {
 		createGitSourceMutationQuery,
@@ -85,7 +85,7 @@
 		};
 	}
 
-	function startOAuthRegistration() {
+	async function startGitHubAppRegistration() {
 		const webhookUrl =
 			formData.webhook_endpoint_type === 'domain' && formData.instance_domain
 				? `https://${formData.instance_domain}/webhooks/git`
@@ -93,20 +93,40 @@
 
 		const params = new URLSearchParams({
 			name: formData.name,
-			provider: formData.provider,
 			webhook_url: webhookUrl,
 			allow_preview: formData.allow_preview_deployments.toString()
 		});
 
-		if (
-			formData.provider === 'github' &&
-			formData.github_type === 'enterprise' &&
-			formData.custom_url
-		) {
+		if (formData.github_type === 'enterprise' && formData.custom_url) {
 			params.append('custom_url', formData.custom_url);
 		}
 
-		window.location.href = `/api/auth/git/oauth/start?${params.toString()}`;
+		try {
+			const response = await fetch(`/api/auth/git/github-app/manifest?${params.toString()}`, {
+				credentials: 'include'
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to generate GitHub App manifest');
+			}
+
+			const data = await response.json();
+
+			const form = document.createElement('form');
+			form.method = 'POST';
+			form.action = data.manifest_url;
+
+			const input = document.createElement('input');
+			input.type = 'hidden';
+			input.name = 'manifest';
+			input.value = JSON.stringify(data.manifest);
+
+			form.appendChild(input);
+			document.body.appendChild(form);
+			form.submit();
+		} catch (error) {
+			console.error('Failed to start GitHub App registration:', error);
+		}
 	}
 
 	function getProviderIcon(provider: GitProvider) {
@@ -144,6 +164,55 @@
 			month: 'short',
 			day: 'numeric'
 		});
+	}
+
+	function getSetupGuide(provider: GitProvider) {
+		switch (provider) {
+			case 'gitlab':
+				return {
+					title: 'GitLab Personal Access Token',
+					steps: [
+						{ text: 'Go to GitLab Settings → Access Tokens', url: 'https://gitlab.com/-/profile/personal_access_tokens' },
+						{ text: 'Click "Add new token"' },
+						{ text: 'Set a descriptive name (e.g., "mikrocloud")' },
+						{ text: 'Select scopes: api, read_repository, write_repository' },
+						{ text: 'Set expiration date (optional but recommended)' },
+						{ text: 'Click "Create personal access token"' },
+						{ text: 'Copy the token and paste it below' }
+					],
+					tokenPlaceholder: 'glpat-xxxxxxxxxxxxxxxxxxxx',
+					webhookNote: 'Configure webhooks in Project Settings → Webhooks for each repository'
+				};
+			case 'bitbucket':
+				return {
+					title: 'Bitbucket App Password',
+					steps: [
+						{ text: 'Go to Bitbucket Settings → App passwords', url: 'https://bitbucket.org/account/settings/app-passwords/' },
+						{ text: 'Click "Create app password"' },
+						{ text: 'Set a label (e.g., "mikrocloud")' },
+						{ text: 'Select permissions: Repositories (Read, Write, Admin), Webhooks (Read and write)' },
+						{ text: 'Click "Create"' },
+						{ text: 'Copy the app password and paste it below' }
+					],
+					tokenPlaceholder: 'ATBBxxxxxxxxxxxxxxxxxxxx',
+					webhookNote: 'Webhooks will be configured automatically for connected repositories'
+				};
+			case 'custom':
+				return {
+					title: 'Self-Hosted Git Server',
+					steps: [
+						{ text: 'Navigate to your Git server\'s settings' },
+						{ text: 'Create a new API token or OAuth application' },
+						{ text: 'Grant permissions: read repository, write webhooks' },
+						{ text: 'Copy the access token' },
+						{ text: 'If using OAuth, you may need a refresh token as well' }
+					],
+					tokenPlaceholder: 'your-api-token-here',
+					webhookNote: 'Webhook configuration depends on your Git server implementation'
+				};
+			default:
+				return null;
+		}
 	}
 </script>
 
@@ -318,76 +387,93 @@
 					</div>
 				</div>
 
-				{#if !formData.manual_setup}
+				{#if formData.provider === 'github'}
+					<Button
+						class="w-full"
+						onclick={startGitHubAppRegistration}
+						disabled={!formData.name || createFn.isPending}
+					>
+						<Github class="h-4 w-4 mr-2" />
+						Create GitHub App
+					</Button>
+				{:else if !formData.manual_setup}
 					<div class="space-y-3">
-						<Button
-							class="w-full"
-							onclick={startOAuthRegistration}
-							disabled={!formData.name || createFn.isPending}
-						>
-							{#if formData.provider === 'github'}
-								<Github class="h-4 w-4 mr-2" />
-								Register with GitHub
-							{:else if formData.provider === 'gitlab'}
+						<Button class="w-full" onclick={() => (formData.manual_setup = true)}>
+							{#if formData.provider === 'gitlab'}
 								<GitBranch class="h-4 w-4 mr-2" />
-								Register with GitLab
+								Setup GitLab
 							{:else if formData.provider === 'bitbucket'}
 								<GitBranch class="h-4 w-4 mr-2" />
-								Register with Bitbucket
+								Setup Bitbucket
 							{:else}
 								<Server class="h-4 w-4 mr-2" />
-								Register with Git Provider
+								Setup Git Provider
 							{/if}
 						</Button>
-						<Button
-							variant="ghost"
-							class="w-full text-xs"
-							onclick={() => (formData.manual_setup = true)}
-						>
-							Setup manually instead (Advanced)
-						</Button>
 					</div>
-				{:else}
+				{/if}
+
+				{#if formData.manual_setup && formData.provider !== 'github'}
+					{@const guide = getSetupGuide(formData.provider)}
 					<div class="space-y-4 border-t pt-4">
-						<div class="bg-yellow-50 border border-yellow-200 p-3 rounded-md">
-							<p class="text-xs text-yellow-800">
-								<strong>Advanced:</strong> Manual setup requires you to create and configure the OAuth
-								app or access token yourself.
-							</p>
-						</div>
+						{#if guide}
+							<div class="bg-blue-50 border border-blue-200 rounded-md p-4">
+								<h4 class="text-sm font-semibold text-blue-900 mb-3">{guide.title}</h4>
+								<ol class="space-y-2 text-sm text-blue-800">
+									{#each guide.steps as step, index}
+										<li class="flex gap-2">
+											<span class="font-medium min-w-[1.5rem]">{index + 1}.</span>
+											<div>
+												{step.text}
+												{#if step.url}
+													<a
+														href={step.url}
+														target="_blank"
+														rel="noopener noreferrer"
+														class="inline-flex items-center gap-1 text-blue-600 hover:underline ml-1"
+													>
+														<ExternalLink class="h-3 w-3" />
+													</a>
+												{/if}
+											</div>
+										</li>
+									{/each}
+								</ol>
+							</div>
+
+							<div class="bg-muted/50 border border-border rounded-md p-3">
+								<p class="text-xs text-muted-foreground">
+									<strong>Webhook Configuration:</strong>
+									{guide.webhookNote}
+								</p>
+							</div>
+						{/if}
 
 						<div class="space-y-2">
-							<Label for="access_token">Access Token / OAuth Token</Label>
+							<Label for="access_token">Access Token</Label>
 							<Input
 								id="access_token"
 								type="password"
-								placeholder="ghp_xxxxxxxxxxxx"
+								placeholder={guide?.tokenPlaceholder || 'your-access-token'}
 								bind:value={formData.access_token}
 							/>
 							<p class="text-xs text-muted-foreground">
-								{#if formData.provider === 'github'}
-									Create a personal access token or OAuth app at GitHub Settings → Developer
-									settings
-								{:else if formData.provider === 'gitlab'}
-									Create an access token at GitLab Settings → Access Tokens
-								{:else if formData.provider === 'bitbucket'}
-									Create an app password at Bitbucket Settings → App passwords
-								{:else}
-									Create an access token in your Git provider's settings
-								{/if}
+								Paste the token you created following the steps above
 							</p>
 						</div>
 
-						<div class="space-y-2">
-							<Label for="refresh_token">Refresh Token (Optional)</Label>
-							<Input
-								id="refresh_token"
-								type="password"
-								placeholder="Optional refresh token"
-								bind:value={formData.refresh_token}
-							/>
-							<p class="text-xs text-muted-foreground">If your provider supports token refresh</p>
-						</div>
+						{#if formData.provider === 'custom'}
+							<div class="space-y-2">
+								<Label for="refresh_token">Refresh Token (Optional)</Label>
+								<Input
+									id="refresh_token"
+									type="password"
+									placeholder="Optional refresh token"
+									bind:value={formData.refresh_token}
+								/>
+								<p class="text-xs text-muted-foreground">If your provider supports token refresh</p>
+							</div>
+						{/if}
 
 						<div class="flex gap-2">
 							<Button
@@ -408,7 +494,7 @@
 					</div>
 				{/if}
 			</div>
-			{#if !formData.manual_setup}
+			{#if formData.provider === 'github' || !formData.manual_setup}
 				<div class="flex justify-end">
 					<Button variant="outline" onclick={() => (isCreateSheetOpen = false)}>Cancel</Button>
 				</div>

@@ -6,10 +6,12 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/mikrocloud/mikrocloud/internal/api/middleware"
 	applicationsRepo "github.com/mikrocloud/mikrocloud/internal/domain/applications/repository"
 	databasesRepo "github.com/mikrocloud/mikrocloud/internal/domain/databases/repository"
 	projectsRepo "github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
 	servicesRepo "github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
+	"github.com/mikrocloud/mikrocloud/internal/domain/users"
 	"github.com/mikrocloud/mikrocloud/internal/utils"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
 )
@@ -133,7 +135,14 @@ func (h *MaintenanceHandler) GetResources(w http.ResponseWriter, r *http.Request
 		"services":     0,
 	}
 
-	projects, err := h.projectRepo.FindAll(ctx)
+	orgID := middleware.GetOrgID(r)
+	orgDomainID, err := users.OrganizationIDFromString(orgID)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_org_id", "Invalid organization ID")
+		return
+	}
+
+	projects, err := h.projectRepo.FindAll(ctx, orgDomainID)
 	if err == nil {
 		resp["projects"] = len(projects)
 	}

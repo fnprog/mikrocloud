@@ -26,7 +26,7 @@ type ActivityID struct {
 }
 
 func NewActivityID() ActivityID {
-	return ActivityID{value: uuid.New()}
+	return ActivityID{value: uuid.Must(uuid.NewV7())}
 }
 
 func ActivityIDFromUUID(id uuid.UUID) ActivityID {

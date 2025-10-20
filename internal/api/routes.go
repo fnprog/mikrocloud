@@ -63,7 +63,8 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 
 	// Create service instances
 	envSvc := environmentService.NewEnvironmentService(db.EnvironmentRepository)
-	projSvc := projectService.NewProjectService(db.ProjectRepository, db.EnvironmentRepository)
+	activitiesSvc := activitiesService.NewActivitiesService(db.ActivitiesRepository)
+	projSvc := projectService.NewProjectService(db.ProjectRepository, db.EnvironmentRepository, activitiesSvc)
 	authSvc := authService.NewAuthService(db.SessionRepository, db.AuthRepository, db.UserRepository, cfg.Auth.JWTSecret)
 
 	// Create disk service (needed by database deployment service)
@@ -128,11 +129,11 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 	gitHandler := gitHandlers.NewGitHandler(gitSvc)
 	gitOAuthHandler := gitHandlers.NewOAuthHandlers(gitSvc, cfg)
 	gitWebhookHandler := gitHandlers.NewWebhookHandlers(gitSvc)
+	gitHubAppHandler := gitHandlers.NewGitHubAppHandlers(gitSvc, cfg, gitOAuthHandler.GetStateStore())
 
 	settingsSvc := settingsService.NewSettingsService(db.SettingsRepository)
 	settingsHandler := settingsHandlers.NewSettingsHandler(settingsSvc)
 
-	activitiesSvc := activitiesService.NewActivitiesService(db.ActivitiesRepository)
 	activitiesHandler := activitiesHandlers.NewActivitiesHandlers(activitiesSvc)
 
 	serversSvc := serversService.NewServersService(db.ServersRepository)
@@ -289,8 +290,6 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 			})
 		})
 
-		// Git OAuth routes (protected)
-		gitHandlers.RegisterOAuthRoutes(r, gitOAuthHandler)
 	})
 
 	// Public webhook routes (no authentication required)
@@ -303,8 +302,22 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 		r.Post("/register", authHandler.Register)
 		r.Post("/refresh", authHandler.RefreshToken)
 
+		// Git OAuth routes (public but require cookie auth)
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.CookieTokenInjector())
+			r.Use(jwtauth.Verifier(tokenAuth))
+			r.Use(jwtauth.Authenticator(tokenAuth))
+			r.Use(middleware.ExtractUserOrg())
+			r.Get("/git/oauth/start", gitOAuthHandler.StartOAuth)
+			r.Get("/git/github-app/manifest", gitHubAppHandler.GenerateManifest)
+		})
+
 		// Git OAuth callback (public route - OAuth provider redirects here)
 		r.Get("/git/oauth/callback", gitOAuthHandler.Callback)
+
+		// GitHub App callbacks (public routes - GitHub redirects here)
+		r.Get("/git/github-app/callback", gitHubAppHandler.Callback)
+		r.Get("/git/github-app/install", gitHubAppHandler.InstallCallback)
 
 		// Protected auth routes
 		r.Group(func(r chi.Router) {
@@ -360,7 +373,7 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 		r.Use(jwtauth.Verifier(tokenAuth))
 		r.Use(jwtauth.Authenticator(tokenAuth))
 
-		r.Get("/{org_id}", activitiesHandler.GetRecentActivities)
+		r.Get("/", activitiesHandler.GetRecentActivities)
 		r.Get("/{resource_type}/{resource_id}", activitiesHandler.GetResourceActivities)
 	})
 
@@ -385,7 +398,23 @@ func SetupRoutes(api chi.Router, db *database.Database, cfg *config.Config, toke
 		r.Use(jwtauth.Authenticator(tokenAuth))
 
 		r.Get("/", organizationsHandler.ListOrganizations)
-		r.Get("/{organization_id}", organizationsHandler.GetOrganization)
+		r.Post("/", organizationsHandler.CreateOrganization)
+		r.Route("/{organization_id}", func(r chi.Router) {
+			r.Get("/", organizationsHandler.GetOrganization)
+			r.Put("/", organizationsHandler.UpdateOrganization)
+			r.Delete("/", organizationsHandler.DeleteOrganization)
+
+			r.Route("/members", func(r chi.Router) {
+				r.Get("/", organizationsHandler.ListOrganizationMembers)
+				r.Post("/", organizationsHandler.InviteMember)
+				r.Route("/{member_id}", func(r chi.Router) {
+					r.Put("/", organizationsHandler.UpdateMemberRole)
+					r.Delete("/", organizationsHandler.RemoveMember)
+				})
+			})
+
+			r.Post("/transfer-ownership", organizationsHandler.TransferOwnership)
+		})
 	})
 
 	return traefikSvc, statusSyncSvc, nil

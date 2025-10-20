@@ -28,7 +28,7 @@ type ProjectID struct {
 }
 
 func NewProjectID() ProjectID {
-	return ProjectID{value: uuid.New()}
+	return ProjectID{value: uuid.Must(uuid.NewV7())}
 }
 
 func ProjectIDFromUUID(id uuid.UUID) ProjectID {

@@ -27,7 +27,7 @@ type UserID struct {
 }
 
 func NewUserID() UserID {
-	return UserID{value: uuid.New().String()}
+	return UserID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func UserIDFromString(s string) (UserID, error) {
@@ -249,7 +249,7 @@ type OrganizationID struct {
 }
 
 func NewOrganizationID() OrganizationID {
-	return OrganizationID{value: uuid.New().String()}
+	return OrganizationID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func OrganizationIDFromString(s string) (OrganizationID, error) {
@@ -333,6 +333,11 @@ func (o *Organization) UpdatedAt() time.Time {
 	return o.updatedAt
 }
 
+func (o *Organization) UpdateName(name string) {
+	o.name = name
+	o.updatedAt = time.Now()
+}
+
 func (o *Organization) UpdateDescription(description string) {
 	o.description = description
 	o.updatedAt = time.Now()
@@ -374,4 +379,145 @@ func ReconstructOrganization(
 		createdAt:    createdAt,
 		updatedAt:    updatedAt,
 	}
+}
+
+type OrganizationMember struct {
+	id             OrganizationMemberID
+	organizationID OrganizationID
+	userID         UserID
+	role           MemberRole
+	invitedBy      *UserID
+	invitedAt      *time.Time
+	joinedAt       *time.Time
+	status         MemberStatus
+}
+
+type OrganizationMemberID struct {
+	value string
+}
+
+func NewOrganizationMemberID() OrganizationMemberID {
+	return OrganizationMemberID{value: uuid.Must(uuid.NewV7()).String()}
+}
+
+func OrganizationMemberIDFromString(s string) (OrganizationMemberID, error) {
+	if s == "" {
+		return OrganizationMemberID{}, fmt.Errorf("organization member ID cannot be empty")
+	}
+	return OrganizationMemberID{value: s}, nil
+}
+
+func (id OrganizationMemberID) String() string {
+	return id.value
+}
+
+type MemberRole string
+
+const (
+	RoleOwner     MemberRole = "owner"
+	RoleAdmin     MemberRole = "admin"
+	RoleDeveloper MemberRole = "developer"
+	RoleMember    MemberRole = "member"
+	RoleViewer    MemberRole = "viewer"
+)
+
+type MemberStatus string
+
+const (
+	MemberStatusActive   MemberStatus = "active"
+	MemberStatusPending  MemberStatus = "pending"
+	MemberStatusInactive MemberStatus = "inactive"
+)
+
+func NewOrganizationMember(organizationID OrganizationID, userID UserID, role MemberRole, invitedBy *UserID) *OrganizationMember {
+	now := time.Now()
+	return &OrganizationMember{
+		id:             NewOrganizationMemberID(),
+		organizationID: organizationID,
+		userID:         userID,
+		role:           role,
+		invitedBy:      invitedBy,
+		invitedAt:      &now,
+		status:         MemberStatusPending,
+	}
+}
+
+func (m *OrganizationMember) ID() OrganizationMemberID {
+	return m.id
+}
+
+func (m *OrganizationMember) OrganizationID() OrganizationID {
+	return m.organizationID
+}
+
+func (m *OrganizationMember) UserID() UserID {
+	return m.userID
+}
+
+func (m *OrganizationMember) Role() MemberRole {
+	return m.role
+}
+
+func (m *OrganizationMember) InvitedBy() *UserID {
+	return m.invitedBy
+}
+
+func (m *OrganizationMember) InvitedAt() *time.Time {
+	return m.invitedAt
+}
+
+func (m *OrganizationMember) JoinedAt() *time.Time {
+	return m.joinedAt
+}
+
+func (m *OrganizationMember) Status() MemberStatus {
+	return m.status
+}
+
+func (m *OrganizationMember) UpdateRole(role MemberRole) {
+	m.role = role
+}
+
+func (m *OrganizationMember) Activate() {
+	now := time.Now()
+	m.status = MemberStatusActive
+	if m.joinedAt == nil {
+		m.joinedAt = &now
+	}
+}
+
+func (m *OrganizationMember) Deactivate() {
+	m.status = MemberStatusInactive
+}
+
+func ReconstructOrganizationMember(
+	id OrganizationMemberID,
+	organizationID OrganizationID,
+	userID UserID,
+	role MemberRole,
+	invitedBy *UserID,
+	invitedAt *time.Time,
+	joinedAt *time.Time,
+	status MemberStatus,
+) *OrganizationMember {
+	return &OrganizationMember{
+		id:             id,
+		organizationID: organizationID,
+		userID:         userID,
+		role:           role,
+		invitedBy:      invitedBy,
+		invitedAt:      invitedAt,
+		joinedAt:       joinedAt,
+		status:         status,
+	}
+}
+
+type OrganizationMemberWithUser struct {
+	Member *OrganizationMember
+	User   *User
+}
+
+func (o *Organization) TransferOwnership(newOwnerID UserID) {
+	o.ownerID = newOwnerID
+	o.updatedAt = time.Now()
 }

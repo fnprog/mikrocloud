@@ -5,7 +5,7 @@
 	import { Tabs, TabsList, TabsTrigger } from '$lib/components/ui/tabs';
 	import { RefreshCw, Check, AlertCircle } from 'lucide-svelte';
 	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
-	import { gitApi, type GitProvider } from '$lib/api/git';
+	import { gitApi, type GitProvider } from '$lib/features/git-sources/api';
 
 	interface Props {
 		provider: 'github' | 'gitlab' | 'bitbucket' | 'custom';

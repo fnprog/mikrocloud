@@ -1,65 +1,130 @@
 <script lang="ts">
-	import { Activity, Earth, Layers, MapPin, Settings, Terminal } from 'lucide-svelte';
+	import {
+		Activity,
+		Database as DatabaseIcon,
+		Globe,
+		Layers,
+		Settings,
+		Terminal
+	} from 'lucide-svelte';
 	import { Position, Handle, type NodeProps } from '@xyflow/svelte';
-	import Button from './ui/button/button.svelte';
+	import { Button } from '../button';
+	import { Badge } from '../badge';
 
-	let { data }: NodeProps = $props();
+	interface NodeData {
+		id: string;
+		name: string;
+		description?: string;
+		status: string;
+		nodeType: 'application' | 'database';
+		domain?: string;
+		environmentId?: string;
+		environmentName?: string;
+		dbType?: string;
+		connectionString?: string;
+		onViewLogs?: (id: string) => void;
+		onOpenTerminal?: (id: string) => void;
+		onOpenSettings?: (id: string) => void;
+	}
+
+	let { data }: NodeProps<NodeData> = $props();
 </script>
 
-<div class="space-y-6 bg-gray-300/20 border border-gray-200 rounded-lg p-4 shadow-sm min-w-[280px]">
-	<!-- Service Info -->
-	<div>
-		<div class="flex items-center space-x-2 mb-4">
-			<Layers class="w-4 h-4 text-gray-600" />
-			<span class="font-medium text-gray-900">{data.name}</span>
-		</div>
+<div
+	class="bg-white border-2 rounded-lg p-4 shadow-md min-w-[300px] max-w-[350px] {data.nodeType ===
+	'application'
+		? 'border-blue-500'
+		: 'border-green-500'}"
+>
+	<Handle type="target" position={Position.Left} class="!bg-gray-400" />
+	<Handle type="source" position={Position.Right} class="!bg-gray-400" />
 
-		<div class="bg-white rounded-lg p-4 space-y-3">
-			<Handle type="target" position={Position.Left} />
-			<div class="flex items-center space-x-2 bg-white">
-				<Earth class="w-4 h-4 text-gray-600" />
-				<span class="text-sm font-medium text-gray-900">Web process</span>
-			</div>
-
-			<div class="space-y-2 text-sm">
-				<div class="flex items-center justify-between">
-					<span class="text-gray-600">Start command</span>
-					<code class="bg-gray-200 px-2 py-1 rounded text-xs font-mono">{data.startCommand}</code>
+	<div class="flex items-start justify-between mb-3">
+		<div class="flex items-center gap-2 flex-1">
+			{#if data.nodeType === 'application'}
+				<div class="p-2 bg-blue-100 rounded-lg">
+					<Layers class="size-5 text-blue-600" />
 				</div>
-				<div class="flex items-center justify-between">
-					<span class="text-gray-600">Resources</span>
-					<span class="font-medium">{data.resources}</span>
+			{:else}
+				<div class="p-2 bg-green-100 rounded-lg">
+					<DatabaseIcon class="size-5 text-green-600" />
 				</div>
-				<div class="flex items-center justify-between">
-					<span class="text-gray-600">Instances</span>
-					<span class="font-medium">{data.instances}</span>
-				</div>
-				<div class="flex items-center justify-between">
-					<span class="text-gray-600">Domain</span>
-					<span class="font-medium text-blue-600">{data.domain}</span>
-				</div>
-			</div>
-
-			<div class="flex space-x-2 pt-2">
-				<Button variant="outline" size="sm" class="flex-1">
-					<Activity class="w-4 h-4 mr-1" />
-					View logs
-				</Button>
-				<Button variant="outline" size="sm" class="flex-1">
-					<Terminal class="w-4 h-4 mr-1" />
-					Web terminal
-				</Button>
-				<Button variant="outline" size="sm" class="flex-1">
-					<Settings class="w-4 h-4 mr-1" />
-					Settings
-				</Button>
+			{/if}
+			<div class="flex-1 min-w-0">
+				<h3 class="font-semibold text-sm truncate">{data.name}</h3>
+				<p class="text-xs text-muted-foreground truncate">{data.description || 'No description'}</p>
 			</div>
 		</div>
+		<Badge variant={data.status === 'running' ? 'default' : 'secondary'} class="text-xs">
+			{data.status}
+		</Badge>
 	</div>
 
-	<!-- Location -->
-	<div class="flex items-center space-x-2 text-sm text-gray-600">
-		<MapPin class="w-4 h-4" />
-		<span>Council Bluffs, Iowa (us-central1)</span>
+	<div class="space-y-2 text-xs">
+		{#if data.nodeType === 'application'}
+			{#if data.domain}
+				<div class="flex items-center gap-2 p-2 bg-gray-50 rounded">
+					<Globe class="size-3 text-gray-600 shrink-0" />
+					<a
+						href="https://{data.domain}"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="text-blue-600 hover:underline truncate"
+					>
+						{data.domain}
+					</a>
+				</div>
+			{/if}
+			{#if data.environmentId}
+				<div class="flex items-center justify-between p-2 bg-gray-50 rounded">
+					<span class="text-gray-600">Environment</span>
+					<code class="font-mono text-xs bg-gray-200 px-1.5 py-0.5 rounded"
+						>{data.environmentName || data.environmentId}</code
+					>
+				</div>
+			{/if}
+		{:else}
+			<div class="flex items-center justify-between p-2 bg-gray-50 rounded">
+				<span class="text-gray-600">Type</span>
+				<Badge variant="outline" class="text-xs uppercase">{data.dbType}</Badge>
+			</div>
+			{#if data.connectionString}
+				<div class="p-2 bg-gray-50 rounded">
+					<span class="text-gray-600 block mb-1">Connection</span>
+					<code class="font-mono text-[10px] break-all text-gray-800">
+						{data.connectionString.substring(0, 50)}...
+					</code>
+				</div>
+			{/if}
+		{/if}
+	</div>
+
+	<div class="flex gap-1.5 mt-3 pt-3 border-t">
+		{#if data.nodeType === 'application'}
+			<Button
+				variant="ghost"
+				size="sm"
+				class="flex-1 h-8 text-xs"
+				onclick={() => data.onViewLogs?.(data.id)}
+			>
+				<Activity class="size-3" />
+			</Button>
+			<Button
+				variant="ghost"
+				size="sm"
+				class="flex-1 h-8 text-xs"
+				onclick={() => data.onOpenTerminal?.(data.id)}
+			>
+				<Terminal class="size-3" />
+			</Button>
+		{/if}
+		<Button
+			variant="ghost"
+			size="sm"
+			class="flex-1 h-8 text-xs"
+			onclick={() => data.onOpenSettings?.(data.id)}
+		>
+			<Settings class="size-3" />
+		</Button>
 	</div>
 </div>

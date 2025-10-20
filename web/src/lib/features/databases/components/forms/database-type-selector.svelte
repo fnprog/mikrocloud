@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DatabaseType } from '$lib/api/databases';
+	import type { DatabaseType } from '$lib/features/databases/types';
 
 	import ClickhouseLogo from '$lib/components/logo/clickhouse.svelte';
 	import KeyDBLogo from '$lib/components/logo/keydb.svelte';

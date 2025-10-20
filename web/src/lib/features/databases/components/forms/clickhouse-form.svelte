@@ -9,7 +9,7 @@
 	} from '$lib/components/ui/select/index';
 	import FieldWithGenerate from './field-with-generate.svelte';
 	import { generatePassword, generateUsername, generateDatabaseName } from '$lib/utils/generators';
-	import type { ClickHouseConfig } from '$lib/api/databases';
+	import type { ClickHouseConfig } from '$lib/features/databases/types';
 
 	interface Props {
 		config: ClickHouseConfig;

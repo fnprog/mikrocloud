@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/jwtauth/v5"
 	"github.com/google/uuid"
 	"github.com/mikrocloud/mikrocloud/internal/domain/activities/service"
 	"github.com/mikrocloud/mikrocloud/internal/utils"
@@ -19,7 +20,18 @@ func NewActivitiesHandlers(service *service.ActivitiesService) *ActivitiesHandle
 }
 
 func (h *ActivitiesHandlers) GetRecentActivities(w http.ResponseWriter, r *http.Request) {
-	orgIDStr := chi.URLParam(r, "org_id")
+	_, claims, err := jwtauth.FromContext(r.Context())
+	if err != nil {
+		utils.SendError(w, http.StatusUnauthorized, "unauthorized", "Invalid token")
+		return
+	}
+
+	orgIDStr, ok := claims["org_id"].(string)
+	if !ok || orgIDStr == "" {
+		userIDStr, _ := claims["user_id"].(string)
+		orgIDStr = userIDStr
+	}
+
 	orgID, err := uuid.Parse(orgIDStr)
 	if err != nil {
 		utils.SendError(w, http.StatusBadRequest, "Invalid organization ID", err.Error())

@@ -13,7 +13,6 @@ export interface Activity {
 }
 
 export interface ActivitiesRequest {
-  organization_id: string;
   limit: number;
   offset: number;
 }

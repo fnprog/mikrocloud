@@ -95,6 +95,16 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   60 * 60 * 24 * 7,
 	})
 
+	http.SetCookie(w, &http.Cookie{
+		Name:     "auth_token",
+		Value:    result.Token,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   60 * 60 * 24,
+	})
+
 	var username *string
 	if result.User.Username() != nil {
 		usernameStr := result.User.Username().String()

@@ -8,7 +8,8 @@
 		{ path: 'advanced', label: 'Advanced', icon: Shield },
 		{ path: 'updates', label: 'Updates', icon: RefreshCw },
 		{ path: 'backup-location', label: 'S3 Destinations', icon: Database },
-		{ path: 'backup', label: 'Backup', icon: Database }
+		{ path: 'backup', label: 'Backup', icon: Database },
+		{ path: 'oauth-keys', label: 'Oauth Keys', icon: Database }
 	];
 
 	const isActive = (path: string) => {
@@ -20,7 +21,7 @@
 </script>
 
 <div class="container max-w-7xl py-8">
-	<div class="flex gap-6">
+	<aside class="flex gap-6">
 		<nav class="w-56 flex-shrink-0">
 			<div class="space-y-1">
 				{#each navItems as item}
@@ -42,5 +43,5 @@
 		<div class="flex-1">
 			<slot />
 		</div>
-	</div>
+	</aside>
 </div>

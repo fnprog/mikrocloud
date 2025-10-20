@@ -24,7 +24,7 @@ type MetricID struct {
 }
 
 func NewMetricID() MetricID {
-	return MetricID{value: uuid.New().String()}
+	return MetricID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func MetricIDFromString(id string) MetricID {
@@ -84,7 +84,7 @@ type ReportID struct {
 }
 
 func NewReportID() ReportID {
-	return ReportID{value: uuid.New().String()}
+	return ReportID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func (id ReportID) String() string {
@@ -160,7 +160,7 @@ type DashboardID struct {
 }
 
 func NewDashboardID() DashboardID {
-	return DashboardID{value: uuid.New().String()}
+	return DashboardID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func (id DashboardID) String() string {

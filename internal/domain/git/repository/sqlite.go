@@ -19,8 +19,14 @@ func NewSQLiteGitRepository(db *sql.DB) GitRepository {
 
 func (r *SQLiteGitRepository) Create(ctx context.Context, source *git.GitSource) error {
 	query := `
-		INSERT INTO git_sources (id, org_id, user_id, provider, name, access_token, refresh_token, token_expires_at, custom_url, webhook_url, allow_preview_deployments, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO git_sources (
+			id, org_id, user_id, provider, name, access_token, refresh_token, token_expires_at, 
+			custom_url, webhook_url, allow_preview_deployments, 
+			is_github_app, github_app_id, github_installation_id, github_client_id, 
+			github_client_secret, github_webhook_secret, github_private_key, github_app_slug,
+			created_at, updated_at
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	var tokenExpiresAt interface{}
@@ -38,6 +44,41 @@ func (r *SQLiteGitRepository) Create(ctx context.Context, source *git.GitSource)
 		webhookURL = *source.WebhookURL
 	}
 
+	var githubAppID interface{}
+	if source.GitHubAppID != nil {
+		githubAppID = *source.GitHubAppID
+	}
+
+	var githubInstallationID interface{}
+	if source.GitHubInstallationID != nil {
+		githubInstallationID = *source.GitHubInstallationID
+	}
+
+	var githubClientID interface{}
+	if source.GitHubClientID != nil {
+		githubClientID = *source.GitHubClientID
+	}
+
+	var githubClientSecret interface{}
+	if source.GitHubClientSecret != nil {
+		githubClientSecret = *source.GitHubClientSecret
+	}
+
+	var githubWebhookSecret interface{}
+	if source.GitHubWebhookSecret != nil {
+		githubWebhookSecret = *source.GitHubWebhookSecret
+	}
+
+	var githubPrivateKey interface{}
+	if source.GitHubPrivateKey != nil {
+		githubPrivateKey = *source.GitHubPrivateKey
+	}
+
+	var githubAppSlug interface{}
+	if source.GitHubAppSlug != nil {
+		githubAppSlug = *source.GitHubAppSlug
+	}
+
 	_, err := r.db.ExecContext(ctx, query,
 		source.ID,
 		source.OrgID,
@@ -50,6 +91,14 @@ func (r *SQLiteGitRepository) Create(ctx context.Context, source *git.GitSource)
 		customURL,
 		webhookURL,
 		source.AllowPreviewDeployments,
+		source.IsGitHubApp,
+		githubAppID,
+		githubInstallationID,
+		githubClientID,
+		githubClientSecret,
+		githubWebhookSecret,
+		githubPrivateKey,
+		githubAppSlug,
 		source.CreatedAt.Format(time.RFC3339),
 		source.UpdatedAt.Format(time.RFC3339),
 	)
@@ -63,7 +112,11 @@ func (r *SQLiteGitRepository) Create(ctx context.Context, source *git.GitSource)
 
 func (r *SQLiteGitRepository) GetByID(ctx context.Context, id string) (*git.GitSource, error) {
 	query := `
-		SELECT id, org_id, user_id, provider, name, access_token, refresh_token, token_expires_at, custom_url, webhook_url, allow_preview_deployments, created_at, updated_at
+		SELECT id, org_id, user_id, provider, name, access_token, refresh_token, token_expires_at, 
+		       custom_url, webhook_url, allow_preview_deployments, 
+		       is_github_app, github_app_id, github_installation_id, github_client_id, 
+		       github_client_secret, github_webhook_secret, github_private_key, github_app_slug,
+		       created_at, updated_at
 		FROM git_sources
 		WHERE id = ?
 	`
@@ -81,6 +134,14 @@ func (r *SQLiteGitRepository) GetByID(ctx context.Context, id string) (*git.GitS
 		&row.CustomURL,
 		&row.WebhookURL,
 		&row.AllowPreviewDeployments,
+		&row.IsGitHubApp,
+		&row.GitHubAppID,
+		&row.GitHubInstallationID,
+		&row.GitHubClientID,
+		&row.GitHubClientSecret,
+		&row.GitHubWebhookSecret,
+		&row.GitHubPrivateKey,
+		&row.GitHubAppSlug,
 		&row.CreatedAt,
 		&row.UpdatedAt,
 	)
@@ -97,7 +158,11 @@ func (r *SQLiteGitRepository) GetByID(ctx context.Context, id string) (*git.GitS
 
 func (r *SQLiteGitRepository) GetByUserID(ctx context.Context, userID string) ([]*git.GitSource, error) {
 	query := `
-		SELECT id, org_id, user_id, provider, name, access_token, refresh_token, token_expires_at, custom_url, webhook_url, allow_preview_deployments, created_at, updated_at
+		SELECT id, org_id, user_id, provider, name, access_token, refresh_token, token_expires_at, 
+		       custom_url, webhook_url, allow_preview_deployments, 
+		       is_github_app, github_app_id, github_installation_id, github_client_id, 
+		       github_client_secret, github_webhook_secret, github_private_key, github_app_slug,
+		       created_at, updated_at
 		FROM git_sources
 		WHERE user_id = ?
 		ORDER BY created_at DESC
@@ -124,6 +189,14 @@ func (r *SQLiteGitRepository) GetByUserID(ctx context.Context, userID string) ([
 			&row.CustomURL,
 			&row.WebhookURL,
 			&row.AllowPreviewDeployments,
+			&row.IsGitHubApp,
+			&row.GitHubAppID,
+			&row.GitHubInstallationID,
+			&row.GitHubClientID,
+			&row.GitHubClientSecret,
+			&row.GitHubWebhookSecret,
+			&row.GitHubPrivateKey,
+			&row.GitHubAppSlug,
 			&row.CreatedAt,
 			&row.UpdatedAt,
 		)
@@ -148,7 +221,11 @@ func (r *SQLiteGitRepository) GetByUserID(ctx context.Context, userID string) ([
 
 func (r *SQLiteGitRepository) GetByOrgID(ctx context.Context, orgID string) ([]*git.GitSource, error) {
 	query := `
-		SELECT id, org_id, user_id, provider, name, access_token, refresh_token, token_expires_at, custom_url, webhook_url, allow_preview_deployments, created_at, updated_at
+		SELECT id, org_id, user_id, provider, name, access_token, refresh_token, token_expires_at, 
+		       custom_url, webhook_url, allow_preview_deployments, 
+		       is_github_app, github_app_id, github_installation_id, github_client_id, 
+		       github_client_secret, github_webhook_secret, github_private_key, github_app_slug,
+		       created_at, updated_at
 		FROM git_sources
 		WHERE org_id = ?
 		ORDER BY created_at DESC
@@ -175,6 +252,14 @@ func (r *SQLiteGitRepository) GetByOrgID(ctx context.Context, orgID string) ([]*
 			&row.CustomURL,
 			&row.WebhookURL,
 			&row.AllowPreviewDeployments,
+			&row.IsGitHubApp,
+			&row.GitHubAppID,
+			&row.GitHubInstallationID,
+			&row.GitHubClientID,
+			&row.GitHubClientSecret,
+			&row.GitHubWebhookSecret,
+			&row.GitHubPrivateKey,
+			&row.GitHubAppSlug,
 			&row.CreatedAt,
 			&row.UpdatedAt,
 		)
@@ -200,7 +285,11 @@ func (r *SQLiteGitRepository) GetByOrgID(ctx context.Context, orgID string) ([]*
 func (r *SQLiteGitRepository) Update(ctx context.Context, id string, source *git.GitSource) error {
 	query := `
 		UPDATE git_sources
-		SET name = ?, access_token = ?, refresh_token = ?, token_expires_at = ?, webhook_url = ?, allow_preview_deployments = ?, updated_at = ?
+		SET name = ?, access_token = ?, refresh_token = ?, token_expires_at = ?, webhook_url = ?, 
+		    allow_preview_deployments = ?, 
+		    is_github_app = ?, github_app_id = ?, github_installation_id = ?, github_client_id = ?, 
+		    github_client_secret = ?, github_webhook_secret = ?, github_private_key = ?, github_app_slug = ?,
+		    updated_at = ?
 		WHERE id = ?
 	`
 
@@ -214,6 +303,41 @@ func (r *SQLiteGitRepository) Update(ctx context.Context, id string, source *git
 		webhookURL = *source.WebhookURL
 	}
 
+	var githubAppID interface{}
+	if source.GitHubAppID != nil {
+		githubAppID = *source.GitHubAppID
+	}
+
+	var githubInstallationID interface{}
+	if source.GitHubInstallationID != nil {
+		githubInstallationID = *source.GitHubInstallationID
+	}
+
+	var githubClientID interface{}
+	if source.GitHubClientID != nil {
+		githubClientID = *source.GitHubClientID
+	}
+
+	var githubClientSecret interface{}
+	if source.GitHubClientSecret != nil {
+		githubClientSecret = *source.GitHubClientSecret
+	}
+
+	var githubWebhookSecret interface{}
+	if source.GitHubWebhookSecret != nil {
+		githubWebhookSecret = *source.GitHubWebhookSecret
+	}
+
+	var githubPrivateKey interface{}
+	if source.GitHubPrivateKey != nil {
+		githubPrivateKey = *source.GitHubPrivateKey
+	}
+
+	var githubAppSlug interface{}
+	if source.GitHubAppSlug != nil {
+		githubAppSlug = *source.GitHubAppSlug
+	}
+
 	result, err := r.db.ExecContext(ctx, query,
 		source.Name,
 		source.AccessToken,
@@ -221,6 +345,14 @@ func (r *SQLiteGitRepository) Update(ctx context.Context, id string, source *git
 		tokenExpiresAt,
 		webhookURL,
 		source.AllowPreviewDeployments,
+		source.IsGitHubApp,
+		githubAppID,
+		githubInstallationID,
+		githubClientID,
+		githubClientSecret,
+		githubWebhookSecret,
+		githubPrivateKey,
+		githubAppSlug,
 		source.UpdatedAt.Format(time.RFC3339),
 		id,
 	)
@@ -273,6 +405,14 @@ type gitSourceRow struct {
 	CustomURL               sql.NullString
 	WebhookURL              sql.NullString
 	AllowPreviewDeployments bool
+	IsGitHubApp             bool
+	GitHubAppID             sql.NullString
+	GitHubInstallationID    sql.NullString
+	GitHubClientID          sql.NullString
+	GitHubClientSecret      sql.NullString
+	GitHubWebhookSecret     sql.NullString
+	GitHubPrivateKey        sql.NullString
+	GitHubAppSlug           sql.NullString
 	CreatedAt               string
 	UpdatedAt               string
 }
@@ -307,6 +447,41 @@ func (r *SQLiteGitRepository) mapRowToGitSource(row gitSourceRow) (*git.GitSourc
 		webhookURL = &row.WebhookURL.String
 	}
 
+	var githubAppID *string
+	if row.GitHubAppID.Valid {
+		githubAppID = &row.GitHubAppID.String
+	}
+
+	var githubInstallationID *string
+	if row.GitHubInstallationID.Valid {
+		githubInstallationID = &row.GitHubInstallationID.String
+	}
+
+	var githubClientID *string
+	if row.GitHubClientID.Valid {
+		githubClientID = &row.GitHubClientID.String
+	}
+
+	var githubClientSecret *string
+	if row.GitHubClientSecret.Valid {
+		githubClientSecret = &row.GitHubClientSecret.String
+	}
+
+	var githubWebhookSecret *string
+	if row.GitHubWebhookSecret.Valid {
+		githubWebhookSecret = &row.GitHubWebhookSecret.String
+	}
+
+	var githubPrivateKey *string
+	if row.GitHubPrivateKey.Valid {
+		githubPrivateKey = &row.GitHubPrivateKey.String
+	}
+
+	var githubAppSlug *string
+	if row.GitHubAppSlug.Valid {
+		githubAppSlug = &row.GitHubAppSlug.String
+	}
+
 	return &git.GitSource{
 		ID:                      row.ID,
 		OrgID:                   row.OrgID,
@@ -319,6 +494,14 @@ func (r *SQLiteGitRepository) mapRowToGitSource(row gitSourceRow) (*git.GitSourc
 		CustomURL:               customURL,
 		WebhookURL:              webhookURL,
 		AllowPreviewDeployments: row.AllowPreviewDeployments,
+		IsGitHubApp:             row.IsGitHubApp,
+		GitHubAppID:             githubAppID,
+		GitHubInstallationID:    githubInstallationID,
+		GitHubClientID:          githubClientID,
+		GitHubClientSecret:      githubClientSecret,
+		GitHubWebhookSecret:     githubWebhookSecret,
+		GitHubPrivateKey:        githubPrivateKey,
+		GitHubAppSlug:           githubAppSlug,
 		CreatedAt:               createdAt,
 		UpdatedAt:               updatedAt,
 	}, nil

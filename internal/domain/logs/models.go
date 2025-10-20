@@ -24,7 +24,7 @@ type LogEntryID struct {
 }
 
 func NewLogEntryID() LogEntryID {
-	return LogEntryID{value: uuid.New().String()}
+	return LogEntryID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func LogEntryIDFromString(s string) (LogEntryID, error) {

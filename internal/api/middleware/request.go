@@ -15,6 +15,19 @@ const (
 	CtxOrgID  ctxKey = "orgID"
 )
 
+func CookieTokenInjector() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") == "" {
+				if cookie, err := r.Cookie("auth_token"); err == nil {
+					r.Header.Set("Authorization", "Bearer "+cookie.Value)
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func ExtractUserOrg() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

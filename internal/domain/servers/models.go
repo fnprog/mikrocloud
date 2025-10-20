@@ -34,7 +34,7 @@ type ServerID struct {
 }
 
 func NewServerID() ServerID {
-	return ServerID{value: uuid.New().String()}
+	return ServerID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func ServerIDFromString(s string) (ServerID, error) {
@@ -272,7 +272,7 @@ type DomainID struct {
 }
 
 func NewDomainID() DomainID {
-	return DomainID{value: uuid.New().String()}
+	return DomainID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func (id DomainID) String() string {
@@ -293,7 +293,7 @@ type DestinationID struct {
 }
 
 func NewDestinationID() DestinationID {
-	return DestinationID{value: uuid.New().String()}
+	return DestinationID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func (id DestinationID) String() string {
@@ -330,7 +330,7 @@ type ProxyID struct {
 }
 
 func NewProxyID() ProxyID {
-	return ProxyID{value: uuid.New().String()}
+	return ProxyID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func (id ProxyID) String() string {

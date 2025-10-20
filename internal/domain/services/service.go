@@ -32,7 +32,7 @@ type TemplateID struct {
 }
 
 func NewTemplateID() TemplateID {
-	return TemplateID{value: uuid.New()}
+	return TemplateID{value: uuid.Must(uuid.NewV7())}
 }
 
 func TemplateIDFromString(s string) (TemplateID, error) {

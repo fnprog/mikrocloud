@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { cn } from '$lib/utils';
 	import { goto } from '$app/navigation';
+	import { setMode, resetMode, userPrefersMode } from 'mode-watcher';
 
 	import {
 		DropdownMenu,
@@ -15,8 +16,6 @@
 	import { LogOut, Monitor, Sun, Moon, Plus } from 'lucide-svelte';
 	import { createProfileQuery } from '$lib/features/auth/queries';
 	import { createLogoutMutation } from '$lib/features/auth/mutations';
-
-	let theme: 'light' | 'dark' | 'system' = 'system';
 
 	const userQuery = createProfileQuery();
 	const logoutMutation = createLogoutMutation();
@@ -34,9 +33,15 @@
 
 	function cycleTheme() {
 		const themes: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system'];
-		const currentIndex = themes.indexOf(theme);
-		const nextIndex = (currentIndex + 1) % themes.length;
-		theme = themes[nextIndex];
+		const current = userPrefersMode.current || 'system';
+		const nextIndex = (themes.indexOf(current) + 1) % themes.length;
+		const nextTheme = themes[nextIndex];
+
+		if (nextTheme === 'system') {
+			resetMode();
+		} else {
+			setMode(nextTheme);
+		}
 	}
 
 	function handleLogout() {
@@ -98,13 +103,22 @@
 			<span class="text-sm">Theme</span>
 			<div class="flex items-center gap-1">
 				<Monitor
-					class={cn('h-4 w-4', theme === 'system' ? 'text-foreground' : 'text-muted-foreground')}
+					class={cn(
+						'h-4 w-4',
+						userPrefersMode.current === 'system' ? 'text-foreground' : 'text-muted-foreground'
+					)}
 				/>
 				<Sun
-					class={cn('h-4 w-4', theme === 'light' ? 'text-foreground' : 'text-muted-foreground')}
+					class={cn(
+						'h-4 w-4',
+						userPrefersMode.current === 'light' ? 'text-foreground' : 'text-muted-foreground'
+					)}
 				/>
 				<Moon
-					class={cn('h-4 w-4', theme === 'dark' ? 'text-foreground' : 'text-muted-foreground')}
+					class={cn(
+						'h-4 w-4',
+						userPrefersMode.current === 'dark' ? 'text-foreground' : 'text-muted-foreground'
+					)}
 				/>
 			</div>
 		</DropdownMenuItem>

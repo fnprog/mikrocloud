@@ -27,7 +27,7 @@ type DiskID struct {
 }
 
 func NewDiskID() DiskID {
-	return DiskID{value: uuid.New().String()}
+	return DiskID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func DiskIDFromString(s string) (DiskID, error) {
@@ -138,7 +138,7 @@ type DiskBackupID struct {
 }
 
 func NewDiskBackupID() DiskBackupID {
-	return DiskBackupID{value: uuid.New().String()}
+	return DiskBackupID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func DiskBackupIDFromString(s string) (DiskBackupID, error) {

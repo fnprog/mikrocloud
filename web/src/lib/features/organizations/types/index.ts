@@ -10,3 +10,16 @@ export interface Organization {
 	created_at: string;
 	updated_at: string;
 }
+
+export interface CreateOrganizationRequest {
+	name: string;
+	slug: string;
+	description?: string;
+	billing_email?: string;
+}
+
+export interface UpdateOrganizationRequest {
+	name?: string;
+	description?: string;
+	billing_email?: string;
+}

@@ -35,7 +35,7 @@ type ProxyConfigID struct {
 }
 
 func NewProxyConfigID() ProxyConfigID {
-	return ProxyConfigID{value: uuid.New().String()}
+	return ProxyConfigID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func ProxyConfigIDFromString(s string) (ProxyConfigID, error) {
@@ -205,7 +205,7 @@ type TraefikConfigID struct {
 }
 
 func NewTraefikConfigID() TraefikConfigID {
-	return TraefikConfigID{value: uuid.New().String()}
+	return TraefikConfigID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func (id TraefikConfigID) String() string {

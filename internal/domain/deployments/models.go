@@ -43,7 +43,7 @@ type DeploymentID struct {
 }
 
 func NewDeploymentID() DeploymentID {
-	return DeploymentID{value: uuid.New().String()}
+	return DeploymentID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func DeploymentIDFromString(s string) (DeploymentID, error) {

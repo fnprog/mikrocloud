@@ -201,7 +201,7 @@ type ApplicationID struct {
 }
 
 func NewApplicationID() ApplicationID {
-	return ApplicationID{value: uuid.New().String()}
+	return ApplicationID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func ApplicationIDFromString(s string) (ApplicationID, error) {

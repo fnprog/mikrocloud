@@ -186,7 +186,7 @@ type DatabaseID struct {
 }
 
 func NewDatabaseID() DatabaseID {
-	return DatabaseID{value: uuid.New().String()}
+	return DatabaseID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func DatabaseIDFromString(s string) (DatabaseID, error) {
@@ -652,7 +652,7 @@ func DefaultClickHouseConfig() *ClickHouseConfig {
 // Helper function to generate secure passwords
 func generatePassword() string {
 	// Simple password generation - in production, use crypto/rand
-	return uuid.New().String()[:16]
+	return uuid.Must(uuid.NewV7()).String()[:16]
 }
 
 // Helper function to marshal config to JSON for storage

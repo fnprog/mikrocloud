@@ -26,7 +26,7 @@ type NetworkID struct {
 }
 
 func NewNetworkID() NetworkID {
-	return NetworkID{value: uuid.New().String()}
+	return NetworkID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func NetworkIDFromString(s string) (NetworkID, error) {
@@ -85,7 +85,7 @@ type NetworkRuleID struct {
 }
 
 func NewNetworkRuleID() NetworkRuleID {
-	return NetworkRuleID{value: uuid.New().String()}
+	return NetworkRuleID{value: uuid.Must(uuid.NewV7()).String()}
 }
 
 func (id NetworkRuleID) String() string {

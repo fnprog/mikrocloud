@@ -16,7 +16,7 @@ type Repository interface {
 	Save(ctx context.Context, project *projects.Project) error
 	FindByID(ctx context.Context, id projects.ProjectID) (*projects.Project, error)
 	FindByName(ctx context.Context, name projects.ProjectName) (*projects.Project, error)
-	FindAll(ctx context.Context) ([]*projects.Project, error)
+	FindAll(ctx context.Context, orgID users.OrganizationID) ([]*projects.Project, error)
 	Delete(ctx context.Context, id projects.ProjectID) error
 	Exists(ctx context.Context, name projects.ProjectName) (bool, error)
 }
@@ -120,14 +120,15 @@ func (r *SQLiteProjectRepository) FindByName(ctx context.Context, name projects.
 }
 
 // FindAll retrieves all projects using raw SQL
-func (r *SQLiteProjectRepository) FindAll(ctx context.Context) ([]*projects.Project, error) {
+func (r *SQLiteProjectRepository) FindAll(ctx context.Context, orgID users.OrganizationID) ([]*projects.Project, error) {
 	query := `
 		SELECT id, name, description, user_id, organization_id, created_by, settings, created_at, updated_at
 		FROM projects
+		WHERE organization_id = ?
 		ORDER BY created_at ASC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query)
+	rows, err := r.db.QueryContext(ctx, query, orgID.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to query all projects: %w", err)
 	}
@@ -204,7 +205,7 @@ func (r *SQLiteProjectRepository) Exists(ctx context.Context, name projects.Proj
 type projectRow struct {
 	ID             string
 	Name           string
-	Description    string
+	Description    sql.NullString
 	UserID         string
 	OrganizationID string
 	CreatedBy      string
@@ -251,8 +252,8 @@ func (r *SQLiteProjectRepository) mapRowToProject(row projectRow) (*projects.Pro
 
 	// Reconstruct project from persistence
 	var description *string
-	if row.Description != "" {
-		description = &row.Description
+	if row.Description.Valid && row.Description.String != "" {
+		description = &row.Description.String
 	}
 	return projects.ReconstructProject(
 		projectID, projectName, description, userID, organizationID, createdBy, row.Settings, createdAt, updatedAt), nil

@@ -9,7 +9,7 @@
 	} from '$lib/components/ui/select/index';
 	import FieldWithGenerate from './field-with-generate.svelte';
 	import { generatePassword } from '$lib/utils/generators';
-	import type { KeyDBConfig } from '$lib/api/databases';
+	import type { KeyDBConfig } from '$lib/features/databases/types';
 
 	interface Props {
 		config: KeyDBConfig;

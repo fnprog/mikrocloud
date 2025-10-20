@@ -93,6 +93,10 @@ func NewOAuthHandlers(service *service.GitService, cfg *config.Config) *OAuthHan
 	}
 }
 
+func (h *OAuthHandlers) GetStateStore() *OAuthStateStore {
+	return h.stateStore
+}
+
 func (h *OAuthHandlers) StartOAuth(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	orgID := middleware.GetOrgID(r)
