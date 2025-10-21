@@ -9,11 +9,12 @@ import (
 
 	"github.com/mikrocloud/mikrocloud/internal/domain/proxy"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
+	services "github.com/mikrocloud/mikrocloud/pkg/containers/service"
 	"gopkg.in/yaml.v3"
 )
 
 type TraefikService struct {
-	containerManager manager.ContainerManager
+	containerService services.ContainerService
 	configDir        string
 	containerName    string
 	containerID      string
@@ -61,9 +62,9 @@ type Router struct {
 }
 
 type RouterTLS struct {
-	CertResolver string                 `json:"certResolver,omitempty"`
-	Domains      []TLSDomain            `json:"domains,omitempty"`
-	Options      map[string]interface{} `json:"options,omitempty"`
+	CertResolver string         `json:"certResolver,omitempty"`
+	Domains      []TLSDomain    `json:"domains,omitempty"`
+	Options      map[string]any `json:"options,omitempty"`
 }
 
 type TLSDomain struct {
@@ -147,9 +148,9 @@ type EntryPoint struct {
 }
 
 type EntryTLS struct {
-	CertResolver string                 `json:"certResolver,omitempty"`
-	Domains      []TLSDomain            `json:"domains,omitempty"`
-	Options      map[string]interface{} `json:"options,omitempty"`
+	CertResolver string         `json:"certResolver,omitempty"`
+	Domains      []TLSDomain    `json:"domains,omitempty"`
+	Options      map[string]any `json:"options,omitempty"`
 }
 
 type APIConfig struct {
@@ -168,14 +169,19 @@ type AccessLogConfig struct {
 	Format   string `json:"format,omitempty"`
 }
 
-func NewTraefikService(containerManager manager.ContainerManager, configDir string, networkMode string) *TraefikService {
+const (
+	TraefikImage   = "traefik:v3.0"
+	ProxyImageName = "mikrocloud-traefik"
+)
+
+func NewTraefikService(cs services.ContainerService, configDir string, networkMode string) *TraefikService {
 	if networkMode == "" {
 		networkMode = "bridge"
 	}
 	return &TraefikService{
-		containerManager: containerManager,
+		containerService: cs,
 		configDir:        configDir,
-		containerName:    "mikrocloud-traefik",
+		containerName:    ProxyImageName,
 		isRunning:        false,
 		networkMode:      networkMode,
 	}
@@ -195,7 +201,7 @@ func (ts *TraefikService) Start(ctx context.Context, globalConfig *proxy.Traefik
 	}
 
 	// Check if container already exists
-	containers, err := ts.containerManager.List(ctx)
+	containers, err := ts.containerService.ListContainers(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list containers: %w", err)
 	}
@@ -209,19 +215,18 @@ func (ts *TraefikService) Start(ctx context.Context, globalConfig *proxy.Traefik
 				return nil
 			}
 			// Container exists but not running, remove it and recreate
-			_ = ts.containerManager.Delete(ctx, container.ID)
+			_ = ts.containerService.DeleteContainer(ctx, container.ID)
 			break
 		}
 	}
 
-	image := "traefik:v3.0"
-	if err := ts.containerManager.PullImage(ctx, image); err != nil {
+	if err := ts.containerService.PullImage(ctx, TraefikImage); err != nil {
 		return fmt.Errorf("failed to pull Traefik image: %w", err)
 	}
 
 	containerConfig := manager.ContainerConfig{
 		Name:          ts.containerName,
-		Image:         image,
+		Image:         TraefikImage,
 		RestartPolicy: "unless-stopped",
 		NetworkMode:   ts.networkMode,
 		Ports: map[string]string{
@@ -241,12 +246,12 @@ func (ts *TraefikService) Start(ctx context.Context, globalConfig *proxy.Traefik
 		},
 	}
 
-	containerID, err := ts.containerManager.Create(ctx, containerConfig)
+	containerID, err := ts.containerService.CreateContainer(ctx, containerConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create Traefik container: %w", err)
 	}
 
-	if err := ts.containerManager.Start(ctx, containerID); err != nil {
+	if err := ts.containerService.StartContainer(ctx, containerID); err != nil {
 		return fmt.Errorf("failed to start Traefik container: %w", err)
 	}
 
@@ -261,7 +266,7 @@ func (ts *TraefikService) Stop(ctx context.Context) error {
 		return nil
 	}
 
-	if err := ts.containerManager.Stop(ctx, ts.containerID); err != nil {
+	if err := ts.containerService.StopContainer(ctx, ts.containerID); err != nil {
 		return fmt.Errorf("failed to stop Traefik container: %w", err)
 	}
 
@@ -283,7 +288,7 @@ func (ts *TraefikService) Restart(ctx context.Context, globalConfig *proxy.Traef
 
 func (ts *TraefikService) UpdateDynamicConfig(ctx context.Context, configs []*proxy.ProxyConfig) error {
 	if !ts.isRunning {
-		return fmt.Errorf("Traefik is not running")
+		return fmt.Errorf("traefik is not running")
 	}
 
 	httpConfig := &HTTPConfig{
@@ -352,12 +357,13 @@ func (ts *TraefikService) GetDashboardURL() string {
 }
 
 func (ts *TraefikService) ensureConfigDir() error {
-	if err := os.MkdirAll(ts.configDir, 0755); err != nil {
+	if err := os.MkdirAll(ts.configDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
 	dynamicDir := filepath.Join(ts.configDir, "dynamic")
-	if err := os.MkdirAll(dynamicDir, 0755); err != nil {
+
+	if err := os.MkdirAll(dynamicDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create dynamic config directory: %w", err)
 	}
 
@@ -403,7 +409,7 @@ func (ts *TraefikService) writeGlobalConfig(globalConfig *proxy.TraefikGlobalCon
 	}
 
 	configPath := filepath.Join(ts.configDir, "traefik.yml")
-	if err := os.WriteFile(configPath, configBytes, 0644); err != nil {
+	if err := os.WriteFile(configPath, configBytes, 0o644); err != nil {
 		return fmt.Errorf("failed to write global config: %w", err)
 	}
 
@@ -411,7 +417,7 @@ func (ts *TraefikService) writeGlobalConfig(globalConfig *proxy.TraefikGlobalCon
 }
 
 func (ts *TraefikService) writeDynamicConfig(httpConfig *HTTPConfig) error {
-	dynamicConfig := map[string]interface{}{
+	dynamicConfig := map[string]any{
 		"http": httpConfig,
 	}
 
@@ -421,7 +427,7 @@ func (ts *TraefikService) writeDynamicConfig(httpConfig *HTTPConfig) error {
 	}
 
 	configPath := filepath.Join(ts.configDir, "dynamic", "mikrocloud.json")
-	if err := os.WriteFile(configPath, configBytes, 0644); err != nil {
+	if err := os.WriteFile(configPath, configBytes, 0o644); err != nil {
 		return fmt.Errorf("failed to write dynamic config: %w", err)
 	}
 

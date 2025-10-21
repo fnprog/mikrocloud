@@ -14,21 +14,21 @@ import (
 	deploymentService "github.com/mikrocloud/mikrocloud/internal/domain/deployments/service"
 	"github.com/mikrocloud/mikrocloud/internal/domain/users"
 	"github.com/mikrocloud/mikrocloud/internal/utils"
-	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
+	containerService "github.com/mikrocloud/mikrocloud/pkg/containers/service"
 )
 
 type ApplicationHandler struct {
 	appService        *service.ApplicationService
 	deploymentService *deploymentService.DeploymentService
-	containerManager  manager.ContainerManager
+	containerService  *containerService.ContainerService
 	validator         *validator.Validate
 }
 
-func NewApplicationHandler(appService *service.ApplicationService, deploymentService *deploymentService.DeploymentService, containerManager manager.ContainerManager) *ApplicationHandler {
+func NewApplicationHandler(appService *service.ApplicationService, deploymentService *deploymentService.DeploymentService, containerService *containerService.ContainerService) *ApplicationHandler {
 	return &ApplicationHandler{
 		appService:        appService,
 		deploymentService: deploymentService,
-		containerManager:  containerManager,
+		containerService:  containerService,
 		validator:         validator.New(),
 	}
 }
@@ -663,7 +663,7 @@ func (h *ApplicationHandler) GetApplicationLogs(w http.ResponseWriter, r *http.R
 
 	follow := r.URL.Query().Get("follow") == "true"
 
-	logStream, err := h.containerManager.StreamLogs(r.Context(), deployment.ContainerID(), follow)
+	logStream, err := h.containerService.StreamContainerLogs(r.Context(), deployment.ContainerID(), follow)
 	if err != nil {
 		utils.SendError(w, http.StatusInternalServerError, "logs_failed", "Failed to get container logs: "+err.Error())
 		return
@@ -710,7 +710,7 @@ func convertToLegacyBuildpackConfig(config *applications.BuildConfig) applicatio
 		}
 	}
 
-	var configData interface{}
+	var configData any
 	switch config.BuildpackType() {
 	case applications.BuildpackTypeNixpacks:
 		configData = config.NixpacksConfig()

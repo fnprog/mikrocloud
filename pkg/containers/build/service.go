@@ -4,23 +4,27 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"strings"
 
 	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
 )
+
+const HelperContainerImage = "ghcr.io/fnprog/mikrocloud/mikrocloud-builder:latest"
 
 type BuildService struct {
 	containerManager      manager.ContainerManager
 	containerEngineSocket string // Path to Docker/Podman socket
 }
 
-func NewBuildService(containerManager manager.ContainerManager, dockerSocket string) *BuildService {
-	if dockerSocket == "" {
-		dockerSocket = "/var/run/docker.sock" // Default Docker socket
+func NewBuildService(containerManager manager.ContainerManager, containerEngineSocket string) *BuildService {
+	if containerEngineSocket == "" {
+		containerEngineSocket = "/var/run/docker.sock" // Default to docker socket
 	}
+
 	return &BuildService{
 		containerManager:      containerManager,
-		containerEngineSocket: dockerSocket,
+		containerEngineSocket: containerEngineSocket,
 	}
 }
 
@@ -47,6 +51,163 @@ func (bs *BuildService) BuildImage(ctx context.Context, request BuildRequest) (*
 	}
 }
 
+// Generate a shell script that will run inside the build helper container
+func (bs *BuildService) generateBuildScript(commands []string, request BuildRequest) string {
+	script := []string{
+		"set -e", // Exit on any error
+		"echo '=== Starting build process ==='",
+		"",
+		"# Clone the repository",
+		"echo '=== Cloning repository ==='",
+	}
+
+	// Add git clone command
+	if request.GitBranch != "" {
+		cloneCmd := fmt.Sprintf("git clone -b %s %s /workspace/source", request.GitBranch, request.GitRepo)
+		script = append(script, fmt.Sprintf("echo 'Running: %s'", cloneCmd))
+		script = append(script, cloneCmd)
+	} else {
+		cloneCmd := fmt.Sprintf("git clone %s /workspace/source", request.GitRepo)
+		script = append(script, fmt.Sprintf("echo 'Running: %s'", cloneCmd))
+		script = append(script, cloneCmd)
+	}
+
+	// Change to context directory if specified
+	if request.ContextRoot != "" {
+		cdCmd := fmt.Sprintf("cd /workspace/source/%s", request.ContextRoot)
+		script = append(script, fmt.Sprintf("echo 'Running: %s'", cdCmd))
+		script = append(script, cdCmd)
+	} else {
+		script = append(script, "echo 'Running: cd /workspace/source'")
+		script = append(script, "cd /workspace/source")
+	}
+
+	script = append(script, "")
+	script = append(script, "echo '=== Executing build commands ==='")
+
+	// Add build commands with logging
+	for _, cmd := range commands {
+		script = append(script, fmt.Sprintf("echo 'Running: %s'", cmd))
+		script = append(script, cmd)
+	}
+
+	return strings.Join(script, "\n")
+}
+
+func (bs *BuildService) buildWithNixpacks(ctx context.Context, request BuildRequest, containerName string) (*BuildResult, error) {
+	config := request.NixpacksConfig
+	if config == nil {
+		config = &NixpacksConfig{}
+	}
+
+	if err := config.Validate(); err != nil {
+		return &BuildResult{Success: false, Error: err.Error()}, nil
+	}
+
+	// Commands to run inside the nixpacks build helper
+	commands := []string{
+		"echo 'Building with Nixpacks...'",
+		fmt.Sprintf("nixpacks build . --name %s", request.ImageTag),
+	}
+
+	// Use nixpacks image as the build helper
+	return bs.createBuildHelper(ctx, "railwayapp/nixpacks:latest", containerName, commands, request)
+}
+
+// TODO: Here we want to use nixpacks to build then send to nginx for serving
+func (bs *BuildService) buildStatic(ctx context.Context, request BuildRequest, containerName string) (*BuildResult, error) {
+	config := request.StaticConfig
+
+	if config == nil {
+		config = &StaticConfig{}
+	}
+
+	if err := config.Validate(); err != nil {
+		return &BuildResult{Success: false, Error: err.Error()}, nil
+	}
+
+	// Generate Dockerfile content inside the container
+	// dockerfileContent := strings.ReplaceAll(config.GetDockerfile(), "\n", "\\n")
+	// dockerfileContent = strings.ReplaceAll(dockerfileContent, "\"", "\\\"")
+
+	commands := []string{
+		"echo 'Building static site...'",
+		// fmt.Sprintf("printf \"%s\" > Dockerfile", dockerfileContent),
+		fmt.Sprintf("docker build -t %s .", request.ImageTag),
+	}
+
+	// Use mikrocloud-builder with git and Docker CLI
+	return bs.createBuildHelper(ctx, HelperContainerImage, containerName, commands, request)
+}
+
+func (bs *BuildService) buildWithDockerfile(ctx context.Context, request BuildRequest, containerName string) (*BuildResult, error) {
+	config := request.ContainerfileConfig
+
+	if config == nil {
+		config = &ContainerfileConfig{}
+	}
+
+	if err := config.Validate(); err != nil {
+		return &BuildResult{Success: false, Error: err.Error()}, nil
+	}
+
+	// Build using existing Containerfile
+	dockerfilePath := config.ContainerfilePath
+
+	if dockerfilePath == "" {
+		dockerfilePath = "Dockerfile"
+	}
+
+	buildArgs := ""
+
+	for key, value := range config.BuildArgs {
+		buildArgs += fmt.Sprintf(" --build-arg %s=%s", key, value)
+	}
+
+	targetFlag := ""
+
+	if config.Target != "" {
+		targetFlag = fmt.Sprintf(" --target %s", config.Target)
+	}
+
+	commands := []string{
+		"echo 'Building with Dockerfile...'",
+		fmt.Sprintf("docker build -f %s%s%s -t %s .", dockerfilePath, buildArgs, targetFlag, request.ImageTag),
+	}
+
+	return bs.createBuildHelper(ctx, HelperContainerImage, containerName, commands, request)
+}
+
+func (bs *BuildService) buildWithCompose(ctx context.Context, request BuildRequest, containerName string) (*BuildResult, error) {
+	config := request.ComposeConfig
+	if config == nil {
+		config = &ComposeConfig{}
+	}
+
+	if err := config.Validate(); err != nil {
+		return &BuildResult{Success: false, Error: err.Error()}, nil
+	}
+
+	composeFile := config.ComposeFile
+	if composeFile == "" {
+		composeFile = "docker-compose.yml"
+	}
+
+	var buildCmd string
+	if config.Service != "" {
+		buildCmd = fmt.Sprintf("docker-compose -f %s build %s", composeFile, config.Service)
+	} else {
+		buildCmd = fmt.Sprintf("docker-compose -f %s build", composeFile)
+	}
+
+	commands := []string{
+		"echo 'Building with Docker Compose...'",
+		buildCmd,
+	}
+
+	return bs.createBuildHelper(ctx, HelperContainerImage, containerName, commands, request)
+}
+
 // Helper function to create a build helper container that clones repo and executes build commands
 func (bs *BuildService) createBuildHelper(ctx context.Context, image, containerName string, commands []string, request BuildRequest) (*BuildResult, error) {
 	// Environment variables for the build helper
@@ -59,9 +220,7 @@ func (bs *BuildService) createBuildHelper(ctx context.Context, image, containerN
 	}
 
 	// Add user-defined environment variables
-	for k, v := range request.Environment {
-		env[k] = v
-	}
+	maps.Copy(env, request.Environment)
 
 	// Prepare the command to run inside the helper container
 	// This will clone the repo and execute the build commands
@@ -167,157 +326,4 @@ func (bs *BuildService) createBuildHelper(ctx context.Context, image, containerN
 		BuildLogs: allLogs.String(),
 		Error:     errorMsg,
 	}, nil
-}
-
-// Generate a shell script that will run inside the build helper container
-func (bs *BuildService) generateBuildScript(commands []string, request BuildRequest) string {
-	script := []string{
-		"set -e", // Exit on any error
-		"echo '=== Starting build process ==='",
-		"",
-		"# Clone the repository",
-		"echo '=== Cloning repository ==='",
-	}
-
-	// Add git clone command
-	if request.GitBranch != "" {
-		cloneCmd := fmt.Sprintf("git clone -b %s %s /workspace/source", request.GitBranch, request.GitRepo)
-		script = append(script, fmt.Sprintf("echo 'Running: %s'", cloneCmd))
-		script = append(script, cloneCmd)
-	} else {
-		cloneCmd := fmt.Sprintf("git clone %s /workspace/source", request.GitRepo)
-		script = append(script, fmt.Sprintf("echo 'Running: %s'", cloneCmd))
-		script = append(script, cloneCmd)
-	}
-
-	// Change to context directory if specified
-	if request.ContextRoot != "" {
-		cdCmd := fmt.Sprintf("cd /workspace/source/%s", request.ContextRoot)
-		script = append(script, fmt.Sprintf("echo 'Running: %s'", cdCmd))
-		script = append(script, cdCmd)
-	} else {
-		script = append(script, "echo 'Running: cd /workspace/source'")
-		script = append(script, "cd /workspace/source")
-	}
-
-	script = append(script, "")
-	script = append(script, "echo '=== Executing build commands ==='")
-
-	// Add build commands with logging
-	for _, cmd := range commands {
-		script = append(script, fmt.Sprintf("echo 'Running: %s'", cmd))
-		script = append(script, cmd)
-	}
-
-	return strings.Join(script, "\n")
-}
-
-func (bs *BuildService) buildWithNixpacks(ctx context.Context, request BuildRequest, containerName string) (*BuildResult, error) {
-	config := request.NixpacksConfig
-	if config == nil {
-		config = &NixpacksConfig{}
-	}
-
-	if err := config.Validate(); err != nil {
-		return &BuildResult{Success: false, Error: err.Error()}, nil
-	}
-
-	// Commands to run inside the nixpacks build helper
-	commands := []string{
-		"echo 'Building with Nixpacks...'",
-		fmt.Sprintf("nixpacks build . --name %s", request.ImageTag),
-	}
-
-	// Use nixpacks image as the build helper
-	return bs.createBuildHelper(ctx, "railwayapp/nixpacks:latest", containerName, commands, request)
-}
-
-func (bs *BuildService) buildStatic(ctx context.Context, request BuildRequest, containerName string) (*BuildResult, error) {
-	config := request.StaticConfig
-	if config == nil {
-		config = &StaticConfig{}
-	}
-
-	if err := config.Validate(); err != nil {
-		return &BuildResult{Success: false, Error: err.Error()}, nil
-	}
-
-	// Generate Dockerfile content inside the container
-	dockerfileContent := strings.ReplaceAll(config.GetDockerfile(), "\n", "\\n")
-	dockerfileContent = strings.ReplaceAll(dockerfileContent, "\"", "\\\"")
-
-	commands := []string{
-		"echo 'Building static site...'",
-		fmt.Sprintf("printf \"%s\" > Dockerfile", dockerfileContent),
-		fmt.Sprintf("docker build -t %s .", request.ImageTag),
-	}
-
-	// Use mikrocloud-builder with git and Docker CLI
-	return bs.createBuildHelper(ctx, "ghcr.io/fnprog/mikrocloud/mikrocloud-builder:latest", containerName, commands, request)
-}
-
-func (bs *BuildService) buildWithDockerfile(ctx context.Context, request BuildRequest, containerName string) (*BuildResult, error) {
-	config := request.DockerfileConfig
-	if config == nil {
-		config = &DockerfileConfig{}
-	}
-
-	if err := config.Validate(); err != nil {
-		return &BuildResult{Success: false, Error: err.Error()}, nil
-	}
-
-	// Build using existing Dockerfile
-	dockerfilePath := config.DockerfilePath
-	if dockerfilePath == "" {
-		dockerfilePath = "Dockerfile"
-	}
-
-	buildArgs := ""
-	for key, value := range config.BuildArgs {
-		buildArgs += fmt.Sprintf(" --build-arg %s=%s", key, value)
-	}
-
-	targetFlag := ""
-	if config.Target != "" {
-		targetFlag = fmt.Sprintf(" --target %s", config.Target)
-	}
-
-	commands := []string{
-		"echo 'Building with Dockerfile...'",
-		fmt.Sprintf("docker build -f %s%s%s -t %s .", dockerfilePath, buildArgs, targetFlag, request.ImageTag),
-	}
-
-	// Use mikrocloud-builder with Docker CLI and git
-	return bs.createBuildHelper(ctx, "ghcr.io/fnprog/mikrocloud/mikrocloud-builder:latest", containerName, commands, request)
-}
-
-func (bs *BuildService) buildWithCompose(ctx context.Context, request BuildRequest, containerName string) (*BuildResult, error) {
-	config := request.ComposeConfig
-	if config == nil {
-		config = &ComposeConfig{}
-	}
-
-	if err := config.Validate(); err != nil {
-		return &BuildResult{Success: false, Error: err.Error()}, nil
-	}
-
-	composeFile := config.ComposeFile
-	if composeFile == "" {
-		composeFile = "docker-compose.yml"
-	}
-
-	var buildCmd string
-	if config.Service != "" {
-		buildCmd = fmt.Sprintf("docker-compose -f %s build %s", composeFile, config.Service)
-	} else {
-		buildCmd = fmt.Sprintf("docker-compose -f %s build", composeFile)
-	}
-
-	commands := []string{
-		"echo 'Building with Docker Compose...'",
-		buildCmd,
-	}
-
-	// Use mikrocloud-builder with Docker Compose
-	return bs.createBuildHelper(ctx, "ghcr.io/fnprog/mikrocloud/mikrocloud-builder:latest", containerName, commands, request)
 }

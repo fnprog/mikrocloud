@@ -16,6 +16,7 @@ import (
 	deploymentsRepo "github.com/mikrocloud/mikrocloud/internal/domain/deployments/repository"
 	disksRepo "github.com/mikrocloud/mikrocloud/internal/domain/disks/repository"
 	environmentsRepo "github.com/mikrocloud/mikrocloud/internal/domain/environments/repository"
+	gitRepo "github.com/mikrocloud/mikrocloud/internal/domain/git/repository"
 	organizationsRepo "github.com/mikrocloud/mikrocloud/internal/domain/organizations/repository"
 	projectsRepo "github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
 	proxyRepo "github.com/mikrocloud/mikrocloud/internal/domain/proxy/repository"
@@ -40,6 +41,7 @@ type SQLiteDatabase struct {
 	diskRepository          disksRepo.DiskRepository
 	diskBackupRepository    disksRepo.DiskBackupRepository
 	organizationRepository  organizationsRepo.Repository
+	gitRepository           gitRepo.GitRepository
 }
 
 // NewSQLiteDatabase creates a new SQLite database instance
@@ -78,6 +80,7 @@ func NewSQLiteDatabase(databaseURL string) (MainDatabase, error) {
 	applicationRepo := applicationsRepo.NewSQLiteApplicationRepository(db)
 	databaseRepo := databasesRepo.NewSQLiteDatabaseRepository(db)
 	environmentRepo := environmentsRepo.NewSQLiteEnvironmentRepository(db)
+	gitRepo := gitRepo.NewSQLiteGitRepository(db)
 	templateRepo := servicesRepo.NewSQLiteTemplateRepository(db)
 	userRepo := usersRepo.NewSQLiteUserRepository(db)
 	sessionRepo := authRepo.NewSQLiteSessionRepository(db)
@@ -105,6 +108,7 @@ func NewSQLiteDatabase(databaseURL string) (MainDatabase, error) {
 		diskRepository:          diskRepo,
 		diskBackupRepository:    diskBackupRepo,
 		organizationRepository:  organizationRepo,
+		gitRepository:           gitRepo,
 	}, nil
 }
 
@@ -182,11 +186,15 @@ func (d *SQLiteDatabase) OrganizationRepository() organizationsRepo.Repository {
 	return d.organizationRepository
 }
 
+func (d *SQLiteDatabase) GitRepository() gitRepo.GitRepository {
+	return d.gitRepository
+}
+
 // ensureDataDir creates the directory for the SQLite database if it doesn't exist
 func ensureDataDir(dbPath string) error {
 	dir := filepath.Dir(dbPath)
 	if dir == "." || dir == "/" {
 		return nil // Current directory or root, no need to create
 	}
-	return os.MkdirAll(dir, 0755)
+	return os.MkdirAll(dir, 0o755)
 }

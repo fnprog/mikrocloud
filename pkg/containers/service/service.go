@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/mikrocloud/mikrocloud/internal/config"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/build"
@@ -34,6 +35,7 @@ func NewContainerService(cfg *config.Config) (*ContainerService, error) {
 	}
 
 	// Create build service
+	// Add a healthy default for the socket_path
 	buildService := build.NewBuildService(containerManager, cfg.Docker.SocketPath)
 
 	return &ContainerService{
@@ -43,7 +45,6 @@ func NewContainerService(cfg *config.Config) (*ContainerService, error) {
 	}, nil
 }
 
-// Container lifecycle operations
 func (cs *ContainerService) StartContainer(ctx context.Context, containerID string) error {
 	return cs.containerManager.Start(ctx, containerID)
 }
@@ -60,7 +61,6 @@ func (cs *ContainerService) DeleteContainer(ctx context.Context, containerID str
 	return cs.containerManager.Delete(ctx, containerID)
 }
 
-// Container management
 func (cs *ContainerService) CreateContainer(ctx context.Context, config manager.ContainerConfig) (string, error) {
 	return cs.containerManager.Create(ctx, config)
 }
@@ -74,15 +74,14 @@ func (cs *ContainerService) InspectContainer(ctx context.Context, containerID st
 }
 
 // Logging
-func (cs *ContainerService) StreamContainerLogs(ctx context.Context, containerID string, follow bool) error {
+func (cs *ContainerService) StreamContainerLogs(ctx context.Context, containerID string, follow bool) (io.ReadCloser, error) {
 	logStream, err := cs.containerManager.StreamLogs(ctx, containerID, follow)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer logStream.Close()
 
 	// TODO: Process and forward logs to appropriate channels (WebSocket, etc.)
-	return nil
+	return logStream, nil
 }
 
 // Image operations
@@ -94,9 +93,13 @@ func (cs *ContainerService) BuildImage(ctx context.Context, buildRequest build.B
 	return cs.buildService.BuildImage(ctx, buildRequest)
 }
 
+func (cs *ContainerService) ExecInteractive(ctx context.Context, containerID string, cmd []string, stdin io.Reader, stdout, stderr io.Writer, resize <-chan manager.TerminalSize) error {
+	return cs.containerManager.ExecInteractive(ctx, containerID, cmd, stdin, stdout, stderr, resize)
+}
+
 // Helper methods
-func (cs *ContainerService) GetRuntimeInfo() map[string]interface{} {
-	return map[string]interface{}{
+func (cs *ContainerService) GetRuntimeInfo() map[string]any {
+	return map[string]any{
 		"runtime":     cs.config.Docker.Runtime,
 		"socket_path": cs.config.Docker.SocketPath,
 		"rootless":    cs.config.Docker.Rootless,

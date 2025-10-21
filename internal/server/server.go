@@ -15,25 +15,24 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/jwtauth/v5"
+	"github.com/go-chi/cors"
 	"github.com/google/uuid"
 	"golang.org/x/exp/slog"
 
 	"github.com/mikrocloud/mikrocloud/internal/api"
+	"github.com/mikrocloud/mikrocloud/internal/api/deps"
 	"github.com/mikrocloud/mikrocloud/internal/config"
 	"github.com/mikrocloud/mikrocloud/internal/database"
 	"github.com/mikrocloud/mikrocloud/internal/domain/proxy"
 	"github.com/mikrocloud/mikrocloud/internal/domain/servers"
-	serversService "github.com/mikrocloud/mikrocloud/internal/domain/servers/service"
 	proxyContainers "github.com/mikrocloud/mikrocloud/pkg/containers/proxy"
 )
 
 type Server struct {
 	config     *config.Config
-	db         *database.Database
+	deps       *deps.Dependencies
 	router     *chi.Mux
 	staticFS   fs.FS
-	tokenAuth  *jwtauth.JWTAuth
 	traefikSvc *proxyContainers.TraefikService
 }
 
@@ -44,77 +43,41 @@ func New(cfg *config.Config, staticFS fs.FS) *Server {
 		os.Exit(1)
 	}
 
-	// Initialize Chi router
+	dependencies, err := deps.NewDependencies(cfg, db)
+	if err != nil {
+		slog.Error("Failed to setup services", "error", err)
+		os.Exit(1)
+	}
+
 	router := chi.NewRouter()
 
-	// initialize auth middleware
-
-	tokenAuth := jwtauth.New("HS256", []byte(cfg.Auth.JWTSecret), nil)
-
-	// Add middleware
-	router.Use(middleware.RequestID)
-	router.Use(middleware.RealIP)
-	router.Use(middleware.Recoverer)
-	router.Use(middleware.Timeout(60 * time.Second))
-	router.Use(jwtauth.Verifier(tokenAuth))
-
-	// Custom logging middleware using slog
-	router.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			start := time.Now()
-			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
-
-			defer func() {
-				slog.Info("HTTP Request",
-					"method", r.Method,
-					"path", r.URL.Path,
-					"status", ww.Status(),
-					"duration", time.Since(start),
-					"bytes", ww.BytesWritten(),
-				)
-			}()
-
-			next.ServeHTTP(ww, r)
-		})
-	})
-
 	return &Server{
-		config:    cfg,
-		db:        db,
-		router:    router,
-		staticFS:  staticFS,
-		tokenAuth: tokenAuth,
+		config:   cfg,
+		deps:     dependencies,
+		router:   router,
+		staticFS: staticFS,
 	}
 }
 
 func (s *Server) Start(ctx context.Context) error {
-	// Setup routes and get Traefik service
-	if err := s.setupAPIRoutes(ctx); err != nil {
-		return fmt.Errorf("failed to setup API routes: %w", err)
-	}
-	s.setupStaticRoutes()
+	s.setupMiddlewares()
+	s.setupAPIRoutes()
 
-	// Initialize default control plane server
+	if err := s.setupStaticRoutes(); err != nil {
+		return fmt.Errorf("failed to setup Static routes: %w", err)
+	}
+
 	if err := s.initializeControlPlaneServer(ctx); err != nil {
 		slog.Warn("Failed to initialize control plane server", "error", err)
 		// Don't fail the server if this fails, just log the warning
 	}
 
-	// Start Traefik service if available
-	if s.traefikSvc != nil {
-		slog.Info("Starting Traefik reverse proxy service")
-
-		// Create default global configuration for Traefik
-		globalConfig := proxy.NewTraefikGlobalConfig()
-
-		if err := s.traefikSvc.Start(ctx, globalConfig); err != nil {
-			slog.Error("Failed to start Traefik service", "error", err)
-			// Don't fail the server if Traefik fails to start
-			// Just log the error and continue
-		} else {
-			slog.Info("Traefik service started successfully")
-		}
+	if err := s.setupDependencies(ctx); err != nil {
+		slog.Error("Failed to start Traefik service", "error", err)
+		return err
 	}
+
+	s.setupBackgroundTasks(ctx)
 
 	addr := fmt.Sprintf("%s:%d", s.config.Server.Host, s.config.Server.Port)
 
@@ -127,6 +90,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// Start server in a goroutine
 	serverChan := make(chan error, 1)
+
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			serverChan <- err
@@ -164,45 +128,71 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 }
 
-func (s *Server) setupAPIRoutes(ctx context.Context) error {
-	var traefikSvc *proxyContainers.TraefikService
-	var err error
+func (s *Server) setupMiddlewares() {
+	s.router.Use(cors.Handler(cors.Options{
+		AllowedOrigins: s.config.Server.AllowedOrigins,
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+	}))
 
-	s.router.Route("/api", func(r chi.Router) {
-		traefikSvc, _, err = api.SetupRoutes(r, s.db, s.config, s.tokenAuth, ctx)
+	s.router.Use(middleware.RequestID)
+	s.router.Use(middleware.RealIP)
+	s.router.Use(middleware.Recoverer)
+	s.router.Use(middleware.Timeout(60 * time.Second))
+
+	// TODO: Pipe to a file instead of clogging the term
+	s.router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+
+			defer func() {
+				slog.Info("HTTP Request",
+					"method", r.Method,
+					"path", r.URL.Path,
+					"status", ww.Status(),
+					"duration", time.Since(start),
+					"bytes", ww.BytesWritten(),
+				)
+			}()
+
+			next.ServeHTTP(ww, r)
+		})
 	})
+}
 
-	if err != nil {
-		return err
+func (s *Server) setupDependencies(ctx context.Context) error {
+	if s.traefikSvc != nil {
+		slog.Info("Starting Traefik reverse proxy service")
+
+		// Create default global configuration for Traefik
+		globalConfig := proxy.NewTraefikGlobalConfig()
+
+		if err := s.traefikSvc.Start(ctx, globalConfig); err != nil {
+			return err
+		} else {
+			slog.Info("Traefik service started successfully")
+		}
 	}
 
-	s.traefikSvc = traefikSvc
 	return nil
 }
 
-func (s *Server) setupStaticRoutes() {
+func (s *Server) setupAPIRoutes() {
+	s.router.Route("/api", func(r chi.Router) {
+		api.SetupRoutes(r, s.deps)
+	})
+}
+
+func (s *Server) setupStaticRoutes() error {
 	frontendFS := s.staticFS
+
 	if frontendFS == nil {
-		slog.Error("No frontend assets available")
-		s.setupPlaceholderRoutes()
-		return
+		return fmt.Errorf("No frontend assets available")
 	}
 
-	// Health check endpoint (always available)
-	s.router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `{
-			"status": "ok",
-			"service": "mikrocloud",
-			"version": "0.1.0",
-			"timestamp": "%s"
-		}`, time.Now().UTC().Format(time.RFC3339))
-	})
-
-	// Single catch-all handler for everything non-API
+	// Catch-all handler for everything non-API
 	s.router.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		// API requests get JSON 404
+		// 404 For any non-found api routes
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
@@ -244,6 +234,8 @@ func (s *Server) setupStaticRoutes() {
 		// File not found, serve index.html for SPA routing
 		s.serveIndexHTML(frontendFS)(w, r)
 	})
+
+	return nil
 }
 
 func (s *Server) setContentType(w http.ResponseWriter, path string) {
@@ -299,64 +291,18 @@ func (s *Server) serveIndexHTML(frontendFS fs.FS) http.HandlerFunc {
 	}
 }
 
-func (s *Server) setupPlaceholderRoutes() {
-	// Frontend placeholder (fallback when assets aren't available)
-	s.router.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprint(w, `
-		<!DOCTYPE html>
-		<html>
-		<head>
-			<title>Mikrocloud</title>
-			<style>
-				body { font-family: Arial, sans-serif; margin: 2rem; }
-				.container { max-width: 800px; margin: 0 auto; }
-			</style>
-		</head>
-		<body>
-			<div class="container">
-				<h1>🐳 Mikrocloud</h1>
-				<p>Container management platform</p>
-				<p><strong>Note:</strong> Frontend assets not built yet. Run <code>make build-web</code> to build and embed the frontend.</p>
-				<p><a href="/docs">📖 API Documentation</a></p>
-				<p><a href="/health">💚 Health Check</a></p>
-			</div>
-		</body>
-		</html>`)
-	})
-
-	// Catch-all for SPA routing
-	s.router.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		// If it's an API request, return 404
-		if strings.HasPrefix(r.URL.Path, "/api/") {
-			http.Error(w, "API endpoint not found", http.StatusNotFound)
-			return
-		}
-
-		// Otherwise serve placeholder
-		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprint(w, `
-		<!DOCTYPE html>
-		<html>
-		<head><title>Mikrocloud - Page Not Found</title></head>
-		<body>
-			<h1>Mikrocloud - Page Not Found</h1>
-			<p>The frontend hasn't been built yet. Please run <code>make build-web</code> first.</p>
-			<p><a href="/">← Back to Home</a></p>
-		</body>
-		</html>`)
-	})
+func (s *Server) setupBackgroundTasks(ctx context.Context) {
+	go s.deps.DatabaseStatusSyncService.Start(ctx)
 }
 
 func (s *Server) initializeControlPlaneServer(ctx context.Context) error {
-	serversSvc := serversService.NewServersService(s.db.ServersRepository)
-
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"
 	}
 
-	existingServer, err := serversSvc.GetServerByHostname(hostname)
+	existingServer, err := s.deps.ServerService.GetServerByHostname(hostname)
+
 	if err == nil && existingServer != nil {
 		slog.Info("Control plane server already initialized", "hostname", hostname, "server_id", existingServer.ID())
 		return nil
@@ -364,10 +310,11 @@ func (s *Server) initializeControlPlaneServer(ctx context.Context) error {
 
 	// Get the first organization from the database
 	var orgID string
-	err = s.db.MainDB().DB().QueryRowContext(ctx, "SELECT id FROM organizations LIMIT 1").Scan(&orgID)
+	err = s.deps.DB.MainDB().DB().QueryRowContext(ctx, "SELECT id FROM organizations LIMIT 1").Scan(&orgID)
 	if err != nil {
 		return fmt.Errorf("no organization found in database: %w", err)
 	}
+
 	defaultOrgID := uuid.MustParse(orgID)
 
 	cpuCores := runtime.NumCPU()
@@ -377,7 +324,7 @@ func (s *Server) initializeControlPlaneServer(ctx context.Context) error {
 	osInfo := runtime.GOOS
 	osVersion := runtime.Version()
 
-	createdServer, err := serversSvc.CreateServer(
+	createdServer, err := s.deps.ServerService.CreateServer(
 		"Control Plane - "+hostname,
 		hostname,
 		"127.0.0.1",
@@ -394,7 +341,7 @@ func (s *Server) initializeControlPlaneServer(ctx context.Context) error {
 	createdServer.AddTag("control-plane")
 	createdServer.AddTag("default")
 
-	if err := serversSvc.UpdateServer(createdServer); err != nil {
+	if err := s.deps.ServerService.UpdateServer(createdServer); err != nil {
 		slog.Warn("Failed to update control plane server specs", "error", err)
 	}
 

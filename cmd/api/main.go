@@ -24,8 +24,8 @@ var (
 	staticFS   fs.FS
 	rootCmd    = &cobra.Command{
 		Use:   "mikrocloud",
-		Short: "Ultra-lightweight Platform as a Service (PaaS)",
-		Long:  `Mikrocloud is a next-generation, multi-region Platform as a Service (PaaS) built for ultra-lightweight performance (<50MB memory usage) with enterprise features.`,
+		Short: "Lightweight Platform as a Service (PaaS)",
+		Long:  `Mikrocloud is a self-hosted patform as a Service (PaaS) built for shippers.`,
 	}
 )
 
@@ -63,7 +63,6 @@ func init() {
 
 	rootCmd.AddCommand(serveCmd)
 	rootCmd.AddCommand(versionCmd)
-	rootCmd.AddCommand(migrateCmd)
 }
 
 func initConfig() {
@@ -92,11 +91,17 @@ var serveCmd = &cobra.Command{
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
+		// TODO: Initialize dbs if the user chose non-file dbs (clickhouse or pg)
+		//
+		// TODO: Initialize the Queue DB (dragonfly)
+
 		// Run migrations automatically before starting server
 		slog.Info("Running database migrations...")
+
 		if err := runMigrations(cfg); err != nil {
 			return fmt.Errorf("failed to run migrations: %w", err)
 		}
+
 		slog.Info("Database migrations completed successfully")
 
 		srv := server.New(cfg, staticFS)
@@ -109,43 +114,23 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Show version information",
 	Run: func(cmd *cobra.Command, args []string) {
+		// TODO: Should be injected in another way
 		fmt.Printf("Mikrocloud v%s\n", "0.1.0")
 	},
 }
 
 func runMigrations(cfg *config.Config) error {
-	// Migrate main database
+	// Migrate main database (SQlite or postgres)
 	if err := migrateMainDatabase(cfg); err != nil {
 		return fmt.Errorf("failed to migrate main database: %w", err)
 	}
 
-	// Migrate analytics database
+	// Migrate analytics database (DuckDB or ClickHouse)
 	if err := migrateAnalyticsDatabase(cfg); err != nil {
 		return fmt.Errorf("failed to migrate analytics database: %w", err)
 	}
 
-	// Queue database doesn't typically need migrations for Redis/Dragonfly
-	slog.Info("Queue database initialized", "type", cfg.Queue.Type, "url", cfg.Queue.URL)
-
 	return nil
-}
-
-var migrateCmd = &cobra.Command{
-	Use:   "migrate",
-	Short: "Run database migrations for all database systems",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.Load()
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
-		if err := runMigrations(cfg); err != nil {
-			return err
-		}
-
-		slog.Info("All database migrations completed successfully")
-		return nil
-	},
 }
 
 func migrateMainDatabase(cfg *config.Config) error {
@@ -181,27 +166,12 @@ func migrateAnalyticsDatabase(cfg *config.Config) error {
 		return fmt.Errorf("failed to create analytics database directory: %w", err)
 	}
 
-	// DuckDB schema is managed by the initSchema() method in duckdb.go
-	// SQLite analytics would use goose migrations
 	if cfg.Analytics.Type == "duckdb" {
 		slog.Info("Analytics database schema managed by application code", "database", cfg.Analytics.URL)
 		return nil
 	}
 
-	// For SQLite analytics, use goose migrations
-	db, err := sql.Open("sqlite3", cfg.Analytics.URL)
-	if err != nil {
-		return fmt.Errorf("failed to open analytics database: %w", err)
-	}
-	defer db.Close()
-
-	goose.SetDialect("sqlite3")
-
-	if err := goose.Up(db, "./migrations/analytics"); err != nil {
-		return fmt.Errorf("failed to run analytics database migrations: %w", err)
-	}
-
-	slog.Info("Analytics database migrations completed successfully", "database", cfg.Analytics.URL)
+	// TODO: For ClickHouse analytics, use goose migrations
 	return nil
 }
 

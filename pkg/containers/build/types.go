@@ -23,15 +23,16 @@ type BuildRequest struct {
 	ImageTag      string
 
 	// Buildpack-specific configurations
-	NixpacksConfig   *NixpacksConfig   `json:"nixpacks_config,omitempty"`
-	StaticConfig     *StaticConfig     `json:"static_config,omitempty"`
-	DockerfileConfig *DockerfileConfig `json:"dockerfile_config,omitempty"`
-	ComposeConfig    *ComposeConfig    `json:"compose_config,omitempty"`
+	NixpacksConfig      *NixpacksConfig      `json:"nixpacks_config,omitempty"`
+	StaticConfig        *StaticConfig        `json:"static_config,omitempty"`
+	ContainerfileConfig *ContainerfileConfig `json:"dockerfile_config,omitempty"`
+	ComposeConfig       *ComposeConfig       `json:"compose_config,omitempty"`
 
 	// Optional callback for streaming logs in real-time
 	LogCallback func(log string) `json:"-"`
 }
 
+// Result of an image build
 type BuildResult struct {
 	Success   bool
 	ImageTag  string
@@ -39,8 +40,9 @@ type BuildResult struct {
 	Error     string
 }
 
+// Abstraction over all buildpacks
 type BuildpackConfig interface {
-	GetDockerfile() string
+	GetBuildCommands() []string
 	Validate() error
 }
 
@@ -50,25 +52,16 @@ type NixpacksConfig struct {
 	Variables    map[string]string `json:"variables,omitempty"`
 }
 
-func (n *NixpacksConfig) GetDockerfile() string {
-	return fmt.Sprintf(`
-FROM nixpacks/nixpacks:latest as builder
-WORKDIR /app
-COPY . .
-RUN nixpacks build . --name app
-
-FROM nixpacks/nixpacks:runtime
-COPY --from=builder /app /app
-WORKDIR /app
-%s
-`, n.getStartCommand())
-}
-
-func (n *NixpacksConfig) getStartCommand() string {
-	if n.StartCommand != "" {
-		return fmt.Sprintf("CMD [%s]", n.StartCommand)
+func (n *NixpacksConfig) GetBuildCommands() []string {
+	commands := []string{
+		"nixpacks build . --name app",
 	}
-	return "CMD nixpacks start"
+
+	if n.BuildCommand != "" {
+		commands = append(commands, n.BuildCommand)
+	}
+
+	return commands
 }
 
 func (n *NixpacksConfig) Validate() error {
@@ -76,41 +69,28 @@ func (n *NixpacksConfig) Validate() error {
 }
 
 type StaticConfig struct {
-	BuildCommand string `json:"build_command,omitempty"`
-	OutputDir    string `json:"output_dir,omitempty"`
-	NginxConfig  string `json:"nginx_config,omitempty"`
+	OutputDir   string `json:"output_dir,omitempty"`
+	NginxConfig string `json:"nginx_config,omitempty"`
+	IS_SPA      string `json:"is_spa,omitempty"`
 }
 
-func (s *StaticConfig) GetDockerfile() string {
+func (s *StaticConfig) GetBuildCommands() []string {
 	outputDir := s.OutputDir
 	if outputDir == "" {
 		outputDir = "dist"
 	}
 
-	buildCmd := s.BuildCommand
-	if buildCmd == "" {
-		buildCmd = "npm run build"
+	commands := []string{
+		"echo 'Building with Nixpacks...'",
+		fmt.Sprintf("docker build -t ${IMAGE_TAG} -f- . <<'EOF'\nFROM nginx:alpine\nCOPY %s /usr/share/nginx/html\n%sEXPOSE 80\nCMD [\"nginx\", \"-g\", \"daemon off;\"]\nEOF", outputDir, s.getNginxConfigDockerfile()),
 	}
 
-	return fmt.Sprintf(`
-FROM node:18-alpine as builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN %s
-
-FROM nginx:alpine
-COPY --from=builder /app/%s /usr/share/nginx/html
-%s
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
-`, buildCmd, outputDir, s.getNginxConfig())
+	return commands
 }
 
-func (s *StaticConfig) getNginxConfig() string {
+func (s *StaticConfig) getNginxConfigDockerfile() string {
 	if s.NginxConfig != "" {
-		return fmt.Sprintf("COPY %s /etc/nginx/conf.d/default.conf", s.NginxConfig)
+		return fmt.Sprintf("COPY %s /etc/nginx/conf.d/default.conf\n", s.NginxConfig)
 	}
 	return ""
 }
@@ -122,20 +102,38 @@ func (s *StaticConfig) Validate() error {
 	return nil
 }
 
-type DockerfileConfig struct {
-	DockerfilePath string            `json:"dockerfile_path,omitempty"`
-	BuildArgs      map[string]string `json:"build_args,omitempty"`
-	Target         string            `json:"target,omitempty"`
+type ContainerfileConfig struct {
+	ContainerfilePath string            `json:"dockerfile_path,omitempty"`
+	BuildArgs         map[string]string `json:"build_args,omitempty"`
+	Target            string            `json:"target,omitempty"`
 }
 
-func (d *DockerfileConfig) GetDockerfile() string {
-	// For Dockerfile builds, we use the existing Dockerfile
-	return ""
+func (c *ContainerfileConfig) GetBuildCommands() []string {
+	containerfilePath := c.ContainerfilePath
+	if containerfilePath == "" {
+		containerfilePath = "Dockerfile"
+	}
+
+	buildCmd := fmt.Sprintf("docker build -t ${IMAGE_TAG} -f %s", containerfilePath)
+
+	// Add build args
+	for key, value := range c.BuildArgs {
+		buildCmd += fmt.Sprintf(" --build-arg %s=%s", key, value)
+	}
+
+	// Add target if specified
+	if c.Target != "" {
+		buildCmd += fmt.Sprintf(" --target %s", c.Target)
+	}
+
+	buildCmd += " ."
+
+	return []string{buildCmd}
 }
 
-func (d *DockerfileConfig) Validate() error {
-	if d.DockerfilePath == "" {
-		d.DockerfilePath = "Dockerfile"
+func (d *ContainerfileConfig) Validate() error {
+	if d.ContainerfilePath == "" {
+		d.ContainerfilePath = "Dockerfile"
 	}
 	return nil
 }
@@ -145,9 +143,30 @@ type ComposeConfig struct {
 	Service     string `json:"service,omitempty"`
 }
 
-func (c *ComposeConfig) GetDockerfile() string {
-	// For compose builds, we use the compose file
-	return ""
+func (c *ComposeConfig) GetBuildCommands() []string {
+	composeFile := c.ComposeFile
+	if composeFile == "" {
+		composeFile = "docker-compose.yml"
+	}
+
+	buildCmd := fmt.Sprintf("docker compose -f %s build", composeFile)
+
+	if c.Service != "" {
+		buildCmd += fmt.Sprintf(" %s", c.Service)
+	}
+
+	// Tag the built image
+	tagCmd := ""
+	if c.Service != "" {
+		tagCmd = fmt.Sprintf("docker tag $(docker compose -f %s images -q %s) ${IMAGE_TAG}", composeFile, c.Service)
+	}
+
+	commands := []string{buildCmd}
+	if tagCmd != "" {
+		commands = append(commands, tagCmd)
+	}
+
+	return commands
 }
 
 func (c *ComposeConfig) Validate() error {

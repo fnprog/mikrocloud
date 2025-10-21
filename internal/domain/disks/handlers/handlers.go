@@ -18,22 +18,22 @@ type DatabaseService interface {
 	GetDatabase(ctx context.Context, id databases.DatabaseID) (*databases.Database, error)
 }
 
-type DatabaseDeploymentService interface {
-	Restart(ctx context.Context, database *databases.Database) error
+type DatabaseContainerService interface {
+	RestartContainer(ctx context.Context, containerID string) error
 }
 
 type DiskHandler struct {
 	diskService       *service.DiskService
 	databaseService   DatabaseService
-	deploymentService DatabaseDeploymentService
+	deploymentService DatabaseContainerService
 	validator         *validator.Validate
 }
 
-func NewDiskHandler(diskService *service.DiskService, databaseService DatabaseService, deploymentService DatabaseDeploymentService) *DiskHandler {
+func NewDiskHandler(diskService *service.DiskService, databaseService DatabaseService, containerService DatabaseContainerService) *DiskHandler {
 	return &DiskHandler{
 		diskService:       diskService,
 		databaseService:   databaseService,
-		deploymentService: deploymentService,
+		deploymentService: containerService,
 		validator:         validator.New(),
 	}
 }
@@ -294,7 +294,7 @@ func (h *DiskHandler) AttachDisk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.deploymentService.Restart(r.Context(), database); err != nil {
+	if err := h.deploymentService.RestartContainer(r.Context(), database.ContainerID()); err != nil {
 		utils.SendError(w, http.StatusInternalServerError, "restart_failed", "Failed to restart container with new volume")
 		return
 	}
@@ -353,7 +353,7 @@ func (h *DiskHandler) DetachDisk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.deploymentService.Restart(r.Context(), database); err != nil {
+	if err := h.deploymentService.RestartContainer(r.Context(), database.ContainerID()); err != nil {
 		utils.SendError(w, http.StatusInternalServerError, "restart_failed", "Failed to restart container without volume")
 		return
 	}

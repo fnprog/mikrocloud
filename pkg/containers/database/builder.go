@@ -3,6 +3,7 @@ package database
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strconv"
 
 	"github.com/mikrocloud/mikrocloud/internal/domain/databases"
@@ -78,9 +79,7 @@ func (b *DefaultContainerConfigBuilder) BuildPostgreSQLConfig(database *database
 	}
 
 	// Add custom environment variables
-	for k, v := range pgConfig.Environment {
-		environment[k] = v
-	}
+	maps.Copy(environment, pgConfig.Environment)
 
 	volumes := map[string]string{
 		fmt.Sprintf("mikrocloud-postgres-%s", database.ID().String()): "/var/lib/postgresql/data",

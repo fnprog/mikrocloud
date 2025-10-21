@@ -3,11 +3,12 @@ package database
 import (
 	"context"
 	"fmt"
-	"strconv"
+	"maps"
 
 	"github.com/google/uuid"
 	"github.com/mikrocloud/mikrocloud/internal/domain/databases"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
+	services "github.com/mikrocloud/mikrocloud/pkg/containers/service"
 )
 
 type DiskService interface {
@@ -16,22 +17,24 @@ type DiskService interface {
 
 // Service implementation
 type Service struct {
-	containerManager manager.ContainerManager
+	containerService *services.ContainerService
 	imageResolver    DatabaseImageResolver
 	configBuilder    ContainerConfigBuilder
 	diskService      DiskService
 }
 
 func NewDatabaseDeploymentService(
-	containerManager manager.ContainerManager,
-	imageResolver DatabaseImageResolver,
-	configBuilder ContainerConfigBuilder,
+	containerService *services.ContainerService,
 	diskService DiskService,
 ) DatabaseDeploymentService {
+	// Database service helper
+	dbImageResolver := NewDefaultImageResolver()
+	dbConfigBuilder := NewDefaultContainerConfigBuilder(dbImageResolver)
+
 	return &Service{
-		containerManager: containerManager,
-		imageResolver:    imageResolver,
-		configBuilder:    configBuilder,
+		containerService: containerService,
+		imageResolver:    dbImageResolver,
+		configBuilder:    dbConfigBuilder,
 		diskService:      diskService,
 	}
 }
@@ -45,7 +48,7 @@ func (s *Service) Deploy(ctx context.Context, database *databases.Database) (*De
 	}
 
 	// Pull the image if not present
-	if err := s.containerManager.PullImage(ctx, config.Image); err != nil {
+	if err := s.containerService.PullImage(ctx, config.Image); err != nil {
 		return nil, fmt.Errorf("failed to pull image: %w", err)
 	}
 
@@ -56,9 +59,7 @@ func (s *Service) Deploy(ctx context.Context, database *databases.Database) (*De
 		if err == nil {
 			diskMounts, err := s.diskService.GetDiskMounts(ctx, dbUUID)
 			if err == nil {
-				for hostPath, containerPath := range diskMounts {
-					volumes[hostPath] = containerPath
-				}
+				maps.Copy(volumes, diskMounts)
 			}
 		}
 	}
@@ -75,15 +76,15 @@ func (s *Service) Deploy(ctx context.Context, database *databases.Database) (*De
 	}
 
 	// Create and start the container
-	containerID, err := s.containerManager.Create(ctx, containerConfig)
+	containerID, err := s.containerService.CreateContainer(ctx, containerConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create container: %w", err)
 	}
 
 	// Start the container
-	if err := s.containerManager.Start(ctx, containerID); err != nil {
+	if err := s.containerService.StartContainer(ctx, containerID); err != nil {
 		// Clean up on failure
-		_ = s.containerManager.Delete(ctx, containerID)
+		_ = s.containerService.DeleteContainer(ctx, containerID)
 		return nil, fmt.Errorf("failed to start container: %w", err)
 	}
 
@@ -101,14 +102,14 @@ func (s *Service) Start(ctx context.Context, database *databases.Database) error
 	containerName := s.buildContainerName(database)
 
 	// Find container by name
-	containers, err := s.containerManager.List(ctx)
+	containers, err := s.containerService.ListContainers(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list containers: %w", err)
 	}
 
 	for _, container := range containers {
 		if container.Name == containerName {
-			return s.containerManager.Start(ctx, container.ID)
+			return s.containerService.StartContainer(ctx, container.ID)
 		}
 	}
 
@@ -120,14 +121,14 @@ func (s *Service) Stop(ctx context.Context, database *databases.Database) error 
 	containerName := s.buildContainerName(database)
 
 	// Find container by name
-	containers, err := s.containerManager.List(ctx)
+	containers, err := s.containerService.ListContainers(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list containers: %w", err)
 	}
 
 	for _, container := range containers {
 		if container.Name == containerName {
-			return s.containerManager.Stop(ctx, container.ID)
+			return s.containerService.StopContainer(ctx, container.ID)
 		}
 	}
 
@@ -139,7 +140,7 @@ func (s *Service) Remove(ctx context.Context, database *databases.Database) erro
 	containerName := s.buildContainerName(database)
 
 	// Find container by name
-	containers, err := s.containerManager.List(ctx)
+	containers, err := s.containerService.ListContainers(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list containers: %w", err)
 	}
@@ -147,8 +148,8 @@ func (s *Service) Remove(ctx context.Context, database *databases.Database) erro
 	for _, container := range containers {
 		if container.Name == containerName {
 			// Stop first if running
-			_ = s.containerManager.Stop(ctx, container.ID)
-			return s.containerManager.Delete(ctx, container.ID)
+			_ = s.containerService.StopContainer(ctx, container.ID)
+			return s.containerService.DeleteContainer(ctx, container.ID)
 		}
 	}
 
@@ -176,14 +177,14 @@ func (s *Service) GetStatus(ctx context.Context, database *databases.Database) (
 	containerName := s.buildContainerName(database)
 
 	// Find container by name
-	containers, err := s.containerManager.List(ctx)
+	containers, err := s.containerService.ListContainers(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
 
 	for _, container := range containers {
 		if container.Name == containerName {
-			info, err := s.containerManager.Inspect(ctx, container.ID)
+			info, err := s.containerService.InspectContainer(ctx, container.ID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to inspect container: %w", err)
 			}
@@ -215,17 +216,18 @@ func (s *Service) GetLogs(ctx context.Context, database *databases.Database, fol
 	containerName := s.buildContainerName(database)
 
 	// Find container by name
-	containers, err := s.containerManager.List(ctx)
+	containers, err := s.containerService.ListContainers(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
 
 	for _, container := range containers {
 		if container.Name == containerName {
-			logStream, err := s.containerManager.StreamLogs(ctx, container.ID, follow)
+			logStream, err := s.containerService.StreamContainerLogs(ctx, container.ID, follow)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get logs: %w", err)
 			}
+
 			defer logStream.Close()
 
 			// Read all logs (for non-follow mode)
@@ -251,9 +253,4 @@ func (s *Service) buildContainerName(database *databases.Database) string {
 		database.ProjectID(),
 		database.EnvironmentID(),
 		database.Name().String())
-}
-
-// Helper to build port mapping
-func buildPortMapping(port int) string {
-	return strconv.Itoa(port)
 }

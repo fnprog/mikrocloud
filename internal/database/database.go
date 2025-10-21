@@ -15,6 +15,7 @@ import (
 	deploymentsRepo "github.com/mikrocloud/mikrocloud/internal/domain/deployments/repository"
 	disksRepo "github.com/mikrocloud/mikrocloud/internal/domain/disks/repository"
 	environmentsRepo "github.com/mikrocloud/mikrocloud/internal/domain/environments/repository"
+	gitRepo "github.com/mikrocloud/mikrocloud/internal/domain/git/repository"
 	logsRepo "github.com/mikrocloud/mikrocloud/internal/domain/logs/repository"
 	organizationsRepo "github.com/mikrocloud/mikrocloud/internal/domain/organizations/repository"
 	projectsRepo "github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
@@ -54,28 +55,26 @@ type Database struct {
 	SettingsRepository      *settingsRepo.SettingsRepository
 	ActivitiesRepository    *activitiesRepo.ActivitiesRepository
 	ServersRepository       *serversRepo.ServersRepository
+	GitRepository           gitRepo.GitRepository
 }
 
 func New(cfg *config.Config) (*Database, error) {
-	// Initialize main database factory and create database
+	// Initialize  database factories and create databases
 	mainFactory := maindb.NewDatabaseFactory()
+	analyticsFactory := analyticsdb.NewAnalyticsFactory()
+	queueFactory := queuedb.NewQueueFactory()
+
 	mainDB, err := mainFactory.Create(maindb.DatabaseType(cfg.Database.Type), cfg.Database.URL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize main database: %w", err)
 	}
 
-	// Initialize analytics database factory and create database
-	analyticsFactory := analyticsdb.NewAnalyticsFactory()
 	analyticsDB, err := analyticsFactory.Create(analyticsdb.DatabaseType(cfg.Analytics.Type), cfg.Analytics.URL)
 	if err != nil {
 		slog.Warn("Failed to initialize analytics database, continuing without analytics", "error", err)
-		// Return error for now - analytics DB is required
-		// TODO: Make analytics optional once DuckDB extension loading is fixed
 		return nil, fmt.Errorf("failed to initialize analytics database: %w", err)
 	}
 
-	// Initialize queue database factory and create database
-	queueFactory := queuedb.NewQueueFactory()
 	queueDB, err := queueFactory.Create(queuedb.DatabaseType(cfg.Queue.Type), cfg.Queue.URL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize queue database: %w", err)
@@ -87,6 +86,7 @@ func New(cfg *config.Config) (*Database, error) {
 		"queue_db", cfg.Queue.Type)
 
 	// Create analytics metric repository
+	// TODO: Send it inside like for maindb
 	var metricRepo analyticsRepo.MetricRepository
 	var logRepo logsRepo.LogRepository
 	if sqlDB, ok := analyticsDB.DB().(*sql.DB); ok {
@@ -114,6 +114,7 @@ func New(cfg *config.Config) (*Database, error) {
 		DiskRepository:          mainDB.DiskRepository(),
 		DiskBackupRepository:    mainDB.DiskBackupRepository(),
 		OrganizationRepository:  mainDB.OrganizationRepository(),
+		GitRepository:           mainDB.GitRepository(),
 		MetricRepository:        metricRepo,
 		LogRepository:           logRepo,
 		SettingsRepository:      settingsRepo.NewSettingsRepository(mainDB.DB()),

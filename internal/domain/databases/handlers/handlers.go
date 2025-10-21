@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
@@ -14,18 +15,19 @@ import (
 	"github.com/mikrocloud/mikrocloud/internal/domain/databases/service"
 	"github.com/mikrocloud/mikrocloud/internal/utils"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
+	containerService "github.com/mikrocloud/mikrocloud/pkg/containers/service"
 )
 
 type DatabaseHandler struct {
 	dbService        *service.DatabaseService
-	containerManager manager.ContainerManager
+	containerservice *containerService.ContainerService
 	validator        *validator.Validate
 }
 
-func NewDatabaseHandler(dbService *service.DatabaseService, containerManager manager.ContainerManager) *DatabaseHandler {
+func NewDatabaseHandler(dbService *service.DatabaseService, containerService *containerService.ContainerService) *DatabaseHandler {
 	return &DatabaseHandler{
 		dbService:        dbService,
-		containerManager: containerManager,
+		containerservice: containerService,
 		validator:        validator.New(),
 	}
 }
@@ -574,11 +576,8 @@ func (h *DatabaseHandler) GetDefaultDatabaseConfig(w http.ResponseWriter, r *htt
 	// Validate database type
 	supportedTypes := h.dbService.GetSupportedDatabaseTypes()
 	var isSupported bool
-	for _, supportedType := range supportedTypes {
-		if supportedType == dbType {
-			isSupported = true
-			break
-		}
+	if slices.Contains(supportedTypes, dbType) {
+		isSupported = true
 	}
 
 	if !isSupported {
@@ -674,7 +673,7 @@ func (h *DatabaseHandler) GetDatabaseLogs(w http.ResponseWriter, r *http.Request
 	follow := r.URL.Query().Get("follow") == "true"
 
 	// Stream logs from container
-	logStream, err := h.containerManager.StreamLogs(r.Context(), database.ContainerID(), follow)
+	logStream, err := h.containerservice.StreamContainerLogs(r.Context(), database.ContainerID(), follow)
 	if err != nil {
 		utils.SendError(w, http.StatusInternalServerError, "logs_failed", "Failed to get container logs: "+err.Error())
 		return
@@ -763,7 +762,7 @@ func (h *DatabaseHandler) HandleTerminal(w http.ResponseWriter, r *http.Request)
 		if database.Type() == databases.DatabaseTypePostgreSQL {
 			cmd = []string{"/bin/bash"}
 		}
-		err := h.containerManager.ExecInteractive(r.Context(), database.ContainerID(), cmd, stdinReader, stdoutWriter, stderrWriter, resizeChan)
+		err := h.containerservice.ExecInteractive(r.Context(), database.ContainerID(), cmd, stdinReader, stdoutWriter, stderrWriter, resizeChan)
 		errChan <- err
 	}()
 

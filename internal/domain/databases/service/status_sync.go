@@ -8,14 +8,13 @@ import (
 	"time"
 
 	"github.com/mikrocloud/mikrocloud/internal/domain/databases"
-	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
+	services "github.com/mikrocloud/mikrocloud/pkg/containers/service"
 )
 
 // StatusSyncService periodically synchronizes database status with container status
 type StatusSyncService struct {
 	dbService        *DatabaseService
-	containerManager manager.ContainerManager
-	logger           *slog.Logger
+	containerService *services.ContainerService
 	interval         time.Duration
 	stopCh           chan struct{}
 }
@@ -23,8 +22,7 @@ type StatusSyncService struct {
 // NewStatusSyncService creates a new status synchronization service
 func NewStatusSyncService(
 	dbService *DatabaseService,
-	containerManager manager.ContainerManager,
-	logger *slog.Logger,
+	containerService *services.ContainerService,
 	interval time.Duration,
 ) *StatusSyncService {
 	if interval == 0 {
@@ -33,8 +31,7 @@ func NewStatusSyncService(
 
 	return &StatusSyncService{
 		dbService:        dbService,
-		containerManager: containerManager,
-		logger:           logger,
+		containerService: containerService,
 		interval:         interval,
 		stopCh:           make(chan struct{}),
 	}
@@ -42,7 +39,7 @@ func NewStatusSyncService(
 
 // Start begins the periodic status synchronization
 func (s *StatusSyncService) Start(ctx context.Context) {
-	s.logger.Info("Starting database status synchronization service", "interval", s.interval)
+	slog.Info("Starting database status synchronization service", "interval", s.interval)
 
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
@@ -53,10 +50,10 @@ func (s *StatusSyncService) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			s.logger.Info("Database status sync service stopped due to context cancellation")
+			slog.Info("Database status sync service stopped due to context cancellation")
 			return
 		case <-s.stopCh:
-			s.logger.Info("Database status sync service stopped")
+			slog.Info("Database status sync service stopped")
 			return
 		case <-ticker.C:
 			s.syncAllDatabases(ctx)
@@ -74,7 +71,7 @@ func (s *StatusSyncService) syncAllDatabases(ctx context.Context) {
 	// Get all databases that have container IDs
 	databases, err := s.dbService.repo.ListAllWithContainers()
 	if err != nil {
-		s.logger.Error("Failed to list databases with containers for status sync", "error", err)
+		slog.Error("Failed to list databases with containers for status sync", "error", err)
 		return
 	}
 
@@ -82,7 +79,7 @@ func (s *StatusSyncService) syncAllDatabases(ctx context.Context) {
 	var syncedCount, errorCount int
 	for _, db := range databases {
 		if err := s.SyncDatabaseStatus(ctx, db.ID()); err != nil {
-			s.logger.Error("Failed to sync database status",
+			slog.Error("Failed to sync database status",
 				"database_id", db.ID().String(),
 				"container_id", db.ContainerID(),
 				"error", err)
@@ -92,7 +89,7 @@ func (s *StatusSyncService) syncAllDatabases(ctx context.Context) {
 		}
 	}
 
-	s.logger.Debug("Database status sync completed",
+	slog.Debug("Database status sync completed",
 		"total_databases", len(databases),
 		"synced", syncedCount,
 		"errors", errorCount)
@@ -111,10 +108,10 @@ func (s *StatusSyncService) SyncDatabaseStatus(ctx context.Context, databaseID d
 	}
 
 	// Get container info
-	containerInfo, err := s.containerManager.Inspect(ctx, database.ContainerID())
+	containerInfo, err := s.containerService.InspectContainer(ctx, database.ContainerID())
 	if err != nil {
 		// Container not found - mark database as stopped
-		s.logger.Warn("Container not found for database",
+		slog.Warn("Container not found for database",
 			"database_id", database.ID().String(),
 			"container_id", database.ContainerID(),
 			"error", err)
@@ -130,7 +127,7 @@ func (s *StatusSyncService) SyncDatabaseStatus(ctx context.Context, databaseID d
 
 	// Update database status if it differs
 	if database.Status() != expectedStatus {
-		s.logger.Info("Updating database status based on container state",
+		slog.Info("Updating database status based on container state",
 			"database_id", database.ID().String(),
 			"container_id", database.ContainerID(),
 			"container_state", containerInfo.State,
@@ -175,6 +172,6 @@ func mapContainerStateToDBStatus(state, status string) databases.DatabaseStatus 
 func (s *StatusSyncService) SyncDatabasesByProject(ctx context.Context, projectID string) error {
 	// This would require the project ID to be parsed and databases to be listed
 	// For now, we'll implement this when we have a GetAllDatabases method
-	s.logger.Debug("Project-specific database sync not yet implemented", "project_id", projectID)
+	slog.Debug("Project-specific database sync not yet implemented", "project_id", projectID)
 	return nil
 }

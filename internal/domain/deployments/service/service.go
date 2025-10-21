@@ -10,6 +10,7 @@ import (
 	"github.com/mikrocloud/mikrocloud/internal/domain/users"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/build"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
+	services "github.com/mikrocloud/mikrocloud/pkg/containers/service"
 )
 
 type DeploymentRepository interface {
@@ -33,15 +34,13 @@ type ApplicationService interface {
 
 type DeploymentService struct {
 	repo             DeploymentRepository
-	buildService     BuildService
-	containerManager manager.ContainerManager
+	containerService *services.ContainerService
 }
 
-func NewDeploymentService(repo DeploymentRepository, buildService BuildService, containerManager manager.ContainerManager) *DeploymentService {
+func NewDeploymentService(repo DeploymentRepository, containerService *services.ContainerService) *DeploymentService {
 	return &DeploymentService{
 		repo:             repo,
-		buildService:     buildService,
-		containerManager: containerManager,
+		containerService: containerService,
 	}
 }
 
@@ -131,7 +130,7 @@ func (s *DeploymentService) executeBuildAndDeploy(ctx context.Context, deploymen
 	}
 
 	// Execute the build
-	buildResult, err := s.buildService.BuildImage(ctx, *buildRequest)
+	buildResult, err := s.containerService.BuildImage(ctx, *buildRequest)
 	if err != nil {
 		s.AppendBuildLogs(ctx, deploymentID, fmt.Sprintf("Build failed: %v", err))
 		return fmt.Errorf("build failed: %w", err)
@@ -253,21 +252,21 @@ func (s *DeploymentService) createBuildRequest(deployment *deployments.Deploymen
 		}
 	case applications.BuildpackTypeStatic:
 		if staticConfig := buildpackConfig.StaticConfig(); staticConfig != nil {
+			// TODO: Complete here
 			staticBuildConfig := &build.StaticConfig{
-				BuildCommand: staticConfig.BuildCommand,
-				OutputDir:    staticConfig.OutputDir,
-				NginxConfig:  staticConfig.NginxConfig,
+				OutputDir:   staticConfig.OutputDir,
+				NginxConfig: staticConfig.NginxConfig,
 			}
 			buildRequest.StaticConfig = staticBuildConfig
 		}
 	case applications.BuildpackTypeDockerfile:
-		if dockerConfig := buildpackConfig.DockerfileConfig(); dockerConfig != nil {
-			dockerfileConfig := &build.DockerfileConfig{
-				DockerfilePath: dockerConfig.DockerfilePath,
-				BuildArgs:      dockerConfig.BuildArgs,
-				Target:         dockerConfig.Target,
+		if containerConfig := buildpackConfig.DockerfileConfig(); containerConfig != nil {
+			containerfileConfig := &build.ContainerfileConfig{
+				ContainerfilePath: containerConfig.DockerfilePath,
+				BuildArgs:         containerConfig.BuildArgs,
+				Target:            containerConfig.Target,
 			}
-			buildRequest.DockerfileConfig = dockerfileConfig
+			buildRequest.ContainerfileConfig = containerfileConfig
 		}
 	case applications.BuildpackTypeDockerCompose:
 		if composeConfig := buildpackConfig.ComposeConfig(); composeConfig != nil {
@@ -545,7 +544,7 @@ func (s *DeploymentService) deployContainer(ctx context.Context, deploymentID de
 
 	s.AppendDeployLogs(ctx, deploymentID, fmt.Sprintf("Creating container: %s from image: %s", containerName, imageTag))
 
-	containerID, err := s.containerManager.Create(ctx, containerConfig)
+	containerID, err := s.containerService.CreateContainer(ctx, containerConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create container: %w", err)
 	}
@@ -558,11 +557,11 @@ func (s *DeploymentService) deployContainer(ctx context.Context, deploymentID de
 
 	s.AppendDeployLogs(ctx, deploymentID, "Starting container...")
 
-	if err := s.containerManager.Start(ctx, containerID); err != nil {
+	if err := s.containerService.StartContainer(ctx, containerID); err != nil {
 		return fmt.Errorf("failed to start container: %w", err)
 	}
 
-	containerInfo, err := s.containerManager.Inspect(ctx, containerID)
+	containerInfo, err := s.containerService.InspectContainer(ctx, containerID)
 	if err != nil {
 		s.AppendDeployLogs(ctx, deploymentID, "Warning: Failed to inspect container, but it may be running")
 	} else {
@@ -580,9 +579,9 @@ func (s *DeploymentService) DeleteDeployment(ctx context.Context, id deployments
 	}
 
 	if deployment.ContainerID() != "" {
-		if err := s.containerManager.Stop(ctx, deployment.ContainerID()); err != nil {
+		if err := s.containerService.StopContainer(ctx, deployment.ContainerID()); err != nil {
 		}
-		if err := s.containerManager.Delete(ctx, deployment.ContainerID()); err != nil {
+		if err := s.containerService.DeleteContainer(ctx, deployment.ContainerID()); err != nil {
 		}
 	}
 
@@ -613,11 +612,11 @@ func (s *DeploymentService) RecreateContainer(ctx context.Context, applicationID
 	}
 
 	oldContainerID := latestDeployment.ContainerID()
-	if err := s.containerManager.Stop(ctx, oldContainerID); err != nil {
+	if err := s.containerService.StopContainer(ctx, oldContainerID); err != nil {
 		return fmt.Errorf("failed to stop old container: %w", err)
 	}
 
-	if err := s.containerManager.Delete(ctx, oldContainerID); err != nil {
+	if err := s.containerService.DeleteContainer(ctx, oldContainerID); err != nil {
 		return fmt.Errorf("failed to delete old container: %w", err)
 	}
 

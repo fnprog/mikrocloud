@@ -25,7 +25,7 @@ func (s *ActivitiesService) LogActivity(
 	resourceType *string,
 	resourceID *uuid.UUID,
 	resourceName *string,
-	metadata map[string]interface{},
+	metadata map[string]any,
 	organizationID uuid.UUID,
 ) error {
 	metadataJSON := "{}"

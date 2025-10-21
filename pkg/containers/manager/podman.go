@@ -501,7 +501,6 @@ func (p *PodmanManager) Exec(ctx context.Context, containerID string, cmd []stri
 	}
 
 	sessionID, err := containers.ExecCreate(p.connCtx, containerID, createConfig)
-
 	if err != nil {
 		return fmt.Errorf("failed to create exec session: %w", err)
 	}
@@ -564,7 +563,7 @@ func (p *PodmanManager) ExecInteractive(ctx context.Context, containerID string,
 	return <-errChan
 }
 
-// Helper method to close the connection
+// Close Helper method to close the connection
 func (p *PodmanManager) Close() error {
 	// The bindings don't provide an explicit close method
 	// The connection will be closed when the context is cancelled

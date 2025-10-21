@@ -14,6 +14,7 @@ import (
 	deploymentsRepo "github.com/mikrocloud/mikrocloud/internal/domain/deployments/repository"
 	disksRepo "github.com/mikrocloud/mikrocloud/internal/domain/disks/repository"
 	environmentsRepo "github.com/mikrocloud/mikrocloud/internal/domain/environments/repository"
+	gitRepo "github.com/mikrocloud/mikrocloud/internal/domain/git/repository"
 	organizationsRepo "github.com/mikrocloud/mikrocloud/internal/domain/organizations/repository"
 	projectsRepo "github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
 	proxyRepo "github.com/mikrocloud/mikrocloud/internal/domain/proxy/repository"
@@ -38,6 +39,7 @@ type PostgreSQLDatabase struct {
 	diskRepository          disksRepo.DiskRepository
 	diskBackupRepository    disksRepo.DiskBackupRepository
 	organizationRepository  organizationsRepo.Repository
+	gitRepository           gitRepo.GitRepository
 }
 
 // NewPostgreSQLDatabase creates a new PostgreSQL database instance
@@ -75,6 +77,7 @@ func NewPostgreSQLDatabase(connectionString string) (MainDatabase, error) {
 	diskRepo := disksRepo.NewSQLiteDiskRepository(db)
 	diskBackupRepo := disksRepo.NewSQLiteDiskBackupRepository(db)
 	organizationRepo := organizationsRepo.NewSQLiteOrganizationRepository(db)
+	gitRepo := gitRepo.NewSQLiteGitRepository(db)
 
 	return &PostgreSQLDatabase{
 		db:                      db,
@@ -92,6 +95,7 @@ func NewPostgreSQLDatabase(connectionString string) (MainDatabase, error) {
 		diskRepository:          diskRepo,
 		diskBackupRepository:    diskBackupRepo,
 		organizationRepository:  organizationRepo,
+		gitRepository:           gitRepo,
 	}, nil
 }
 
@@ -167,6 +171,10 @@ func (d *PostgreSQLDatabase) DiskBackupRepository() disksRepo.DiskBackupReposito
 
 func (d *PostgreSQLDatabase) OrganizationRepository() organizationsRepo.Repository {
 	return d.organizationRepository
+}
+
+func (d *PostgreSQLDatabase) GitRepository() gitRepo.GitRepository {
+	return d.gitRepository
 }
 
 // maskPassword masks the password in connection string for logging

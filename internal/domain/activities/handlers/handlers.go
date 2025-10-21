@@ -27,6 +27,7 @@ func (h *ActivitiesHandlers) GetRecentActivities(w http.ResponseWriter, r *http.
 	}
 
 	orgIDStr, ok := claims["org_id"].(string)
+
 	if !ok || orgIDStr == "" {
 		userIDStr, _ := claims["user_id"].(string)
 		orgIDStr = userIDStr
@@ -39,6 +40,7 @@ func (h *ActivitiesHandlers) GetRecentActivities(w http.ResponseWriter, r *http.
 	}
 
 	limit := 50
+
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
 			limit = l
@@ -46,6 +48,7 @@ func (h *ActivitiesHandlers) GetRecentActivities(w http.ResponseWriter, r *http.
 	}
 
 	offset := 0
+
 	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
 		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
 			offset = o
@@ -58,7 +61,7 @@ func (h *ActivitiesHandlers) GetRecentActivities(w http.ResponseWriter, r *http.
 		return
 	}
 
-	response := map[string]interface{}{
+	response := map[string]any{
 		"activities": activities,
 		"total":      len(activities),
 	}
@@ -89,7 +92,7 @@ func (h *ActivitiesHandlers) GetResourceActivities(w http.ResponseWriter, r *htt
 		return
 	}
 
-	response := map[string]interface{}{
+	response := map[string]any{
 		"activities": activities,
 		"total":      len(activities),
 	}
