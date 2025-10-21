@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/jwtauth/v5"
 	"github.com/mikrocloud/mikrocloud/internal/api/deps"
+	"github.com/mikrocloud/mikrocloud/internal/api/middleware"
 )
 
 func RegisterOrganizationsRoutes(r chi.Router, deps *deps.Dependencies) {
@@ -11,7 +11,7 @@ func RegisterOrganizationsRoutes(r chi.Router, deps *deps.Dependencies) {
 
 	// Organizations routes (protected)
 	r.Route("/organizations", func(r chi.Router) {
-		r.Use(jwtauth.Authenticator(deps.JwtKeys))
+		r.Use(middleware.AuthenticateAndExtract())
 
 		r.Get("/", handler.ListOrganizations)
 		r.Post("/", handler.CreateOrganization)

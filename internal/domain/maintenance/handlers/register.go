@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/jwtauth/v5"
 	"github.com/mikrocloud/mikrocloud/internal/api/deps"
+	"github.com/mikrocloud/mikrocloud/internal/api/middleware"
 )
 
 func RegisterMaintenanceRoutes(r chi.Router, deps *deps.Dependencies) {
@@ -11,7 +11,7 @@ func RegisterMaintenanceRoutes(r chi.Router, deps *deps.Dependencies) {
 
 	// Maintenance routes (protected)
 	r.Route("/maintenance", func(r chi.Router) {
-		r.Use(jwtauth.Authenticator(deps.JwtKeys))
+		r.Use(middleware.AuthenticateAndExtract())
 
 		r.Get("/health", maintenanceHandler.HealthCheck)
 		r.Get("/status", maintenanceHandler.SystemStatus)

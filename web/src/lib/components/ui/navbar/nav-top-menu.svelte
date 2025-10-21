@@ -52,11 +52,13 @@
 
 <DropdownMenu>
 	<DropdownMenuTrigger>
-		<Button variant="ghost" size="icon" class="rounded-full h-8 w-8">
-			<Avatar class="h-8 w-8">
-				<AvatarFallback class="bg-orange-500 text-white text-xs">{initials}</AvatarFallback>
-			</Avatar>
-		</Button>
+		{#snippet child({ props })}
+			<Button {...props} variant="ghost" size="icon" class="rounded-full h-8 w-8">
+				<Avatar class="h-8 w-8">
+					<AvatarFallback class="bg-orange-500 text-white text-xs">{initials}</AvatarFallback>
+				</Avatar>
+			</Button>
+		{/snippet}
 	</DropdownMenuTrigger>
 
 	<DropdownMenuContent align="end" class="w-[280px] p-2">

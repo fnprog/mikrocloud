@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/jwtauth/v5"
 	"github.com/mikrocloud/mikrocloud/internal/api/deps"
+	"github.com/mikrocloud/mikrocloud/internal/api/middleware"
 	oauthHandler "github.com/mikrocloud/mikrocloud/internal/domain/oauth/handlers"
 )
 
@@ -21,7 +21,7 @@ func RegisterAuthRoutes(r chi.Router, deps *deps.Dependencies) {
 
 		// Protected auth routes
 		r.Group(func(r chi.Router) {
-			r.Use(jwtauth.Authenticator(deps.JwtKeys))
+			r.Use(middleware.AuthenticateAndExtract())
 			r.Post("/logout", handler.Logout)
 			r.Get("/profile", handler.GetProfile)
 			r.Put("/profile", handler.UpdateProfile)

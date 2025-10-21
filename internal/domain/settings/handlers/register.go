@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/jwtauth/v5"
 	"github.com/mikrocloud/mikrocloud/internal/api/deps"
+	"github.com/mikrocloud/mikrocloud/internal/api/middleware"
 )
 
 func RegisterSettingsRoutes(r chi.Router, deps *deps.Dependencies) {
@@ -13,7 +13,7 @@ func RegisterSettingsRoutes(r chi.Router, deps *deps.Dependencies) {
 		r.Get("/general", handler.GetGeneralSettings)
 
 		r.Route("/", func(r chi.Router) {
-			r.Use(jwtauth.Authenticator(deps.JwtKeys))
+			r.Use(middleware.AuthenticateAndExtract())
 			r.Get("/advanced", handler.GetAdvancedSettings)
 			r.Post("/general", handler.SaveGeneralSettings)
 			r.Post("/advanced", handler.SaveAdvancedSettings)

@@ -11,6 +11,15 @@
 		SheetHeader,
 		SheetTitle
 	} from '$lib/components/ui/sheet';
+	import {
+		Dialog,
+		DialogContent,
+		DialogDescription,
+		DialogFooter,
+		DialogHeader,
+		DialogTitle
+	} from '$lib/components/ui/dialog';
+
 	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
 	import { Plus, Trash2, Github, GitBranch, Server, ExternalLink } from 'lucide-svelte';
 	import { createGitSourcesListQuery } from '$lib/features/git-sources/queries';
@@ -102,7 +111,7 @@
 		}
 
 		try {
-			const response = await fetch(`/api/auth/git/github-app/manifest?${params.toString()}`, {
+			const response = await fetch(`/api/git/github-app/manifest?${params.toString()}`, {
 				credentials: 'include'
 			});
 
@@ -172,7 +181,10 @@
 				return {
 					title: 'GitLab Personal Access Token',
 					steps: [
-						{ text: 'Go to GitLab Settings → Access Tokens', url: 'https://gitlab.com/-/profile/personal_access_tokens' },
+						{
+							text: 'Go to GitLab Settings → Access Tokens',
+							url: 'https://gitlab.com/-/profile/personal_access_tokens'
+						},
 						{ text: 'Click "Add new token"' },
 						{ text: 'Set a descriptive name (e.g., "mikrocloud")' },
 						{ text: 'Select scopes: api, read_repository, write_repository' },
@@ -187,10 +199,15 @@
 				return {
 					title: 'Bitbucket App Password',
 					steps: [
-						{ text: 'Go to Bitbucket Settings → App passwords', url: 'https://bitbucket.org/account/settings/app-passwords/' },
+						{
+							text: 'Go to Bitbucket Settings → App passwords',
+							url: 'https://bitbucket.org/account/settings/app-passwords/'
+						},
 						{ text: 'Click "Create app password"' },
 						{ text: 'Set a label (e.g., "mikrocloud")' },
-						{ text: 'Select permissions: Repositories (Read, Write, Admin), Webhooks (Read and write)' },
+						{
+							text: 'Select permissions: Repositories (Read, Write, Admin), Webhooks (Read and write)'
+						},
 						{ text: 'Click "Create"' },
 						{ text: 'Copy the app password and paste it below' }
 					],
@@ -201,7 +218,7 @@
 				return {
 					title: 'Self-Hosted Git Server',
 					steps: [
-						{ text: 'Navigate to your Git server\'s settings' },
+						{ text: "Navigate to your Git server's settings" },
 						{ text: 'Create a new API token or OAuth application' },
 						{ text: 'Grant permissions: read repository, write webhooks' },
 						{ text: 'Copy the access token' },
@@ -235,272 +252,6 @@
 			</Button>
 		</div>
 	</div>
-
-	<Sheet bind:open={isCreateSheetOpen}>
-		<SheetContent class="overflow-y-auto sm:max-w-xl">
-			<SheetHeader>
-				<SheetTitle>Connect Git Provider</SheetTitle>
-				<SheetDescription>
-					Connect your Git provider to deploy applications from repositories
-				</SheetDescription>
-			</SheetHeader>
-			<div class="space-y-6 py-6">
-				<div class="space-y-2">
-					<Label for="name">Source Name</Label>
-					<Input id="name" placeholder="My GitHub Account" bind:value={formData.name} />
-					<p class="text-xs text-muted-foreground">A friendly name to identify this connection</p>
-				</div>
-
-				<div class="space-y-2">
-					<Label for="provider">Provider</Label>
-					<Select type="single" bind:value={formData.provider}>
-						<SelectTrigger id="provider">
-							{formData.provider === 'github'
-								? 'GitHub'
-								: formData.provider === 'gitlab'
-									? 'GitLab'
-									: formData.provider === 'bitbucket'
-										? 'Bitbucket'
-										: 'Custom/Self-hosted'}
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="github">GitHub</SelectItem>
-							<SelectItem value="gitlab">GitLab</SelectItem>
-							<SelectItem value="bitbucket">Bitbucket</SelectItem>
-							<SelectItem value="custom">Custom/Self-hosted</SelectItem>
-						</SelectContent>
-					</Select>
-				</div>
-
-				{#if formData.provider === 'github'}
-					<div class="space-y-2">
-						<Label for="github_type">GitHub Type</Label>
-						<Select type="single" bind:value={formData.github_type}>
-							<SelectTrigger id="github_type">
-								{formData.github_type === 'cloud' ? 'GitHub Cloud' : 'GitHub Enterprise Server'}
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="cloud">GitHub Cloud (github.com)</SelectItem>
-								<SelectItem value="enterprise">GitHub Enterprise Server</SelectItem>
-							</SelectContent>
-						</Select>
-					</div>
-
-					{#if formData.github_type === 'enterprise'}
-						<div class="space-y-2">
-							<Label for="enterprise_url">Enterprise Server URL</Label>
-							<Input
-								id="enterprise_url"
-								placeholder="https://github.company.com"
-								bind:value={formData.custom_url}
-							/>
-							<p class="text-xs text-muted-foreground">URL of your GitHub Enterprise Server</p>
-						</div>
-					{/if}
-				{:else if formData.provider === 'custom'}
-					<div class="space-y-2">
-						<Label for="custom_url">Git Server URL</Label>
-						<Input
-							id="custom_url"
-							placeholder="https://git.example.com"
-							bind:value={formData.custom_url}
-						/>
-						<p class="text-xs text-muted-foreground">Base URL of your self-hosted Git instance</p>
-					</div>
-				{/if}
-
-				<div class="space-y-2">
-					<Label>Webhook Endpoint</Label>
-					<Select type="single" bind:value={formData.webhook_endpoint_type}>
-						<SelectTrigger>
-							{formData.webhook_endpoint_type === 'ip' ? 'Use IP Address' : 'Use Domain Name'}
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="ip">Use IP Address</SelectItem>
-							<SelectItem value="domain" disabled={!formData.instance_domain}>
-								Use Domain Name {!formData.instance_domain ? '(Configure in Settings)' : ''}
-							</SelectItem>
-						</SelectContent>
-					</Select>
-					<div class="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
-						<p class="font-medium mb-1">Webhook URL:</p>
-						<code class="text-xs">
-							{formData.webhook_endpoint_type === 'domain' && formData.instance_domain
-								? `https://${formData.instance_domain}/webhooks/git`
-								: formData.instance_ip
-									? `http://${formData.instance_ip}:3000/webhooks/git`
-									: 'Not configured'}
-						</code>
-						<p class="mt-2">All Git webhooks will be sent to this endpoint.</p>
-						{#if formData.webhook_endpoint_type === 'domain' && !formData.instance_domain}
-							<p class="text-yellow-600 mt-1">
-								⚠️ Set your instance's FQDN in Settings to use domain name.
-							</p>
-						{/if}
-					</div>
-				</div>
-
-				<div class="space-y-3">
-					<div class="flex items-center space-x-2">
-						<input
-							type="checkbox"
-							id="preview_deployments"
-							bind:checked={formData.allow_preview_deployments}
-							class="h-4 w-4 rounded border-gray-300"
-						/>
-						<Label for="preview_deployments" class="text-sm font-normal">
-							Allow preview deployment permissions
-						</Label>
-					</div>
-					<p class="text-xs text-muted-foreground pl-6">
-						When enabled, deployments from pull requests will have access to environment variables
-						and secrets.
-					</p>
-				</div>
-
-				<div class="border-t pt-4">
-					<h4 class="text-sm font-medium mb-2">Permissions</h4>
-					<p class="text-xs text-muted-foreground mb-3">
-						The following permissions will be requested:
-					</p>
-					<div class="space-y-1 text-xs text-muted-foreground pl-4">
-						<div class="flex items-center gap-2">
-							<div class="w-1 h-1 rounded-full bg-muted-foreground"></div>
-							<span>Repository contents (read)</span>
-						</div>
-						<div class="flex items-center gap-2">
-							<div class="w-1 h-1 rounded-full bg-muted-foreground"></div>
-							<span>Metadata (read)</span>
-						</div>
-						<div class="flex items-center gap-2">
-							<div class="w-1 h-1 rounded-full bg-muted-foreground"></div>
-							<span>Webhooks (read & write)</span>
-						</div>
-						<div class="flex items-center gap-2">
-							<div class="w-1 h-1 rounded-full bg-muted-foreground"></div>
-							<span>Pull requests (read)</span>
-						</div>
-						<div class="flex items-center gap-2">
-							<div class="w-1 h-1 rounded-full bg-muted-foreground"></div>
-							<span>Email addresses (read)</span>
-						</div>
-					</div>
-				</div>
-
-				{#if formData.provider === 'github'}
-					<Button
-						class="w-full"
-						onclick={startGitHubAppRegistration}
-						disabled={!formData.name || createFn.isPending}
-					>
-						<Github class="h-4 w-4 mr-2" />
-						Create GitHub App
-					</Button>
-				{:else if !formData.manual_setup}
-					<div class="space-y-3">
-						<Button class="w-full" onclick={() => (formData.manual_setup = true)}>
-							{#if formData.provider === 'gitlab'}
-								<GitBranch class="h-4 w-4 mr-2" />
-								Setup GitLab
-							{:else if formData.provider === 'bitbucket'}
-								<GitBranch class="h-4 w-4 mr-2" />
-								Setup Bitbucket
-							{:else}
-								<Server class="h-4 w-4 mr-2" />
-								Setup Git Provider
-							{/if}
-						</Button>
-					</div>
-				{/if}
-
-				{#if formData.manual_setup && formData.provider !== 'github'}
-					{@const guide = getSetupGuide(formData.provider)}
-					<div class="space-y-4 border-t pt-4">
-						{#if guide}
-							<div class="bg-blue-50 border border-blue-200 rounded-md p-4">
-								<h4 class="text-sm font-semibold text-blue-900 mb-3">{guide.title}</h4>
-								<ol class="space-y-2 text-sm text-blue-800">
-									{#each guide.steps as step, index}
-										<li class="flex gap-2">
-											<span class="font-medium min-w-[1.5rem]">{index + 1}.</span>
-											<div>
-												{step.text}
-												{#if step.url}
-													<a
-														href={step.url}
-														target="_blank"
-														rel="noopener noreferrer"
-														class="inline-flex items-center gap-1 text-blue-600 hover:underline ml-1"
-													>
-														<ExternalLink class="h-3 w-3" />
-													</a>
-												{/if}
-											</div>
-										</li>
-									{/each}
-								</ol>
-							</div>
-
-							<div class="bg-muted/50 border border-border rounded-md p-3">
-								<p class="text-xs text-muted-foreground">
-									<strong>Webhook Configuration:</strong>
-									{guide.webhookNote}
-								</p>
-							</div>
-						{/if}
-
-						<div class="space-y-2">
-							<Label for="access_token">Access Token</Label>
-							<Input
-								id="access_token"
-								type="password"
-								placeholder={guide?.tokenPlaceholder || 'your-access-token'}
-								bind:value={formData.access_token}
-							/>
-							<p class="text-xs text-muted-foreground">
-								Paste the token you created following the steps above
-							</p>
-						</div>
-
-						{#if formData.provider === 'custom'}
-							<div class="space-y-2">
-								<Label for="refresh_token">Refresh Token (Optional)</Label>
-								<Input
-									id="refresh_token"
-									type="password"
-									placeholder="Optional refresh token"
-									bind:value={formData.refresh_token}
-								/>
-								<p class="text-xs text-muted-foreground">If your provider supports token refresh</p>
-							</div>
-						{/if}
-
-						<div class="flex gap-2">
-							<Button
-								variant="outline"
-								class="flex-1"
-								onclick={() => (formData.manual_setup = false)}
-							>
-								Back
-							</Button>
-							<Button
-								class="flex-1"
-								onclick={createSource}
-								disabled={!formData.name || !formData.access_token || createFn.isPending}
-							>
-								Add Source
-							</Button>
-						</div>
-					</div>
-				{/if}
-			</div>
-			{#if formData.provider === 'github' || !formData.manual_setup}
-				<div class="flex justify-end">
-					<Button variant="outline" onclick={() => (isCreateSheetOpen = false)}>Cancel</Button>
-				</div>
-			{/if}
-		</SheetContent>
-	</Sheet>
 
 	<div class="flex-1 overflow-y-auto p-6">
 		{#if createFn.error || deleteFn.error}
@@ -603,23 +354,286 @@
 	</div>
 </div>
 
-{#if isDeleteModalOpen && selectedSource}
-	<div
-		class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center"
-		onclick={() => (isDeleteModalOpen = false)}
-	>
-		<div
-			class="bg-white rounded-lg shadow-lg p-6 max-w-md w-full mx-4"
-			onclick={(e) => e.stopPropagation()}
-		>
-			<h2 class="text-xl font-semibold mb-2">Delete Git Source</h2>
-			<p class="text-gray-600 mb-6">
-				Are you sure you want to delete "{selectedSource.name}"? This action cannot be undone.
-			</p>
-			<div class="flex justify-end gap-2">
-				<Button variant="outline" onclick={() => (isDeleteModalOpen = false)}>Cancel</Button>
-				<Button variant="destructive" onclick={deleteSource}>Delete</Button>
+<Sheet bind:open={isCreateSheetOpen}>
+	<SheetContent class="overflow-y-auto sm:max-w-xl">
+		<SheetHeader>
+			<SheetTitle>Connect Git Provider</SheetTitle>
+			<SheetDescription>
+				Connect your Git provider to deploy applications from repositories
+			</SheetDescription>
+		</SheetHeader>
+
+		<div class="grid flex-1 auto-rows-min gap-6 px-4">
+			<div class="grid gap-3">
+				<Label for="name">Source Name</Label>
+				<Input id="name" placeholder="My GitHub Account" bind:value={formData.name} />
+				<p class="text-xs text-muted-foreground">A friendly name to identify this connection</p>
 			</div>
+
+			<div class="grid gap-3">
+				<Label for="provider">Provider</Label>
+				<Select type="single" bind:value={formData.provider}>
+					<SelectTrigger id="provider">
+						{formData.provider === 'github'
+							? 'GitHub'
+							: formData.provider === 'gitlab'
+								? 'GitLab'
+								: formData.provider === 'bitbucket'
+									? 'Bitbucket'
+									: 'Custom/Self-hosted'}
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="github">GitHub</SelectItem>
+						<SelectItem value="gitlab">GitLab</SelectItem>
+						<SelectItem value="bitbucket">Bitbucket</SelectItem>
+						<SelectItem value="custom">Custom/Self-hosted</SelectItem>
+					</SelectContent>
+				</Select>
+			</div>
+
+			{#if formData.provider === 'github'}
+				<div class="grid gap-3">
+					<Label for="github_type">GitHub Type</Label>
+					<Select type="single" bind:value={formData.github_type}>
+						<SelectTrigger id="github_type">
+							{formData.github_type === 'cloud' ? 'GitHub Cloud' : 'GitHub Enterprise Server'}
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="cloud">GitHub Cloud (github.com)</SelectItem>
+							<SelectItem value="enterprise">GitHub Enterprise Server</SelectItem>
+						</SelectContent>
+					</Select>
+				</div>
+
+				{#if formData.github_type === 'enterprise'}
+					<div class="grid gap-3">
+						<Label for="enterprise_url">Enterprise Server URL</Label>
+						<Input
+							id="enterprise_url"
+							placeholder="https://github.company.com"
+							bind:value={formData.custom_url}
+						/>
+						<p class="text-xs text-muted-foreground">URL of your GitHub Enterprise Server</p>
+					</div>
+				{/if}
+			{:else if formData.provider === 'custom'}
+				<div class="grid gap-3">
+					<Label for="custom_url">Git Server URL</Label>
+					<Input
+						id="custom_url"
+						placeholder="https://git.example.com"
+						bind:value={formData.custom_url}
+					/>
+					<p class="text-xs text-muted-foreground">Base URL of your self-hosted Git instance</p>
+				</div>
+			{/if}
+
+			<div class="grid gap-3">
+				<Label>Webhook Endpoint</Label>
+				<Select type="single" bind:value={formData.webhook_endpoint_type}>
+					<SelectTrigger>
+						{formData.webhook_endpoint_type === 'ip' ? 'Use IP Address' : 'Use Domain Name'}
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="ip">Use IP Address</SelectItem>
+						<SelectItem value="domain" disabled={!formData.instance_domain}>
+							Use Domain Name {!formData.instance_domain ? '(Configure in Settings)' : ''}
+						</SelectItem>
+					</SelectContent>
+				</Select>
+				<div class="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
+					<p class="font-medium mb-1">Webhook URL:</p>
+					<code class="text-xs">
+						{formData.webhook_endpoint_type === 'domain' && formData.instance_domain
+							? `https://${formData.instance_domain}/webhooks/git`
+							: formData.instance_ip
+								? `http://${formData.instance_ip}:3000/webhooks/git`
+								: 'Not configured'}
+					</code>
+					<p class="mt-2">All Git webhooks will be sent to this endpoint.</p>
+					{#if formData.webhook_endpoint_type === 'domain' && !formData.instance_domain}
+						<p class="text-yellow-600 mt-1">
+							⚠️ Set your instance's FQDN in Settings to use domain name.
+						</p>
+					{/if}
+				</div>
+			</div>
+
+			<div class="space-y-3">
+				<div class="flex items-center space-x-2">
+					<input
+						type="checkbox"
+						id="preview_deployments"
+						bind:checked={formData.allow_preview_deployments}
+						class="h-4 w-4 rounded border-gray-300"
+					/>
+					<Label for="preview_deployments" class="text-sm font-normal">
+						Allow preview deployment permissions
+					</Label>
+				</div>
+				<p class="text-xs text-muted-foreground pl-6">
+					When enabled, deployments from pull requests will have access to environment variables and
+					secrets.
+				</p>
+			</div>
+
+			<div class="border-t pt-4">
+				<h4 class="text-sm font-medium mb-2">Permissions</h4>
+				<p class="text-xs text-muted-foreground mb-3">
+					The following permissions will be requested:
+				</p>
+				<div class="space-y-1 text-xs text-muted-foreground pl-4">
+					<div class="flex items-center gap-2">
+						<div class="w-1 h-1 rounded-full bg-muted-foreground"></div>
+						<span>Repository contents (read)</span>
+					</div>
+					<div class="flex items-center gap-2">
+						<div class="w-1 h-1 rounded-full bg-muted-foreground"></div>
+						<span>Metadata (read)</span>
+					</div>
+					<div class="flex items-center gap-2">
+						<div class="w-1 h-1 rounded-full bg-muted-foreground"></div>
+						<span>Webhooks (read & write)</span>
+					</div>
+					<div class="flex items-center gap-2">
+						<div class="w-1 h-1 rounded-full bg-muted-foreground"></div>
+						<span>Pull requests (read)</span>
+					</div>
+					<div class="flex items-center gap-2">
+						<div class="w-1 h-1 rounded-full bg-muted-foreground"></div>
+						<span>Email addresses (read)</span>
+					</div>
+				</div>
+			</div>
+
+			{#if formData.provider === 'github'}
+				<Button
+					class="w-full"
+					onclick={startGitHubAppRegistration}
+					disabled={!formData.name || createFn.isPending}
+				>
+					<Github class="h-4 w-4 mr-2" />
+					Create GitHub App
+				</Button>
+			{:else if !formData.manual_setup}
+				<div class="space-y-3">
+					<Button class="w-full" onclick={() => (formData.manual_setup = true)}>
+						{#if formData.provider === 'gitlab'}
+							<GitBranch class="h-4 w-4 mr-2" />
+							Setup GitLab
+						{:else if formData.provider === 'bitbucket'}
+							<GitBranch class="h-4 w-4 mr-2" />
+							Setup Bitbucket
+						{:else}
+							<Server class="h-4 w-4 mr-2" />
+							Setup Git Provider
+						{/if}
+					</Button>
+				</div>
+			{/if}
+
+			{#if formData.manual_setup && formData.provider !== 'github'}
+				{@const guide = getSetupGuide(formData.provider)}
+				<div class="space-y-4 border-t pt-4">
+					{#if guide}
+						<div class="bg-blue-50 border border-blue-200 rounded-md p-4">
+							<h4 class="text-sm font-semibold text-blue-900 mb-3">{guide.title}</h4>
+							<ol class="space-y-2 text-sm text-blue-800">
+								{#each guide.steps as step, index}
+									<li class="flex gap-2">
+										<span class="font-medium min-w-6">{index + 1}.</span>
+										<div>
+											{step.text}
+											{#if step.url}
+												<a
+													href={step.url}
+													target="_blank"
+													rel="noopener noreferrer"
+													class="inline-flex items-center gap-1 text-blue-600 hover:underline ml-1"
+												>
+													<ExternalLink class="h-3 w-3" />
+												</a>
+											{/if}
+										</div>
+									</li>
+								{/each}
+							</ol>
+						</div>
+
+						<div class="bg-muted/50 border border-border rounded-md p-3">
+							<p class="text-xs text-muted-foreground">
+								<strong>Webhook Configuration:</strong>
+								{guide.webhookNote}
+							</p>
+						</div>
+					{/if}
+
+					<div class="space-y-2">
+						<Label for="access_token">Access Token</Label>
+						<Input
+							id="access_token"
+							type="password"
+							placeholder={guide?.tokenPlaceholder || 'your-access-token'}
+							bind:value={formData.access_token}
+						/>
+						<p class="text-xs text-muted-foreground">
+							Paste the token you created following the steps above
+						</p>
+					</div>
+
+					{#if formData.provider === 'custom'}
+						<div class="space-y-2">
+							<Label for="refresh_token">Refresh Token (Optional)</Label>
+							<Input
+								id="refresh_token"
+								type="password"
+								placeholder="Optional refresh token"
+								bind:value={formData.refresh_token}
+							/>
+							<p class="text-xs text-muted-foreground">If your provider supports token refresh</p>
+						</div>
+					{/if}
+
+					<div class="flex gap-2">
+						<Button
+							variant="outline"
+							class="flex-1"
+							onclick={() => (formData.manual_setup = false)}
+						>
+							Back
+						</Button>
+						<Button
+							class="flex-1"
+							onclick={createSource}
+							disabled={!formData.name || !formData.access_token || createFn.isPending}
+						>
+							Add Source
+						</Button>
+					</div>
+				</div>
+			{/if}
 		</div>
-	</div>
-{/if}
+		{#if formData.provider === 'github' || !formData.manual_setup}
+			<div class="flex justify-end">
+				<Button variant="outline" onclick={() => (isCreateSheetOpen = false)}>Cancel</Button>
+			</div>
+		{/if}
+	</SheetContent>
+</Sheet>
+
+<Dialog bind:open={isDeleteModalOpen}>
+	<DialogContent>
+		<DialogHeader>
+			<DialogTitle>Delete Git Source</DialogTitle>
+			<DialogDescription>
+				{#if selectedSource}
+					Are you sure you want to delete "{selectedSource.name}"? This action cannot be undone.
+				{/if}
+			</DialogDescription>
+		</DialogHeader>
+		<DialogFooter>
+			<Button variant="outline" onclick={() => (isDeleteModalOpen = false)}>Cancel</Button>
+			<Button variant="destructive" onclick={deleteSource}>Delete</Button>
+		</DialogFooter>
+	</DialogContent>
+</Dialog>
