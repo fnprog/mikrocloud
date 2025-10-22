@@ -1,4 +1,6 @@
 @import '@xyflow/svelte/dist/style.css';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/jetbrains-mono';
 @import "tailwindcss";
 
 @import "tw-animate-css";
@@ -7,53 +9,53 @@
 
 :root {
   --radius: 0rem;
-
   /* Bases */
-  --background: oklch(0.14 0 0);
-  --foreground: oklch(0.98 0 0);
-
-  /* Surfaces */
-  --card: oklch(0.17 0 0);            /* slightly lighter than bg */
-  --card-foreground: oklch(0.92 0 0); /* softer white */
-  --popover: oklch(0.17 0 0);
-  --popover-foreground: oklch(0.92 0 0);
-
-
-  --primary: oklch(0.28 0 0);         /* mid-gray, distinct */
-  --primary-foreground: oklch(0.98 0 0);
-
-  --secondary: oklch(0.23 0 0);
-  --secondary-foreground: oklch(0.74 0 0); /* softer light gray for contrast */
-
-  --muted: oklch(0.20 0 0);
-  --muted-foreground: oklch(0.65 0 0);
-
-  --accent: oklch(0.24 0 0);
-  --accent-foreground: oklch(0.92 0 0);
-
-  --destructive: oklch(0.55 0.22 27.3); /* muted red */
+  --background: oklch(0.99 0 0);        /* almost white, like their #fcfcfc */
+  --foreground: oklch(0.25 0 0);        /* dark gray for text */
+  
+  /* Surfaces - subtle layering like the reference */
+  --card: oklch(1.0 0 0);               /* pure white surface */
+  --card-foreground: oklch(0.25 0 0);
+  --popover: oklch(1.0 0 0);
+  --popover-foreground: oklch(0.25 0 0);
+  
+  /* Interactive elements */
+  --primary: oklch(0.95 0 0);           /* light gray for primary surfaces */
+  --primary-foreground: oklch(0.15 0 0); /* dark text on light bg */
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.30 0 0);
+  
+  /* Muted/subtle states */
+  --muted: oklch(0.96 0 0);             /* like their surface-subtle */
+  --muted-foreground: oklch(0.50 0 0);  /* medium gray text */
+  --accent: oklch(0.94 0 0);            /* slightly darker for hover */
+  --accent-foreground: oklch(0.25 0 0);
+  
+  /* Semantic colors */
+  --destructive: oklch(0.55 0.22 27.3);
   --destructive-foreground: oklch(0.98 0 0);
-
-  --border: oklch(0.26 0 0);
-  --input: oklch(0.26 0 0);
-  --ring: oklch(0.50 0 0);
+  
+  /* Borders - subtle like the reference */
+  --border: oklch(0.90 0 0);            /* light gray borders */
+  --input: oklch(0.90 0 0);
+  --ring: oklch(0.70 0 0);              /* focus ring */
  
-  /* Charts (keep slight hues for distinction) */
+  /* Charts */
   --chart-1: oklch(0.60 0.18 40);
   --chart-2: oklch(0.58 0.10 185);
   --chart-3: oklch(0.40 0.07 230);
   --chart-4: oklch(0.80 0.15 85);
   --chart-5: oklch(0.72 0.16 70);
-
+  
   /* Sidebar */
-  --sidebar: oklch(0.16 0 0);
-  --sidebar-foreground: oklch(0.92 0 0);
-  --sidebar-primary: oklch(0.28 0 0);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.22 0 0);
-  --sidebar-accent-foreground: oklch(0.92 0 0);
-  --sidebar-border: oklch(0.26 0 0);
-  --sidebar-ring: oklch(0.50 0 0);
+  --sidebar: oklch(0.98 0 0);           /* subtle bg difference */
+  --sidebar-foreground: oklch(0.25 0 0);
+  --sidebar-primary: oklch(0.95 0 0);
+  --sidebar-primary-foreground: oklch(0.15 0 0);
+  --sidebar-accent: oklch(0.96 0 0);
+  --sidebar-accent-foreground: oklch(0.25 0 0);
+  --sidebar-border: oklch(0.92 0 0);
+  --sidebar-ring: oklch(0.70 0 0);
 }
 
 .dark {
@@ -105,6 +107,11 @@
   --sidebar-accent-foreground: oklch(0.92 0 0);
   --sidebar-border: oklch(0.26 0 0);
   --sidebar-ring: oklch(0.50 0 0);
+}
+
+@theme {
+ --default-font-family: "Inter Variable", var(--font-sans);
+ --font-mono: "JetBrains Mono Variable", monospace;
 }
 
 @theme inline {

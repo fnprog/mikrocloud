@@ -28,8 +28,6 @@
 		const activeIndex = tabs.findIndex((tab) => tab.name === activeTab);
 		const activeElement = tabsRef[activeIndex];
 
-		console.log('active index', activeIndex);
-
 		if (activeElement && tabsContainerRef) {
 			const containerRect = tabsContainerRef.getBoundingClientRect();
 			const elementRect = activeElement.getBoundingClientRect();
@@ -66,7 +64,7 @@
 			<div class="flex items-center gap-4 flex-1 min-w-0 h-full">
 				<div
 					class={cn(
-						'hidden md:flex items-center gap-4 transition-all duration-300 ease-in-out flex-shrink-0',
+						'hidden md:flex items-center gap-4 transition-all duration-300 ease-in-out shrink-0',
 						getIsScrolled() ? 'w-[35px]' : 'md:w-0 w-5'
 					)}
 				></div>
@@ -92,7 +90,7 @@
 							</a>
 						{/each}
 						<div
-							class="absolute bottom-[-1px] h-[3px] bg-foreground transition-all duration-300 ease-out"
+							class="absolute -bottom-px h-[3px] bg-foreground transition-all duration-300 ease-out"
 							style="left: {indicatorStyle.left}px; width: {indicatorStyle.width}px; transform-origin: {direction ===
 							'right'
 								? 'left'

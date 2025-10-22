@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { LoaderCircle } from 'lucide-svelte';
+	import { goto } from '$app/navigation';
+	import { LoaderCircle, ChevronsUpDown, ChevronRight } from 'lucide-svelte';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb';
 	import OrgSwitcher from './org-switcher.svelte';
 	import ProjectSwitcher from './project-switcher.svelte';
@@ -42,8 +43,11 @@
 		<Breadcrumb.List>
 			<Breadcrumb.Item>
 				{#if currentOrg}
-					<OrgSwitcher currentOrgId={currentOrg.id}>
+					<button type="button" class="cursor-pointer" onclick={() => goto('/dashboard')}>
 						{currentOrg.name}
+					</button>
+					<OrgSwitcher currentOrgId={currentOrg.id}>
+						<ChevronsUpDown class="h-3.5 w-3.5" />
 					</OrgSwitcher>
 				{:else}
 					<span class="flex items-center gap-1.5">
@@ -54,11 +58,20 @@
 			</Breadcrumb.Item>
 
 			{#if projectId}
-				<Breadcrumb.Separator>/</Breadcrumb.Separator>
+				<Breadcrumb.Separator>
+					<ChevronRight class="h-4 w-4" />
+				</Breadcrumb.Separator>
 				<Breadcrumb.Item>
 					{#if projectQuery.data}
-						<ProjectSwitcher currentProjectId={projectId}>
+						<button
+							type="button"
+							class="cursor-pointer"
+							onclick={() => goto(`/dashboard/project/${projectId}`)}
+						>
 							{projectQuery.data.name}
+						</button>
+						<ProjectSwitcher currentProjectId={projectId}>
+							<ChevronsUpDown class="h-3.5 w-3.5" />
 						</ProjectSwitcher>
 					{:else}
 						<span class="flex items-center gap-1.5">
@@ -70,32 +83,38 @@
 			{/if}
 
 			{#if envId && environmentQuery.data}
-				<Breadcrumb.Separator>/</Breadcrumb.Separator>
+				<Breadcrumb.Separator>
+					<ChevronRight class="h-4 w-4" />
+				</Breadcrumb.Separator>
 				<Breadcrumb.Item>
 					<Breadcrumb.Page>{environmentQuery.data.name}</Breadcrumb.Page>
 				</Breadcrumb.Item>
 			{/if}
 
 			{#if resId && resourceType && projectId}
-				<Breadcrumb.Separator>/</Breadcrumb.Separator>
+				<Breadcrumb.Separator>
+					<ChevronRight class="h-4 w-4" />
+				</Breadcrumb.Separator>
 				<Breadcrumb.Item>
 					{#if resourceType === 'database' && databaseQuery.data}
+						{databaseQuery.data.name}
 						<ResourceSwitcher
 							environmentId={envId}
 							{projectId}
 							currentResourceId={resId}
 							currentResourceType="database"
 						>
-							{databaseQuery.data.name}
+							<ChevronsUpDown class="h-3.5 w-3.5" />
 						</ResourceSwitcher>
 					{:else if resourceType === 'application' && applicationQuery.data}
+						{applicationQuery.data.name}
 						<ResourceSwitcher
 							{projectId}
 							environmentId={envId}
 							currentResourceId={resId}
 							currentResourceType="application"
 						>
-							{applicationQuery.data.name}
+							<ChevronsUpDown class="h-3.5 w-3.5" />
 						</ResourceSwitcher>
 					{:else}
 						<span class="flex items-center gap-1.5">
