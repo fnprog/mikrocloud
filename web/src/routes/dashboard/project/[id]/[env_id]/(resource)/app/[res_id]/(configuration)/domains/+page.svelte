@@ -82,13 +82,13 @@
 	function getStatusColor(status) {
 		switch (status) {
 			case 'active':
-				return 'text-green-600 bg-green-50';
+				return 'text-success-foreground bg-success-subtle';
 			case 'pending':
-				return 'text-yellow-600 bg-yellow-50';
+				return 'text-warning-foreground bg-warning-subtle';
 			case 'error':
-				return 'text-red-600 bg-red-50';
+				return 'text-destructive-foreground bg-destructive-subtle';
 			default:
-				return 'text-gray-600 bg-gray-50';
+				return 'text-muted-foreground bg-muted';
 		}
 	}
 
@@ -110,15 +110,15 @@
 	function getSSLColor(ssl) {
 		switch (ssl) {
 			case 'valid':
-				return 'text-green-500';
+				return 'text-success';
 			case 'expiring':
-				return 'text-yellow-500';
+				return 'text-warning';
 			case 'expired':
-				return 'text-red-500';
+				return 'text-destructive';
 			case 'pending':
-				return 'text-blue-500';
+				return 'text-info';
 			default:
-				return 'text-gray-500';
+				return 'text-muted-foreground';
 		}
 	}
 
@@ -214,11 +214,11 @@
 							<div class="flex items-center space-x-6 text-sm text-gray-600">
 								<div class="flex items-center space-x-2">
 									{#if domain.ssl === 'valid'}
-										<CheckCircle class="w-4 h-4 text-green-500" />
+										<CheckCircle class="w-4 h-4 text-success" />
 									{:else if domain.ssl === 'pending'}
-										<Clock class="w-4 h-4 text-blue-500" />
+										<Clock class="w-4 h-4 text-info" />
 									{:else}
-										<AlertCircle class="w-4 h-4 text-red-500" />
+										<AlertCircle class="w-4 h-4 text-destructive" />
 									{/if}
 									<span>SSL: {domain.ssl}</span>
 									{#if domain.sslExpiry}
@@ -315,21 +315,21 @@
 			<CardContent class="space-y-4">
 				<div class="flex items-center space-x-3">
 					{#if selectedDomain.ssl === 'valid'}
-						<CheckCircle class="w-6 h-6 text-green-500" />
+						<CheckCircle class="w-6 h-6 text-success" />
 						<div>
-							<p class="font-medium text-green-600">Certificate Valid</p>
+							<p class="font-medium text-success-foreground">Certificate Valid</p>
 							<p class="text-sm text-gray-600">Expires on {selectedDomain.sslExpiry}</p>
 						</div>
 					{:else if selectedDomain.ssl === 'pending'}
-						<Clock class="w-6 h-6 text-blue-500" />
+						<Clock class="w-6 h-6 text-info" />
 						<div>
-							<p class="font-medium text-blue-600">Certificate Pending</p>
+							<p class="font-medium text-info-foreground">Certificate Pending</p>
 							<p class="text-sm text-gray-600">SSL certificate is being issued</p>
 						</div>
 					{:else}
-						<AlertCircle class="w-6 h-6 text-red-500" />
+						<AlertCircle class="w-6 h-6 text-destructive" />
 						<div>
-							<p class="font-medium text-red-600">Certificate Issue</p>
+							<p class="font-medium text-destructive-foreground">Certificate Issue</p>
 							<p class="text-sm text-gray-600">SSL certificate needs attention</p>
 						</div>
 					{/if}

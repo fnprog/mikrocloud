@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import ProjectCard from '$lib/components/projects/project-card.svelte';
-	import AddProjectModal from '$lib/components/projects/add-project-modal.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import ProjectCard from '$lib/components/projects/project-card.svelte';
+	import AddProjectModal from '$lib/components/projects/add-project-modal.svelte';
 	import { Plus, Search } from 'lucide-svelte';
 	import { createProjectsQuery } from '$lib/features/projects/queries';
+
 	import {
 		createProjectMutationQuery,
 		deleteProjectMutationQuery
@@ -104,7 +105,7 @@
 				<ProjectCard
 					{project}
 					onDelete={handleDeleteProject}
-					onclick={() => goto(`/dashboard/project/${project.id}`)}
+					onclick={() => goto(`/dashboard/project/${project.id}/overview`)}
 				/>
 			{/each}
 		</div>

@@ -114,7 +114,7 @@
 	);
 </script>
 
-<div class="h-[calc(100vh-200px)] w-full rounded-lg border bg-white">
+<div class="h-[calc(100vh-200px)] w-full rounded-lg border p-6">
 	{#if isLoading}
 		<div class="flex h-full items-center justify-center">
 			<div class="flex flex-col items-center gap-2">

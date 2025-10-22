@@ -12,15 +12,15 @@
 	): string {
 		switch (status) {
 			case 'online':
-				return 'bg-green-500';
+				return 'bg-success';
 			case 'offline':
-				return 'bg-red-500';
+				return 'bg-destructive';
 			case 'maintenance':
-				return 'bg-yellow-500';
+				return 'bg-warning';
 			case 'error':
-				return 'bg-orange-500';
+				return 'bg-destructive';
 			default:
-				return 'bg-gray-400';
+				return 'bg-muted';
 		}
 	}
 </script>
@@ -29,7 +29,7 @@
 	<title>Servers - Dashboard</title>
 </svelte:head>
 
-<div class="flex h-screen">
+<div class="container mx-auto space-y-6 p-6">
 	<!-- Main Content -->
 	<div class="flex-1 flex flex-col overflow-hidden">
 		<!-- Header -->

@@ -87,10 +87,10 @@
 				</CardDescription>
 			</CardHeader>
 			<CardContent class="space-y-4">
-				<div class="p-4 border border-yellow-500/50 bg-yellow-500/10 rounded-lg">
+				<div class="p-4 border border-warning bg-warning-subtle rounded-lg">
 					<div class="flex items-start gap-3">
 						<svg
-							class="h-5 w-5 text-yellow-500 mt-0.5 shrink-0"
+							class="h-5 w-5 text-warning mt-0.5 shrink-0"
 							xmlns="http://www.w3.org/2000/svg"
 							fill="none"
 							viewBox="0 0 24 24"
@@ -104,10 +104,10 @@
 							/>
 						</svg>
 						<div class="space-y-1">
-							<p class="text-sm font-medium text-yellow-700 dark:text-yellow-400">
+							<p class="text-sm font-medium text-warning-foreground">
 								Warning: This action cannot be undone
 							</p>
-							<p class="text-sm text-yellow-600 dark:text-yellow-500">
+							<p class="text-sm text-warning-foreground">
 								Transferring ownership will immediately revoke your owner privileges. You will become
 								an admin unless the new owner changes your role.
 							</p>
@@ -128,10 +128,10 @@
 			</CardHeader>
 			<CardContent class="space-y-4">
 				{#if !canDeleteOrg}
-					<div class="p-4 border border-yellow-500/50 bg-yellow-500/10 rounded-lg mb-4">
+					<div class="p-4 border border-warning bg-warning-subtle rounded-lg mb-4">
 						<div class="flex items-start gap-3">
 							<svg
-								class="h-5 w-5 text-yellow-500 mt-0.5 shrink-0"
+								class="h-5 w-5 text-warning mt-0.5 shrink-0"
 								xmlns="http://www.w3.org/2000/svg"
 								fill="none"
 								viewBox="0 0 24 24"
@@ -145,10 +145,10 @@
 								/>
 							</svg>
 							<div>
-								<p class="text-sm font-medium text-yellow-700 dark:text-yellow-400">
+								<p class="text-sm font-medium text-warning-foreground">
 									Cannot delete this organization
 								</p>
-								<p class="text-sm text-yellow-600 dark:text-yellow-500">
+								<p class="text-sm text-warning-foreground">
 									{#if currentOrg.slug === 'default'}
 										The default organization cannot be deleted.
 									{:else}
@@ -247,8 +247,8 @@
 				</Select.Root>
 			</div>
 
-			<div class="p-4 border border-yellow-500/50 bg-yellow-500/10 rounded-lg">
-				<p class="text-sm text-yellow-700 dark:text-yellow-400">
+			<div class="p-4 border border-warning bg-warning-subtle rounded-lg">
+				<p class="text-sm text-warning-foreground">
 					After transferring ownership, you will no longer have owner privileges. The new owner can
 					change your role or remove you from the organization.
 				</p>

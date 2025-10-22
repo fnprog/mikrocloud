@@ -241,29 +241,23 @@
 								</div>
 
 								{#if validationMessage}
-									{@const isSuccess = validationMessage.type === 'success'}
-									<div
-										class="rounded-lg p-4 border"
-										class:bg-green-50={isSuccess}
-										class:border-green-200={isSuccess}
-										class:dark:bg-green-950={isSuccess}
-										class:dark:border-green-900={isSuccess}
-										class:bg-red-50={!isSuccess}
-										class:border-red-200={!isSuccess}
-										class:dark:bg-red-950={!isSuccess}
-										class:dark:border-red-900={!isSuccess}
+								{@const isSuccess = validationMessage.type === 'success'}
+								<div
+									class="rounded-lg p-4 border"
+									class:bg-success-subtle={isSuccess}
+									class:border-success={isSuccess}
+									class:bg-destructive-subtle={!isSuccess}
+									class:border-destructive={!isSuccess}
+								>
+									<p
+										class="text-sm font-medium"
+										class:text-success-foreground={isSuccess}
+										class:text-destructive-foreground={!isSuccess}
 									>
-										<p
-											class="text-sm font-medium"
-											class:text-green-900={isSuccess}
-											class:dark:text-green-100={isSuccess}
-											class:text-red-900={!isSuccess}
-											class:dark:text-red-100={!isSuccess}
-										>
-											{isSuccess ? '✓' : '✗'}
-											{validationMessage.text}
-										</p>
-									</div>
+										{isSuccess ? '✓' : '✗'}
+										{validationMessage.text}
+									</p>
+								</div>
 								{/if}
 							</div>
 

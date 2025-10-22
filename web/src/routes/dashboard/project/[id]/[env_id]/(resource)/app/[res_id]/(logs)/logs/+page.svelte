@@ -92,15 +92,15 @@
 	function getLevelColor(level: string) {
 		switch (level) {
 			case 'error':
-				return 'text-red-400 bg-red-950/50 dark:text-red-400 dark:bg-red-950/50';
+				return 'text-destructive-foreground bg-destructive-subtle';
 			case 'warn':
-				return 'text-yellow-400 bg-yellow-950/50 dark:text-yellow-400 dark:bg-yellow-950/50';
+				return 'text-warning-foreground bg-warning-subtle';
 			case 'info':
-				return 'text-blue-400 bg-blue-950/50 dark:text-blue-400 dark:bg-blue-950/50';
+				return 'text-info-foreground bg-info-subtle';
 			case 'debug':
-				return 'text-gray-400 bg-gray-800/50 dark:text-gray-400 dark:bg-gray-800/50';
+				return 'text-muted-foreground bg-muted';
 			default:
-				return 'text-gray-400 bg-gray-800/50 dark:text-gray-400 dark:bg-gray-800/50';
+				return 'text-muted-foreground bg-muted';
 		}
 	}
 

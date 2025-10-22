@@ -294,25 +294,19 @@
 						{#each tasks as task}
 							<Table.Row>
 								<Table.Cell class="font-medium">{task.timestamp}</Table.Cell>
-								<Table.Cell>
-									<span
-										class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium"
-										class:bg-green-50={task.status === 'success'}
-										class:text-green-700={task.status === 'success'}
-										class:dark:bg-green-950={task.status === 'success'}
-										class:dark:text-green-400={task.status === 'success'}
-										class:bg-red-50={task.status === 'failed'}
-										class:text-red-700={task.status === 'failed'}
-										class:dark:bg-red-950={task.status === 'failed'}
-										class:dark:text-red-400={task.status === 'failed'}
-										class:bg-gray-50={task.status === 'deleted'}
-										class:text-gray-700={task.status === 'deleted'}
-										class:dark:bg-gray-950={task.status === 'deleted'}
-										class:dark:text-gray-400={task.status === 'deleted'}
-									>
-										{task.status}
-									</span>
-								</Table.Cell>
+							<Table.Cell>
+								<span
+									class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium"
+									class:bg-success-subtle={task.status === 'success'}
+									class:text-success-foreground={task.status === 'success'}
+									class:bg-destructive-subtle={task.status === 'failed'}
+									class:text-destructive-foreground={task.status === 'failed'}
+									class:bg-muted={task.status === 'deleted'}
+									class:text-muted-foreground={task.status === 'deleted'}
+								>
+									{task.status}
+								</span>
+							</Table.Cell>
 								<Table.Cell>{task.size}</Table.Cell>
 								<Table.Cell>{task.location}</Table.Cell>
 								<Table.Cell class="text-right">

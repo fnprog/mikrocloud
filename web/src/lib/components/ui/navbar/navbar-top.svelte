@@ -7,7 +7,7 @@
 	import { ChevronRight } from 'lucide-svelte';
 </script>
 
-<header class="fixed top-0 left-0 right-0 z-50 bg-card">
+<header class="fixed top-0 left-0 right-0 z-50 bg-topbar border-b border-topbar-border">
 	<div class="px-6 relative">
 		<Logo
 			class={cn(

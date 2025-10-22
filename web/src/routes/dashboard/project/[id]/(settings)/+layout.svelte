@@ -6,7 +6,7 @@
 	const projectId = $derived(page.params.id);
 
 	const tabs = $derived([
-		{ name: 'Overview', href: `/dashboard/project/${projectId}` },
+		{ name: 'Overview', href: `/dashboard/project/${projectId}/overview` },
 		{ name: 'Architecture', href: `/dashboard/project/${projectId}/schema` },
 		{ name: 'Shared Variables', href: `/dashboard/project/${projectId}/shared-vars` },
 		{ name: 'Settings', href: `/dashboard/project/${projectId}/settings` }

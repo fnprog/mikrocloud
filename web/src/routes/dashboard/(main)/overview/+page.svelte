@@ -1,8 +1,12 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { formatTimeAgo } from '$lib/utils/dates';
+
 	import { Button } from '$lib/components/ui/button';
 	import { Ellipsis, Globe, Plus } from 'lucide-svelte';
-	import Skeleton from '$lib/components/ui/skeleton/skeleton.svelte';
+	import { Skeleton } from '$lib/components/ui/skeleton';
+	import * as Empty from '$lib/components/ui/empty/index.js';
+
 	import { createProjectsQuery } from '$lib/features/projects/queries';
 	import { createActivitiesQuery } from '$lib/features/activities/queries';
 	import { createServersListQuery } from '$lib/features/servers/queries';
@@ -24,36 +28,25 @@
 	}
 
 	function getActivityColor(action: string) {
-		if (action.includes('create')) return 'bg-green-500';
-		if (action.includes('delete')) return 'bg-red-500';
-		if (action.includes('update')) return 'bg-blue-500';
-		if (action.includes('deploy')) return 'bg-purple-500';
-		return 'bg-gray-500';
-	}
-
-	function formatTimeAgo(dateStr: string) {
-		const date = new Date(dateStr);
-		const now = new Date();
-		const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-		if (seconds < 60) return `${seconds}s ago`;
-		if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-		if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-		return `${Math.floor(seconds / 86400)}d ago`;
+		if (action.includes('create')) return 'bg-success';
+		if (action.includes('delete')) return 'bg-destructive';
+		if (action.includes('update')) return 'bg-info';
+		if (action.includes('deploy')) return 'bg-accent';
+		return 'bg-muted';
 	}
 
 	function getServerStatusColor(status: string) {
 		switch (status) {
 			case 'online':
-				return 'bg-green-500';
+				return 'bg-success';
 			case 'offline':
-				return 'bg-red-500';
+				return 'bg-destructive';
 			case 'maintenance':
-				return 'bg-yellow-500';
+				return 'bg-warning';
 			case 'error':
-				return 'bg-red-600';
+				return 'bg-destructive';
 			default:
-				return 'bg-gray-500';
+				return 'bg-muted';
 		}
 	}
 </script>
@@ -73,18 +66,27 @@
 					{/each}
 				</div>
 			{:else if projects.data && projects.data.length === 0}
-				<div class="bg-white/5 border border-white/10 rounded-lg p-8 text-center">
-					<p class="text-gray-400 text-sm mb-4">No projects yet</p>
-					<Button href="/dashboard/projects/new">
-						<Plus class="w-4 h-4 mr-2" />
-						Create Project
-					</Button>
-				</div>
+				<Empty.Root class="border border-border">
+					<Empty.Header>
+						<Empty.Media variant="icon">
+							<Plus />
+						</Empty.Media>
+						<Empty.Title>No Projects Yet</Empty.Title>
+						<Empty.Description>
+							You haven't created any projects yet. Get started by creating your first project.
+						</Empty.Description>
+					</Empty.Header>
+					<Empty.Content>
+						<div>
+							<Button href="/dashboard/projects/new">Create Project</Button>
+						</div>
+					</Empty.Content>
+				</Empty.Root>
 			{:else if projects.data}
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 					{#each projects.data as project (project.id)}
 						<div
-							class="bg-white/5 border border-white/10 rounded-lg p-4 hover:bg-white/10 transition-colors cursor-pointer"
+							class="bg-card border border-border rounded-lg p-4 hover:bg-card-hover transition-colors cursor-pointer"
 							onclick={() => goToProject(project.id)}
 							role="button"
 							tabindex="0"
@@ -95,8 +97,8 @@
 									<Globe class="w-4 h-4 text-gray-400" />
 									<span class="text-sm">{project.name}</span>
 								</div>
-								<div 
-									class="text-gray-400 hover:text-white cursor-pointer" 
+								<div
+									class="text-gray-400 hover:text-white cursor-pointer"
 									onclick={(e) => e.stopPropagation()}
 									role="button"
 									tabindex="0"
@@ -123,7 +125,7 @@
 
 		<div>
 			<h2 class="text-lg font-semibold mb-4">Servers</h2>
-			<div class="bg-white/5 border border-white/10 rounded-lg p-4">
+			<div class="bg-card border border-border rounded-lg p-4">
 				{#if serversQuery.isLoading}
 					<div class="space-y-4">
 						<Skeleton class="h-24 w-full" />
@@ -133,7 +135,7 @@
 					<div class="text-center text-gray-400 text-sm py-4">No servers configured</div>
 				{:else if serversQuery.data}
 					{#each serversQuery.data as server (server.id)}
-						<div class="pb-4 mb-4 last:pb-0 last:mb-0 border-b border-white/10 last:border-0">
+						<div class="pb-4 mb-4 last:pb-0 last:mb-0 border-b border-border last:border-0">
 							<div class="flex items-center justify-between mb-2">
 								<div class="flex items-center space-x-2">
 									<span class="text-sm">🖥️</span>
@@ -148,7 +150,7 @@
 							{#if server.tags && server.tags.length > 0}
 								<div class="flex flex-wrap gap-1">
 									{#each server.tags as tag}
-										<span class="text-xs bg-white/5 border border-white/10 rounded px-2 py-0.5">
+										<span class="text-xs bg-card border border-border rounded px-2 py-0.5">
 											{tag}
 										</span>
 									{/each}
@@ -178,7 +180,11 @@
 					{/each}
 				</div>
 			{:else if activitiesQuery.data && activitiesQuery.data.activities.length === 0}
-				<div class="text-center text-gray-400 text-sm py-8">No recent activity</div>
+				<Empty.Root>
+					<Empty.Header>
+						<Empty.Title>No recent activity</Empty.Title>
+					</Empty.Header>
+				</Empty.Root>
 			{:else if activitiesQuery.data}
 				<div class="space-y-6">
 					{#each activitiesQuery.data.activities as activity, index (activity.id)}
@@ -187,12 +193,12 @@
 								<div
 									class="w-8 h-8 rounded-full {getActivityColor(
 										activity.activity_type
-									)} flex items-center justify-center text-xs flex-shrink-0"
+									)} flex items-center justify-center text-xs shrink-0"
 								>
 									{getActivityIcon(activity.activity_type)}
 								</div>
 								{#if index !== activitiesQuery.data.activities.length - 1}
-									<div class="absolute top-8 left-4 w-px h-8 bg-white/10"></div>
+									<div class="absolute top-8 left-4 w-px h-8 bg-border"></div>
 								{/if}
 							</div>
 							<div class="flex-1 min-w-0">
@@ -202,9 +208,7 @@
 								</div>
 								<div class="text-xs text-gray-400 mb-1">{activity.activity_type}</div>
 								{#if activity.resource_type && activity.resource_id}
-									<div
-										class="text-xs bg-white/5 border border-white/10 rounded px-2 py-1 inline-block"
-									>
+									<div class="text-xs bg-card border border-border rounded px-2 py-1 inline-block">
 										{activity.resource_type}: {activity.resource_id.substring(0, 8)}
 									</div>
 								{/if}

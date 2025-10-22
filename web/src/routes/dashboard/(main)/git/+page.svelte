@@ -155,15 +155,15 @@
 	function getProviderBadgeColor(provider: GitProvider) {
 		switch (provider) {
 			case 'github':
-				return 'bg-gray-900 text-white';
+				return 'bg-secondary text-secondary-foreground';
 			case 'gitlab':
-				return 'bg-orange-600 text-white';
+				return 'bg-info text-info-foreground';
 			case 'bitbucket':
-				return 'bg-blue-600 text-white';
+				return 'bg-info text-info-foreground';
 			case 'custom':
-				return 'bg-purple-600 text-white';
+				return 'bg-accent text-accent-foreground';
 			default:
-				return 'bg-gray-500 text-white';
+				return 'bg-muted text-muted-foreground';
 		}
 	}
 

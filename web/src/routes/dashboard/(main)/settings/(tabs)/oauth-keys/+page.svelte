@@ -255,10 +255,10 @@
 	</Card.Root>
 
 	<div
-		class="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg p-4"
+		class="bg-info-subtle border border-info rounded-lg p-4"
 	>
-		<p class="text-sm font-medium text-blue-900 dark:text-blue-100">ℹ️ Note</p>
-		<p class="text-xs text-blue-800 dark:text-blue-200 mt-1">
+		<p class="text-sm font-medium text-info-foreground">ℹ️ Note</p>
+		<p class="text-xs text-info-foreground mt-1">
 			After configuring OAuth providers, the corresponding login buttons will be enabled on the
 			login and signup pages. Make sure to save your changes and restart the application if needed.
 		</p>

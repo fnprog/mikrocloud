@@ -60,8 +60,8 @@
 	</div>
 
 	{#if connectionError}
-		<div class="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
-			<p class="text-sm text-red-600">Connection error: {connectionError}</p>
+		<div class="mb-4 p-4 bg-destructive-subtle border border-destructive rounded-md">
+			<p class="text-sm text-destructive-foreground">Connection error: {connectionError}</p>
 		</div>
 	{/if}
 
@@ -72,7 +72,7 @@
 					<TerminalIcon class="w-5 h-5 text-gray-600" />
 					<CardTitle class="text-lg">Application Terminal</CardTitle>
 					<div class="flex items-center space-x-1">
-						<div class="w-2 h-2 rounded-full {isConnected ? 'bg-green-500' : 'bg-red-500'}"></div>
+						<div class="w-2 h-2 rounded-full {isConnected ? 'bg-success' : 'bg-destructive'}"></div>
 						<span class="text-sm text-gray-600">{isConnected ? 'Connected' : 'Connecting...'}</span>
 					</div>
 				</div>

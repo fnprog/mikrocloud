@@ -27,28 +27,26 @@
 </script>
 
 <div class="flex items-center gap-2">
-	<div class="flex items-center gap-1 overflow-x-auto">
+	<div class="flex items-center justify-stretch gap-1 overflow-x-auto">
 		{#each environments as env (env.id)}
 			<Button
-				variant="secondary"
-				class=" bg-secondary-new px-4 py-2 text-sm font-medium transition-colors hover:text-foreground {selectedEnvironmentId ===
-				env.id
-					? 'border-b-2 border-secondary-foreground text-foreground'
+				variant={selectedEnvironmentId === env.id ? 'secondary' : 'ghost'}
+				class="transition-colors hover:text-foreground {selectedEnvironmentId === env.id
+					? 'font-semibold'
 					: 'text-muted-foreground'}"
 				onclick={() => handleTabClick(env.id)}
 			>
 				{env.name}
 				{#if counts[env.id] !== undefined}
-					<Badge variant="secondary" class="ml-2 bg-secondary-foreground text-muted-foreground"
+					<Badge class="ml-2" variant={selectedEnvironmentId === env.id ? 'default' : 'secondary'}
 						>{counts[env.id]}</Badge
 					>
 				{/if}
 			</Button>
 		{/each}
+		<Button size="sm" variant="outline" onclick={onAdd} class="border-dashed">
+			<Plus class="mr-1 h-4 w-4" />
+			Add
+		</Button>
 	</div>
-
-	<Button size="sm" variant="ghost" onclick={onAdd} class="ml-auto">
-		<Plus class="h-4 w-4" />
-		Add
-	</Button>
 </div>

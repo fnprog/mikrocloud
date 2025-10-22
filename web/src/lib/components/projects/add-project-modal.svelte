@@ -1,16 +1,16 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
-	import { Label } from '$lib/components/ui/label';
+	import * as Field from '$lib/components/ui/field/index.js';
 	import {
-		Sheet,
-		SheetContent,
-		SheetDescription,
-		SheetFooter,
-		SheetHeader,
-		SheetTitle
-	} from '$lib/components/ui/sheet';
-	import type { CreateProjectRequest } from '$lib/api';
+		Dialog,
+		DialogContent,
+		DialogDescription,
+		DialogFooter,
+		DialogHeader,
+		DialogTitle
+	} from '$lib/components/ui/dialog';
+	import type { CreateProjectRequest } from '$lib/features/projects/types';
 
 	interface Props {
 		open?: boolean;
@@ -59,47 +59,51 @@
 	};
 </script>
 
-<Sheet bind:open onOpenChange={handleOpenChange}>
-	<SheetContent side="right">
-		<SheetHeader>
-			<SheetTitle>Create New Project</SheetTitle>
-			<SheetDescription>Add a new project to your workspace.</SheetDescription>
-		</SheetHeader>
+<Dialog bind:open onOpenChange={handleOpenChange}>
+	<DialogContent>
+		<DialogHeader>
+			<DialogTitle>Create New Project</DialogTitle>
+			<DialogDescription>Add a new project to your workspace.</DialogDescription>
+		</DialogHeader>
+		<form onsubmit={handleSubmit} class="py-4" id="project_form">
+			<Field.Set>
+				<Field.Group>
+					<Field.Field>
+						<Field.Label for="name">Project name</Field.Label>
+						<Input
+							id="name"
+							type="text"
+							bind:value={name}
+							placeholder="my-awesome-project"
+							disabled={loading}
+							required
+						/>
+					</Field.Field>
 
-		<form onsubmit={handleSubmit} class="mt-6 space-y-4">
-			<div class="space-y-2">
-				<Label for="name">Project Name</Label>
-				<Input
-					id="name"
-					bind:value={name}
-					placeholder="my-awesome-project"
-					disabled={loading}
-					required
-				/>
-			</div>
+					<Field.Field>
+						<Field.Label for="description">Description (optional)</Field.Label>
+						<Input
+							id="description"
+							type="text"
+							bind:value={description}
+							placeholder="A brief description of your project"
+							disabled={loading}
+						/>
+					</Field.Field>
 
-			<div class="space-y-2">
-				<Label for="description">Description (optional)</Label>
-				<Input
-					id="description"
-					bind:value={description}
-					placeholder="A brief description of your project"
-					disabled={loading}
-				/>
-			</div>
-
-			{#if error}
-				<p class="text-destructive text-sm">{error}</p>
-			{/if}
-
-			<SheetFooter>
-				<Button type="button" variant="outline" onclick={() => (open = false)} disabled={loading}>
-					Cancel
-				</Button>
-				<Button type="submit" disabled={loading}>
-					{loading ? 'Creating...' : 'Create Project'}
-				</Button>
-			</SheetFooter>
+					{#if error}
+						<Field.Error>{error}</Field.Error>
+					{/if}
+				</Field.Group>
+			</Field.Set>
 		</form>
-	</SheetContent>
-</Sheet>
+		<DialogFooter>
+			<!-- <Button type="button" variant="outline" onclick={() => (open = false)} disabled={loading}> -->
+			<!-- 	Cancel -->
+			<!-- </Button> -->
+			<Button form="project_form" type="submit" disabled={loading}>
+				{loading ? 'Creating...' : 'Create Project'}
+			</Button>
+		</DialogFooter>
+	</DialogContent>
+</Dialog>
