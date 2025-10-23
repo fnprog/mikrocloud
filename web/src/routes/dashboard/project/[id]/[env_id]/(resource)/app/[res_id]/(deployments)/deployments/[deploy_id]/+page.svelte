@@ -6,6 +6,8 @@
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
 	import { deploymentsApi, type DeploymentStatus } from '$lib/features/deployments/api';
+	import type { StructuredLog } from '$lib/features/deployments/types';
+	import LogViewer from '$lib/features/deployments/components/LogViewer.svelte';
 	import { toast } from 'svelte-sonner';
 	import { onDestroy } from 'svelte';
 	import {
@@ -21,6 +23,7 @@
 		PlayCircle,
 		StopCircle
 	} from 'lucide-svelte';
+	import { formatTimeAgo } from '$lib/utils/dates';
 
 	const projectId = $derived(page.params.id);
 	const envId = $derived(page.params.env_id);
@@ -29,10 +32,9 @@
 
 	const queryClient = useQueryClient();
 
-	let streamedLogs = $state<string[]>([]);
+	let streamedLogs = $state<StructuredLog[]>([]);
 	let isStreaming = $state(false);
 	let closeStream: (() => void) | null = null;
-	let logsContainer: HTMLDivElement | null = null;
 
 	const deploymentQuery = createQuery(() => ({
 		queryKey: ['deployment', projectId, resId, deployId],
@@ -48,6 +50,17 @@
 	}));
 
 	const deployment = $derived(deploymentQuery.data);
+
+	const logsQuery = createQuery(() => ({
+		queryKey: ['deployment-logs', projectId, resId, deployId],
+		queryFn: () => deploymentsApi.getLogs(projectId, resId, deployId, 'build'),
+		enabled:
+			!!deployment &&
+			!['pending', 'building', 'deploying'].includes(deployment.status) &&
+			!isStreaming
+	}));
+
+	const completedLogs = $derived(logsQuery.data);
 
 	$effect(() => {
 		if (
@@ -75,9 +88,8 @@
 			projectId,
 			resId,
 			deployId,
-			(log: string) => {
+			(log: StructuredLog) => {
 				streamedLogs = [...streamedLogs, log];
-				setTimeout(() => scrollToBottom(), 10);
 			},
 			(status: DeploymentStatus) => {
 				isStreaming = false;
@@ -96,12 +108,6 @@
 			closeStream = null;
 		}
 		isStreaming = false;
-	}
-
-	function scrollToBottom() {
-		if (logsContainer) {
-			logsContainer.scrollTop = logsContainer.scrollHeight;
-		}
 	}
 
 	onDestroy(() => {
@@ -166,22 +172,45 @@
 		}
 	}
 
-	function getStatusBadgeVariant(
-		status: DeploymentStatus
-	): 'default' | 'secondary' | 'destructive' | 'outline' {
+	function getStatusDotColor(status: DeploymentStatus): string {
 		switch (status) {
-			case 'success':
-				return 'default';
+			case 'running':
+				return 'bg-green-500';
 			case 'failed':
-				return 'destructive';
-			case 'cancelled':
-				return 'secondary';
+				return 'bg-red-500';
 			case 'building':
 			case 'deploying':
 			case 'pending':
-				return 'outline';
+			case 'queued':
+				return 'bg-orange-500';
+			case 'cancelled':
+			case 'stopped':
+				return 'bg-gray-500';
 			default:
-				return 'secondary';
+				return 'bg-gray-500';
+		}
+	}
+
+	function getStatusText(status: DeploymentStatus): string {
+		switch (status) {
+			case 'running':
+				return 'Ready';
+			case 'building':
+				return 'Building';
+			case 'deploying':
+				return 'Deploying';
+			case 'pending':
+				return 'Pending';
+			case 'queued':
+				return 'Queued';
+			case 'failed':
+				return 'Failed';
+			case 'cancelled':
+				return 'Cancelled';
+			case 'stopped':
+				return 'Stopped';
+			default:
+				return status;
 		}
 	}
 
@@ -202,6 +231,28 @@
 			minute: '2-digit',
 			second: '2-digit'
 		});
+	}
+
+	function formatCompactDuration(seconds?: number): string {
+		if (!seconds) return '';
+		if (seconds < 60) return `${seconds}s`;
+		const mins = Math.floor(seconds / 60);
+		return `${mins}m`;
+	}
+
+	function formatCompactTime(timestamp: string): string {
+		const date = new Date(timestamp);
+		const now = new Date();
+		const diff = now.getTime() - date.getTime();
+		const seconds = Math.floor(diff / 1000);
+		const minutes = Math.floor(seconds / 60);
+		const hours = Math.floor(minutes / 60);
+		const days = Math.floor(hours / 24);
+
+		if (days > 0) return `${days}d ago`;
+		if (hours > 0) return `${hours}h ago`;
+		if (minutes > 0) return `${minutes}m ago`;
+		return `${seconds}s ago`;
 	}
 
 	function goBack() {
@@ -276,49 +327,64 @@
 			</CardContent>
 		</Card>
 	{:else if deployment}
-		{@const StatusIcon = getStatusIcon(deployment.status)}
 		<div class="grid gap-6">
-			<Card>
-				<CardHeader>
-					<CardTitle>Status</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div class="flex items-center space-x-3">
-						<StatusIcon class="w-6 h-6 {getStatusColor(deployment.status)}" />
-						<Badge variant={getStatusBadgeVariant(deployment.status)} class="text-sm">
-							{deployment.status}
-						</Badge>
-						{#if ['building', 'deploying', 'pending'].includes(deployment.status)}
-							<span class="text-sm text-muted-foreground">In progress...</span>
-						{/if}
+			<div class="bg-card/80 rounded-xl">
+				<div class="flex px-6 py-6 justify-between text-muted-foreground">
+					<div>
+						<p>Created</p>
+						<div class="flex gap-2">
+							{deployment.triggered_by_username}
+							{formatTimeAgo(deployment.created_at)}
+						</div>
 					</div>
-				</CardContent>
-			</Card>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>Commit Information</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div class="space-y-4">
-						{#if deployment.commit_message}
-							<div>
-								<h4 class="text-sm font-medium text-muted-foreground mb-1">Message</h4>
-								<p class="text-base">{deployment.commit_message}</p>
+					<div>
+						<p>Status</p>
+						<div class="flex items-center gap-2">
+							<span class="w-2 h-2 rounded-full {getStatusDotColor(deployment.status)}"></span>
+							<span class="text-sm font-medium">
+								{getStatusText(deployment.status)}
+							</span>
+						</div>
+					</div>
+
+					<div>
+						<p>Time to Ready</p>
+						<div class="flex">
+							<div class="flex items-center gap-2 text-xs text-muted-foreground">
+								{#if deployment.build_duration_seconds !== undefined || deployment.deploy_duration_seconds !== undefined}
+									<span
+										>{formatCompactDuration(
+											(deployment.build_duration_seconds || 0) +
+												(deployment.deploy_duration_seconds || 0)
+										)}</span
+									>
+								{/if}
+								<span>({formatCompactTime(deployment.created_at)})</span>
 							</div>
-						{/if}
+						</div>
+					</div>
+				</div>
 
-						<div class="grid grid-cols-2 gap-4">
-							{#if deployment.commit_hash}
-								<div>
-									<h4 class="text-sm font-medium text-muted-foreground mb-1 flex items-center">
-										<GitCommit class="w-4 h-4 mr-1" />
-										Commit Hash
-									</h4>
-									<p class="text-base font-mono">{deployment.commit_hash}</p>
-								</div>
-							{/if}
+				<Card class="mx-1 rounded-b-none">
+					<CardHeader>
+						<CardTitle>Domains</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div class="flex flex-col items-start space-y-3">
+							<p>example.com</p>
+							<p>asfsafass.example.com</p>
+							<p>sasfsfdsasa.example.com</p>
+						</div>
+					</CardContent>
+				</Card>
 
+				<Card class="mx-1 rounded-t-none">
+					<CardHeader>
+						<CardTitle>Source</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div class="space-y-4">
 							{#if deployment.branch}
 								<div>
 									<h4 class="text-sm font-medium text-muted-foreground mb-1 flex items-center">
@@ -329,56 +395,38 @@
 								</div>
 							{/if}
 
-							{#if deployment.author}
-								<div>
-									<h4 class="text-sm font-medium text-muted-foreground mb-1 flex items-center">
-										<User class="w-4 h-4 mr-1" />
-										Author
-									</h4>
-									<p class="text-base">{deployment.author}</p>
-								</div>
-							{/if}
-						</div>
-					</div>
-				</CardContent>
-			</Card>
+							<div class="grid grid-cols-2 gap-4">
+								{#if deployment.commit_hash}
+									<div>
+										<h4 class="text-sm font-medium text-muted-foreground mb-1 flex items-center">
+											<GitCommit class="w-4 h-4 mr-1" />
+											Commit Hash
+										</h4>
+										<p class="text-base font-mono">{deployment.commit_hash}</p>
+									</div>
+								{/if}
 
-			<Card>
-				<CardHeader>
-					<CardTitle>Timeline</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div class="space-y-4">
-						<div>
-							<h4 class="text-sm font-medium text-muted-foreground mb-1 flex items-center">
-								<PlayCircle class="w-4 h-4 mr-1" />
-								Started At
-							</h4>
-							<p class="text-base">{formatDateTime(deployment.started_at)}</p>
-						</div>
+								{#if deployment.commit_message}
+									<div>
+										<h4 class="text-sm font-medium text-muted-foreground mb-1">Message</h4>
+										<p class="text-base">{deployment.commit_message}</p>
+									</div>
+								{/if}
 
-						{#if deployment.completed_at}
-							<div>
-								<h4 class="text-sm font-medium text-muted-foreground mb-1 flex items-center">
-									<StopCircle class="w-4 h-4 mr-1" />
-									Completed At
-								</h4>
-								<p class="text-base">{formatDateTime(deployment.completed_at)}</p>
+								<!-- {#if deployment.author} -->
+								<!-- 	<div> -->
+								<!-- 		<h4 class="text-sm font-medium text-muted-foreground mb-1 flex items-center"> -->
+								<!-- 			<User class="w-4 h-4 mr-1" /> -->
+								<!-- 			Author -->
+								<!-- 		</h4> -->
+								<!-- 		<p class="text-base">{deployment.author}</p> -->
+								<!-- 	</div> -->
+								<!-- {/if} -->
 							</div>
-						{/if}
-
-						{#if deployment.duration}
-							<div>
-								<h4 class="text-sm font-medium text-muted-foreground mb-1 flex items-center">
-									<Clock class="w-4 h-4 mr-1" />
-									Duration
-								</h4>
-								<p class="text-base">{formatDuration(deployment.duration)}</p>
-							</div>
-						{/if}
-					</div>
-				</CardContent>
-			</Card>
+						</div>
+					</CardContent>
+				</Card>
+			</div>
 
 			<Card>
 				<CardHeader>
@@ -394,18 +442,21 @@
 					</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<div
-						bind:this={logsContainer}
-						class="bg-muted rounded-md p-4 overflow-x-auto overflow-y-auto max-h-[600px]"
-					>
-						{#if isStreaming && streamedLogs.length > 0}
-							<pre class="text-sm font-mono whitespace-pre-wrap">{streamedLogs.join('\n')}</pre>
-						{:else if deployment.logs}
-							<pre class="text-sm font-mono whitespace-pre-wrap">{deployment.logs}</pre>
-						{:else}
-							<p class="text-sm text-muted-foreground">No logs available yet...</p>
-						{/if}
-					</div>
+					{#if streamedLogs.length > 0}
+						<LogViewer logs={streamedLogs} {isStreaming} />
+					{:else if Array.isArray(completedLogs)}
+						<LogViewer logs={completedLogs} isStreaming={false} />
+					{:else if typeof completedLogs === 'string' && completedLogs}
+						<div class="bg-muted rounded-md p-4 overflow-x-auto overflow-y-auto max-h-[600px]">
+							<pre class="text-sm font-mono whitespace-pre-wrap">{completedLogs}</pre>
+						</div>
+					{:else if deployment.build_logs}
+						<div class="bg-muted rounded-md p-4 overflow-x-auto overflow-y-auto max-h-[600px]">
+							<pre class="text-sm font-mono whitespace-pre-wrap">{deployment.build_logs}</pre>
+						</div>
+					{:else}
+						<p class="text-sm text-muted-foreground">No logs available yet...</p>
+					{/if}
 				</CardContent>
 			</Card>
 		</div>

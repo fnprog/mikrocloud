@@ -266,14 +266,42 @@ func (d *Deployment) CompleteDeploy() {
 }
 
 func (d *Deployment) Fail(errorMessage string) {
+	now := time.Now()
 	d.status = DeploymentStatusFailed
 	d.errorMessage = errorMessage
-	d.updatedAt = time.Now()
+
+	if d.buildStartedAt != nil && d.buildCompletedAt == nil {
+		d.buildCompletedAt = &now
+		duration := int(now.Sub(*d.buildStartedAt).Seconds())
+		d.buildDurationSeconds = &duration
+	}
+
+	if d.deployStartedAt != nil && d.deployCompletedAt == nil {
+		d.deployCompletedAt = &now
+		duration := int(now.Sub(*d.deployStartedAt).Seconds())
+		d.deployDurationSeconds = &duration
+	}
+
+	d.updatedAt = now
 }
 
 func (d *Deployment) Cancel() {
+	now := time.Now()
 	d.status = DeploymentStatusCancelled
-	d.updatedAt = time.Now()
+
+	if d.buildStartedAt != nil && d.buildCompletedAt == nil {
+		d.buildCompletedAt = &now
+		duration := int(now.Sub(*d.buildStartedAt).Seconds())
+		d.buildDurationSeconds = &duration
+	}
+
+	if d.deployStartedAt != nil && d.deployCompletedAt == nil {
+		d.deployCompletedAt = &now
+		duration := int(now.Sub(*d.deployStartedAt).Seconds())
+		d.deployDurationSeconds = &duration
+	}
+
+	d.updatedAt = now
 }
 
 func (d *Deployment) Stop() {
@@ -290,6 +318,16 @@ func (d *Deployment) AppendBuildLogs(logs string) {
 
 func (d *Deployment) AppendDeployLogs(logs string) {
 	d.deployLogs += logs
+	d.updatedAt = time.Now()
+}
+
+func (d *Deployment) SetBuildLogs(logs string) {
+	d.buildLogs = logs
+	d.updatedAt = time.Now()
+}
+
+func (d *Deployment) SetDeployLogs(logs string) {
+	d.deployLogs = logs
 	d.updatedAt = time.Now()
 }
 

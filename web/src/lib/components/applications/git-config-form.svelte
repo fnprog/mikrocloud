@@ -5,7 +5,8 @@
 	import { Tabs, TabsList, TabsTrigger } from '$lib/components/ui/tabs';
 	import { RefreshCw, Check, AlertCircle } from 'lucide-svelte';
 	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
-	import { gitApi, type GitProvider } from '$lib/features/git-sources/api';
+	import { gitApi } from '$lib/features/git-sources/api';
+	import { type GitProvider } from '$lib/features/git-sources/types';
 
 	interface Props {
 		provider: 'github' | 'gitlab' | 'bitbucket' | 'custom';
@@ -29,7 +30,7 @@
 		onProviderChange,
 		repository,
 		onRepositoryChange,
-		branch,
+		branch = $bindable(),
 		onBranchChange,
 		autoDeploy,
 		onAutoDeployChange,
@@ -206,7 +207,7 @@
 				Fetch branches
 			</Button>
 		</div>
-		<Select value={branch} onValueChange={(v) => v && onBranchChange(v)}>
+		<Select type="single" bind:value={branch}>
 			<SelectTrigger id="branch">
 				{branch || 'Select a branch'}
 			</SelectTrigger>

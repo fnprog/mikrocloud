@@ -227,7 +227,7 @@
 					}}
 				>
 					<Select.Trigger id="new-owner">
-						<Select.Value placeholder="Select a member" />
+						{selectedOwner?.name || 'Select a member'}
 					</Select.Trigger>
 					<Select.Content>
 						{#each organizationOwners as owner}

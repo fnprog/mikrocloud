@@ -1,16 +1,20 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+
 	import { Input } from '$lib/components/ui/input';
 	import { Search } from 'lucide-svelte';
 	import EnvironmentTabs from '$lib/components/projects/environment-tabs.svelte';
 	import AddResourceMenu from '$lib/components/projects/add-resource-menu.svelte';
 	import ApplicationCard from '$lib/components/projects/application-card.svelte';
 	import DatabaseCard from '$lib/components/projects/database-card.svelte';
+	import * as Empty from '$lib/components/ui/empty/index.js';
+
 	import { createProjectQuery } from '$lib/features/projects/queries';
 	import { createEnvironmentsListQuery } from '$lib/features/environments/queries';
 	import { createApplicationsFetchQuery } from '$lib/features/applications/queries';
 	import { createDatabasesFetchQuery } from '$lib/features/databases/queries';
+
 	import type { Application } from '$lib/features/applications/types';
 	import type { Database } from '$lib/features/databases/types';
 
@@ -145,14 +149,16 @@
 			{#if applicationsQuery.isLoading || databasesQuery.isLoading}
 				<div class="text-muted-foreground">Loading resources...</div>
 			{:else if filteredResources.length === 0}
-				<div class="flex flex-col items-center justify-center py-12 text-center">
-					<p class="text-lg font-medium text-muted-foreground">No resources found</p>
-					<p class="text-sm text-muted-foreground">
-						{searchQuery.trim()
-							? 'Try adjusting your search query'
-							: 'Get started by adding an application or database'}
-					</p>
-				</div>
+				<Empty.Root>
+					<Empty.Header>
+						<Empty.Title>No resources found</Empty.Title>
+						<Empty.Description>
+							{searchQuery.trim()
+								? 'Try adjusting your search query'
+								: 'Get started by adding an application or database'}
+						</Empty.Description>
+					</Empty.Header>
+				</Empty.Root>
 			{:else}
 				<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
 					{#each filteredResources as resource (resource.type === 'application' ? `app-${resource.data.id}` : `db-${resource.data.id}`)}

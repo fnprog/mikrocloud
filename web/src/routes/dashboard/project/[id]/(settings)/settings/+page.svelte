@@ -6,13 +6,11 @@
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { Label } from '$lib/components/ui/label';
 	import * as Card from '$lib/components/ui/card';
-	import { Switch } from '$lib/components/ui/switch';
-	import { Separator } from '$lib/components/ui/separator';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Select from '$lib/components/ui/select';
 	import * as Alert from '$lib/components/ui/alert';
-	import { AlertTriangle, Archive, Copy, GitBranch, Globe, Trash2, Users } from 'lucide-svelte';
+	import { AlertTriangle, Archive, Copy, Trash2, Users } from 'lucide-svelte';
 	import { createProjectQuery } from '$lib/features/projects/queries';
 
 	const projectId = $derived(page.params.id!);
@@ -20,12 +18,6 @@
 
 	let projectName = $state('');
 	let projectDescription = $state('');
-	let defaultBranch = $state('main');
-	let autoDeployEnabled = $state(true);
-	let requireApproval = $state(false);
-	let allowPublicAccess = $state(false);
-	let retentionDays = $state(30);
-	let maxConcurrentDeployments = $state(3);
 
 	let showDeleteModal = $state(false);
 	let showTransferModal = $state(false);
@@ -41,22 +33,6 @@
 
 	function handleUpdateGeneral() {
 		console.log('Updating general settings:', { projectName, projectDescription });
-	}
-
-	function handleUpdateDeployment() {
-		console.log('Updating deployment settings:', {
-			defaultBranch,
-			autoDeployEnabled,
-			requireApproval,
-			maxConcurrentDeployments
-		});
-	}
-
-	function handleUpdateAdvanced() {
-		console.log('Updating advanced settings:', {
-			allowPublicAccess,
-			retentionDays
-		});
 	}
 
 	function handleDeleteProject() {
@@ -83,7 +59,7 @@
 	}
 </script>
 
-<div class="space-y-6 max-w-4xl">
+<div class="flex flex-col gap-6 p-6">
 	<div>
 		<h1 class="font-bold text-3xl">Project Settings</h1>
 		<p class="text-muted-foreground mt-1">Manage your project configuration and preferences</p>
@@ -129,117 +105,6 @@
 
 	<Card.Root>
 		<Card.Header>
-			<Card.Title>Deployment Settings</Card.Title>
-			<Card.Description>Configure how deployments are handled for this project</Card.Description>
-		</Card.Header>
-		<Card.Content class="space-y-4">
-			<div class="space-y-2">
-				<Label for="branch">Default Branch</Label>
-				<div class="flex gap-2">
-					<GitBranch class="size-4 mt-3 text-muted-foreground" />
-					<Input id="branch" bind:value={defaultBranch} placeholder="main" class="flex-1" />
-				</div>
-			</div>
-
-			<Separator />
-
-			<div class="flex items-center justify-between">
-				<div class="space-y-0.5">
-					<Label class="text-base">Auto-deploy on push</Label>
-					<p class="text-muted-foreground text-sm">
-						Automatically deploy when changes are pushed to the default branch
-					</p>
-				</div>
-				<Switch bind:checked={autoDeployEnabled} />
-			</div>
-
-			<div class="flex items-center justify-between">
-				<div class="space-y-0.5">
-					<Label class="text-base">Require deployment approval</Label>
-					<p class="text-muted-foreground text-sm">
-						Deployments must be manually approved before going live
-					</p>
-				</div>
-				<Switch bind:checked={requireApproval} />
-			</div>
-
-			<div class="space-y-2">
-				<Label for="concurrent">Max Concurrent Deployments</Label>
-				<Select.Root
-					selected={{
-						value: maxConcurrentDeployments.toString(),
-						label: maxConcurrentDeployments.toString()
-					}}
-					onSelectedChange={(v) => v && (maxConcurrentDeployments = parseInt(v.value))}
-				>
-					<Select.Trigger class="w-[180px]">
-						<Select.Value placeholder="Select limit" />
-					</Select.Trigger>
-					<Select.Content>
-						<Select.Item value="1">1</Select.Item>
-						<Select.Item value="2">2</Select.Item>
-						<Select.Item value="3">3</Select.Item>
-						<Select.Item value="5">5</Select.Item>
-						<Select.Item value="10">10</Select.Item>
-					</Select.Content>
-				</Select.Root>
-			</div>
-		</Card.Content>
-		<Card.Footer>
-			<Button onclick={handleUpdateDeployment}>Save Changes</Button>
-		</Card.Footer>
-	</Card.Root>
-
-	<Card.Root>
-		<Card.Header>
-			<Card.Title>Advanced Settings</Card.Title>
-			<Card.Description>Additional configuration options</Card.Description>
-		</Card.Header>
-		<Card.Content class="space-y-4">
-			<div class="flex items-center justify-between">
-				<div class="space-y-0.5 flex-1">
-					<div class="flex items-center gap-2">
-						<Globe class="size-4 text-muted-foreground" />
-						<Label class="text-base">Allow public access</Label>
-					</div>
-					<p class="text-muted-foreground text-sm">
-						Make project metrics and status publicly viewable (code remains private)
-					</p>
-				</div>
-				<Switch bind:checked={allowPublicAccess} />
-			</div>
-
-			<Separator />
-
-			<div class="space-y-2">
-				<Label for="retention">Log Retention Period (days)</Label>
-				<Select.Root
-					selected={{ value: retentionDays.toString(), label: `${retentionDays} days` }}
-					onSelectedChange={(v) => v && (retentionDays = parseInt(v.value))}
-				>
-					<Select.Trigger class="w-[180px]">
-						<Select.Value placeholder="Select period" />
-					</Select.Trigger>
-					<Select.Content>
-						<Select.Item value="7">7 days</Select.Item>
-						<Select.Item value="14">14 days</Select.Item>
-						<Select.Item value="30">30 days</Select.Item>
-						<Select.Item value="60">60 days</Select.Item>
-						<Select.Item value="90">90 days</Select.Item>
-					</Select.Content>
-				</Select.Root>
-				<p class="text-muted-foreground text-xs">
-					Logs older than this will be automatically deleted
-				</p>
-			</div>
-		</Card.Content>
-		<Card.Footer>
-			<Button onclick={handleUpdateAdvanced}>Save Changes</Button>
-		</Card.Footer>
-	</Card.Root>
-
-	<Card.Root>
-		<Card.Header>
 			<Card.Title>Project Actions</Card.Title>
 			<Card.Description>Manage project lifecycle and ownership</Card.Description>
 		</Card.Header>
@@ -268,19 +133,6 @@
 					</div>
 				</div>
 				<Button variant="outline" onclick={() => (showTransferModal = true)}>Transfer</Button>
-			</div>
-
-			<div class="flex items-center justify-between p-3 border rounded-lg">
-				<div class="flex items-center gap-3">
-					<div class="p-2 bg-orange-100 rounded-lg">
-						<Archive class="size-4 text-orange-600" />
-					</div>
-					<div>
-						<p class="font-medium text-sm">Archive Project</p>
-						<p class="text-muted-foreground text-xs">Make read-only and stop all deployments</p>
-					</div>
-				</div>
-				<Button variant="outline" onclick={() => (showArchiveModal = true)}>Archive</Button>
 			</div>
 		</Card.Content>
 	</Card.Root>
@@ -361,10 +213,8 @@
 		<div class="space-y-4">
 			<div class="space-y-2">
 				<Label for="target-org">Target Organization</Label>
-				<Select.Root>
-					<Select.Trigger>
-						<Select.Value placeholder="Select organization" />
-					</Select.Trigger>
+				<Select.Root type="single">
+					<Select.Trigger>Select organization</Select.Trigger>
 					<Select.Content>
 						<Select.Item value="org1">Organization 1</Select.Item>
 						<Select.Item value="org2">Organization 2</Select.Item>

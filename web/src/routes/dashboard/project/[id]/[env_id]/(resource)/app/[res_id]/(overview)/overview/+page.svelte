@@ -30,6 +30,8 @@
 	const resId = page.params.res_id!;
 	const envId = page.params.env_id!;
 
+	console.log(resId);
+
 	const applicationQuery = createApplicationFetchQuery(projectId, envId, resId);
 	const deploymentsQuery = createDeploymentsListQuery(projectId, resId);
 

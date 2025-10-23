@@ -111,7 +111,7 @@ func (bs *BuildService) buildWithNixpacks(ctx context.Context, request BuildRequ
 	}
 
 	// Use nixpacks image as the build helper
-	return bs.createBuildHelper(ctx, "railwayapp/nixpacks:latest", containerName, commands, request)
+	return bs.createBuildHelper(ctx, HelperContainerImage, containerName, commands, request)
 }
 
 // TODO: Here we want to use nixpacks to build then send to nginx for serving

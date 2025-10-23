@@ -12,6 +12,8 @@ import (
 	"github.com/mikrocloud/mikrocloud/internal/api/middleware"
 	"github.com/mikrocloud/mikrocloud/internal/domain/applications"
 	"github.com/mikrocloud/mikrocloud/internal/domain/deployments"
+	"github.com/mikrocloud/mikrocloud/internal/domain/deployments/logs"
+	"github.com/mikrocloud/mikrocloud/internal/domain/deployments/repository"
 	"github.com/mikrocloud/mikrocloud/internal/domain/deployments/service"
 	"github.com/mikrocloud/mikrocloud/internal/domain/users"
 	"github.com/mikrocloud/mikrocloud/internal/utils"
@@ -41,29 +43,32 @@ type CreateDeploymentRequest struct {
 }
 
 type DeploymentResponse struct {
-	ID                string                       `json:"id"`
-	ApplicationID     string                       `json:"application_id"`
-	DeploymentNumber  int                          `json:"deployment_number"`
-	Status            deployments.DeploymentStatus `json:"status"`
-	IsProduction      bool                         `json:"is_production"`
-	TriggeredBy       *string                      `json:"triggered_by,omitempty"`
-	TriggerType       deployments.TriggerType      `json:"trigger_type"`
-	ImageTag          string                       `json:"image_tag"`
-	ImageDigest       string                       `json:"image_digest,omitempty"`
-	ContainerID       string                       `json:"container_id,omitempty"`
-	GitCommitHash     string                       `json:"git_commit_hash,omitempty"`
-	GitCommitMessage  string                       `json:"git_commit_message,omitempty"`
-	GitBranch         string                       `json:"git_branch,omitempty"`
-	GitAuthorName     string                       `json:"git_author_name,omitempty"`
-	BuildStartedAt    *string                      `json:"build_started_at,omitempty"`
-	BuildCompletedAt  *string                      `json:"build_completed_at,omitempty"`
-	DeployStartedAt   *string                      `json:"deploy_started_at,omitempty"`
-	DeployCompletedAt *string                      `json:"deploy_completed_at,omitempty"`
-	BuildLogs         string                       `json:"build_logs,omitempty"`
-	DeployLogs        string                       `json:"deploy_logs,omitempty"`
-	ErrorMessage      string                       `json:"error_message,omitempty"`
-	CreatedAt         string                       `json:"created_at"`
-	UpdatedAt         string                       `json:"updated_at"`
+	ID                    string                       `json:"id"`
+	ApplicationID         string                       `json:"application_id"`
+	DeploymentNumber      int                          `json:"deployment_number"`
+	Status                deployments.DeploymentStatus `json:"status"`
+	IsProduction          bool                         `json:"is_production"`
+	TriggeredBy           *string                      `json:"triggered_by,omitempty"`
+	TriggeredByUsername   *string                      `json:"triggered_by_username,omitempty"`
+	TriggerType           deployments.TriggerType      `json:"trigger_type"`
+	ImageTag              string                       `json:"image_tag"`
+	ImageDigest           string                       `json:"image_digest,omitempty"`
+	ContainerID           string                       `json:"container_id,omitempty"`
+	GitCommitHash         string                       `json:"git_commit_hash,omitempty"`
+	GitCommitMessage      string                       `json:"git_commit_message,omitempty"`
+	GitBranch             string                       `json:"git_branch,omitempty"`
+	GitAuthorName         string                       `json:"git_author_name,omitempty"`
+	BuildStartedAt        *string                      `json:"build_started_at,omitempty"`
+	BuildCompletedAt      *string                      `json:"build_completed_at,omitempty"`
+	BuildDurationSeconds  *int                         `json:"build_duration_seconds,omitempty"`
+	DeployStartedAt       *string                      `json:"deploy_started_at,omitempty"`
+	DeployCompletedAt     *string                      `json:"deploy_completed_at,omitempty"`
+	DeployDurationSeconds *int                         `json:"deploy_duration_seconds,omitempty"`
+	BuildLogs             string                       `json:"build_logs,omitempty"`
+	DeployLogs            string                       `json:"deploy_logs,omitempty"`
+	ErrorMessage          string                       `json:"error_message,omitempty"`
+	CreatedAt             string                       `json:"created_at"`
+	UpdatedAt             string                       `json:"updated_at"`
 }
 
 func (h *DeploymentHandler) CreateDeployment(w http.ResponseWriter, r *http.Request) {
@@ -181,19 +186,18 @@ func (h *DeploymentHandler) GetDeployment(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	deployment, err := h.deploymentService.GetDeployment(r.Context(), deploymentID)
+	deploymentWithMeta, err := h.deploymentService.GetDeploymentWithMetadata(r.Context(), deploymentID)
 	if err != nil {
 		utils.SendError(w, http.StatusNotFound, "deployment_not_found", "Deployment not found")
 		return
 	}
 
-	// Verify deployment belongs to the application
-	if deployment.ApplicationID() != applicationID {
+	if deploymentWithMeta.Deployment.ApplicationID() != applicationID {
 		utils.SendError(w, http.StatusForbidden, "deployment_forbidden", "Deployment does not belong to this application")
 		return
 	}
 
-	response := h.mapDeploymentToResponse(deployment)
+	response := h.mapDeploymentWithMetadataToResponse(deploymentWithMeta)
 	utils.SendJSON(w, http.StatusOK, response)
 }
 
@@ -243,31 +247,19 @@ func (h *DeploymentHandler) ListDeployments(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	var deploymentsList []*deployments.Deployment
+	var deploymentsList []*repository.DeploymentWithMetadata
+
 	if status != "" {
-		// Filter by status
-		deploymentStatus := deployments.DeploymentStatus(status)
-		allDeployments, err := h.deploymentService.ListDeploymentsByStatus(r.Context(), deploymentStatus)
-		if err != nil {
-			utils.SendError(w, http.StatusInternalServerError, "list_deployments_failed", "Failed to list deployments")
-			return
-		}
-		// Filter to only include deployments for this application
-		for _, d := range allDeployments {
-			if d.ApplicationID() == applicationID {
-				deploymentsList = append(deploymentsList, d)
-			}
-		}
+		utils.SendError(w, http.StatusNotImplemented, "status_filter_not_supported", "Status filtering not yet supported with metadata")
+		return
 	} else {
-		// List all deployments for the application
-		deploymentsList, err = h.deploymentService.ListDeploymentsByApplication(r.Context(), applicationID)
+		deploymentsList, err = h.deploymentService.ListDeploymentsByApplicationWithMetadata(r.Context(), applicationID)
 		if err != nil {
 			utils.SendError(w, http.StatusInternalServerError, "list_deployments_failed", "Failed to list deployments")
 			return
 		}
 	}
 
-	// Apply pagination
 	total := len(deploymentsList)
 	start := offset
 	end := offset + limit
@@ -280,8 +272,8 @@ func (h *DeploymentHandler) ListDeployments(w http.ResponseWriter, r *http.Reque
 
 	paginatedDeployments := deploymentsList[start:end]
 	responses := make([]DeploymentResponse, len(paginatedDeployments))
-	for i, deployment := range paginatedDeployments {
-		responses[i] = h.mapDeploymentToResponse(deployment)
+	for i, deploymentWithMeta := range paginatedDeployments {
+		responses[i] = h.mapDeploymentWithMetadataToResponse(deploymentWithMeta)
 	}
 
 	result := map[string]interface{}{
@@ -422,6 +414,67 @@ func (h *DeploymentHandler) CancelDeployment(w http.ResponseWriter, r *http.Requ
 	utils.SendJSON(w, http.StatusOK, response)
 }
 
+func parseLogsIfJSON(logText string) interface{} {
+	if logText == "" {
+		return ""
+	}
+
+	// Try to parse as JSON (structured logs)
+	var structuredLogs []logs.StructuredLog
+	if err := json.Unmarshal([]byte(logText), &structuredLogs); err == nil {
+		return structuredLogs
+	}
+
+	// Return raw text for backward compatibility
+	return logText
+}
+
+func mergeLogs(buildLogs, deployLogs interface{}) interface{} {
+	buildStructured, buildIsStructured := buildLogs.([]logs.StructuredLog)
+	deployStructured, deployIsStructured := deployLogs.([]logs.StructuredLog)
+
+	// If both are structured, merge them with deduplication
+	if buildIsStructured && deployIsStructured {
+		seen := make(map[string]bool)
+		var merged []logs.StructuredLog
+
+		for _, log := range buildStructured {
+			key := log.Message
+			if !seen[key] {
+				seen[key] = true
+				merged = append(merged, log)
+			}
+		}
+
+		for _, log := range deployStructured {
+			key := log.Message
+			if !seen[key] {
+				seen[key] = true
+				merged = append(merged, log)
+			}
+		}
+
+		return merged
+	}
+
+	// If either is raw text, concatenate as strings
+	buildStr, buildOk := buildLogs.(string)
+	deployStr, deployOk := deployLogs.(string)
+
+	if buildOk && deployOk {
+		if buildStr != "" && deployStr != "" {
+			return buildStr + "\n" + deployStr
+		}
+		if buildStr != "" {
+			return buildStr
+		}
+		return deployStr
+	}
+
+	// Mixed types, return concatenated strings
+	return ""
+}
+
 func (h *DeploymentHandler) GetDeploymentLogs(w http.ResponseWriter, r *http.Request) {
 	// Get project ID from URL path
 	projectID, err := uuid.Parse(chi.URLParam(r, "project_id"))
@@ -474,14 +527,16 @@ func (h *DeploymentHandler) GetDeploymentLogs(w http.ResponseWriter, r *http.Req
 		logType = "all"
 	}
 
-	var logs string
+	var logs interface{}
 	switch logType {
 	case "build":
-		logs = deployment.BuildLogs()
+		logs = parseLogsIfJSON(deployment.BuildLogs())
 	case "deploy":
-		logs = deployment.DeployLogs()
+		logs = parseLogsIfJSON(deployment.DeployLogs())
 	case "all":
-		logs = deployment.BuildLogs() + "\n" + deployment.DeployLogs()
+		buildLogs := parseLogsIfJSON(deployment.BuildLogs())
+		deployLogs := parseLogsIfJSON(deployment.DeployLogs())
+		logs = mergeLogs(buildLogs, deployLogs)
 	default:
 		utils.SendError(w, http.StatusBadRequest, "invalid_log_type", "Invalid log type. Use 'build', 'deploy', or 'all'")
 		return
@@ -547,6 +602,7 @@ func (h *DeploymentHandler) StreamDeploymentLogs(w http.ResponseWriter, r *http.
 		return
 	}
 
+	parser := logs.NewLogParser(deployment.StartedAt())
 	lastLogLength := 0
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -566,8 +622,14 @@ func (h *DeploymentHandler) StreamDeploymentLogs(w http.ResponseWriter, r *http.
 				newLogs := currentLogs[lastLogLength:]
 				for _, line := range strings.Split(newLogs, "\n") {
 					if line != "" {
-						_, _ = w.Write([]byte("data: " + line + "\n\n"))
-						flusher.Flush()
+						structuredLog := parser.ParseLine(line)
+						if structuredLog != nil {
+							logJSON, err := json.Marshal(structuredLog)
+							if err == nil {
+								_, _ = w.Write([]byte("data: " + string(logJSON) + "\n\n"))
+								flusher.Flush()
+							}
+						}
 					}
 				}
 				lastLogLength = len(currentLogs)
@@ -631,6 +693,15 @@ func (h *DeploymentHandler) mapDeploymentToResponse(deployment *deployments.Depl
 		response.DeployCompletedAt = &deployCompletedAt
 	}
 
+	response.BuildDurationSeconds = deployment.BuildDurationSeconds()
+	response.DeployDurationSeconds = deployment.DeployDurationSeconds()
+
+	return response
+}
+
+func (h *DeploymentHandler) mapDeploymentWithMetadataToResponse(deploymentWithMeta *repository.DeploymentWithMetadata) DeploymentResponse {
+	response := h.mapDeploymentToResponse(deploymentWithMeta.Deployment)
+	response.TriggeredByUsername = deploymentWithMeta.Username
 	return response
 }
 

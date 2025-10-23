@@ -12,9 +12,9 @@
 	import { createDatabaseFetchQuery } from '$lib/features/databases/queries';
 	import { createApplicationFetchQuery } from '$lib/features/applications/queries';
 
-	const projectId = $derived(page.params.id);
-	const envId = $derived(page.params.env_id);
-	const resId = $derived(page.params.res_id);
+	const projectId = $derived(page.params.id!);
+	const envId = $derived(page.params.env_id!);
+	const resId = $derived(page.params.res_id!);
 
 	const resourceType = $derived(
 		page.url.pathname.includes('/db/')

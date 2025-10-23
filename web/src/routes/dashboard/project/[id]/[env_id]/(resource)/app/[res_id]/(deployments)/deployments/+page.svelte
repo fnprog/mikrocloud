@@ -1,23 +1,12 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Card, CardContent } from '$lib/components/ui/card';
 	import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
 	import { deploymentsApi, type DeploymentStatus } from '$lib/features/deployments/api';
 	import { toast } from 'svelte-sonner';
-	import {
-		CheckCircle,
-		AlertCircle,
-		XCircle,
-		Clock,
-		GitBranch,
-		GitCommit,
-		User,
-		RotateCcw,
-		Eye
-	} from 'lucide-svelte';
+	import { AlertCircle, GitBranch, GitCommit } from 'lucide-svelte';
 
 	const projectId = $derived(page.params.id);
 	const envId = $derived(page.params.env_id);
@@ -45,67 +34,56 @@
 		}
 	}));
 
-	function getStatusIcon(status: DeploymentStatus) {
+	function getStatusDotColor(status: DeploymentStatus): string {
 		switch (status) {
-			case 'success':
-				return CheckCircle;
+			case 'running':
+				return 'bg-green-500';
 			case 'failed':
-				return AlertCircle;
-			case 'cancelled':
-				return XCircle;
+				return 'bg-red-500';
 			case 'building':
 			case 'deploying':
 			case 'pending':
-				return Clock;
-			default:
-				return Clock;
-		}
-	}
-
-	function getStatusColor(status: DeploymentStatus) {
-		switch (status) {
-			case 'success':
-				return 'text-green-500';
-			case 'failed':
-				return 'text-red-500';
+			case 'queued':
+				return 'bg-orange-500';
 			case 'cancelled':
-				return 'text-gray-500';
-			case 'building':
-			case 'deploying':
-			case 'pending':
-				return 'text-blue-500';
+			case 'stopped':
+				return 'bg-gray-500';
 			default:
-				return 'text-gray-500';
+				return 'bg-gray-500';
 		}
 	}
 
-	function getStatusBadgeVariant(
-		status: DeploymentStatus
-	): 'default' | 'secondary' | 'destructive' | 'outline' {
+	function getStatusText(status: DeploymentStatus): string {
 		switch (status) {
-			case 'success':
-				return 'default';
-			case 'failed':
-				return 'destructive';
-			case 'cancelled':
-				return 'secondary';
+			case 'running':
+				return 'Ready';
 			case 'building':
+				return 'Building';
 			case 'deploying':
+				return 'Deploying';
 			case 'pending':
-				return 'outline';
+				return 'Pending';
+			case 'queued':
+				return 'Queued';
+			case 'failed':
+				return 'Failed';
+			case 'cancelled':
+				return 'Cancelled';
+			case 'stopped':
+				return 'Stopped';
 			default:
-				return 'secondary';
+				return status;
 		}
 	}
 
-	function formatDuration(seconds?: number): string {
-		if (!seconds) return 'N/A';
+	function formatCompactDuration(seconds?: number): string {
+		if (!seconds) return '';
+		if (seconds < 60) return `${seconds}s`;
 		const mins = Math.floor(seconds / 60);
-		const secs = seconds % 60;
-		return `${mins}m ${secs}s`;
+		return `${mins}m`;
 	}
 
-	function formatTime(timestamp: string): string {
+	function formatCompactTime(timestamp: string): string {
 		const date = new Date(timestamp);
 		const now = new Date();
 		const diff = now.getTime() - date.getTime();
@@ -114,10 +92,10 @@
 		const hours = Math.floor(minutes / 60);
 		const days = Math.floor(hours / 24);
 
-		if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
-		if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-		if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-		return `${seconds} second${seconds > 1 ? 's' : ''} ago`;
+		if (days > 0) return `${days}d ago`;
+		if (hours > 0) return `${hours}h ago`;
+		if (minutes > 0) return `${minutes}m ago`;
+		return `${seconds}s ago`;
 	}
 
 	function viewDeployment(deploymentId: string) {
@@ -126,6 +104,10 @@
 
 	function redeployCommit(deploymentId: string) {
 		redeployMutation.mutate(deploymentId);
+	}
+
+	function isCurrentDeployment(status: DeploymentStatus): boolean {
+		return status === 'running';
 	}
 </script>
 
@@ -166,83 +148,66 @@
 			</CardContent>
 		</Card>
 	{:else}
-		<div class="space-y-4">
+		<div class="space-y-2">
 			{#each deployments as deployment (deployment.id)}
-				{@const StatusIcon = getStatusIcon(deployment.status)}
-				<Card class="hover:shadow-sm transition-shadow">
-					<CardContent class="p-6">
-						<div class="flex items-center justify-between">
-							<div class="flex items-center space-x-4 flex-1">
-								<StatusIcon class="w-5 h-5 {getStatusColor(deployment.status)}" />
-
-								<div class="flex-1">
-									<div class="flex items-center space-x-3 mb-1">
-										<h3 class="font-medium">
-											{deployment.commit_message || 'Deployment'}
-										</h3>
-										<Badge variant={getStatusBadgeVariant(deployment.status)} class="text-xs">
-											{deployment.status}
-										</Badge>
-									</div>
-
-									<div
-										class="flex items-center space-x-4 text-sm text-muted-foreground flex-wrap gap-2"
-									>
-										{#if deployment.commit_hash}
-											<div class="flex items-center space-x-1">
-												<GitCommit class="w-4 h-4" />
-												<span class="font-mono">{deployment.commit_hash.slice(0, 7)}</span>
-											</div>
-										{/if}
-										{#if deployment.branch}
-											<div class="flex items-center space-x-1">
-												<GitBranch class="w-4 h-4" />
-												<span>{deployment.branch}</span>
-											</div>
-										{/if}
-										{#if deployment.author}
-											<div class="flex items-center space-x-1">
-												<User class="w-4 h-4" />
-												<span>{deployment.author}</span>
-											</div>
-										{/if}
-										{#if deployment.duration}
-											<div class="flex items-center space-x-1">
-												<Clock class="w-4 h-4" />
-												<span>{formatDuration(deployment.duration)}</span>
-											</div>
-										{/if}
-									</div>
-								</div>
-							</div>
-
-							<div class="flex items-center space-x-4 ml-4">
-								<span class="text-sm text-muted-foreground whitespace-nowrap">
-									{formatTime(deployment.started_at)}
+				<button
+					class="w-full text-left border border-border rounded-lg p-4 hover:bg-accent/50 transition-colors cursor-pointer"
+					onclick={() => viewDeployment(deployment.id)}
+				>
+					<div class="grid grid-cols-[1fr_auto_auto] gap-6 items-center">
+						<div class="flex flex-col gap-1">
+							<div class="flex items-center gap-2">
+								<span class="font-mono text-sm font-medium">
+									{deployment.id.slice(0, 8)}
 								</span>
-								<div class="flex items-center space-x-2">
-									<Button size="sm" variant="outline" onclick={() => viewDeployment(deployment.id)}>
-										<Eye class="w-4 h-4 mr-1" />
-										View
-									</Button>
-									{#if deployment.status === 'success'}
-										<Button
-											size="sm"
-											variant="outline"
-											disabled={redeployMutation.isPending}
-											onclick={() => redeployCommit(deployment.id)}
-										>
-											<RotateCcw
-												class="w-4 h-4 mr-1 {redeployMutation.isPending ? 'animate-spin' : ''}"
-											/>
-											Redeploy
-										</Button>
-									{/if}
-								</div>
+								{#if isCurrentDeployment(deployment.status)}
+									<Badge variant="default" class="text-xs">Current</Badge>
+								{/if}
+							</div>
+							<span class="text-xs text-muted-foreground">
+								{deployment.is_production ? 'Production' : 'Preview'}
+								{#if deployment.triggered_by_username}
+									· by {deployment.triggered_by_username}
+								{/if}
+							</span>
+						</div>
+
+						<div class="flex flex-col items-end gap-1">
+							<div class="flex items-center gap-2">
+								<span class="w-2 h-2 rounded-full {getStatusDotColor(deployment.status)}"></span>
+								<span class="text-sm font-medium">
+									{getStatusText(deployment.status)}
+								</span>
+							</div>
+							<div class="flex items-center gap-2 text-xs text-muted-foreground">
+								{#if deployment.build_duration_seconds !== undefined || deployment.deploy_duration_seconds !== undefined}
+									<span
+										>{formatCompactDuration(
+											(deployment.build_duration_seconds || 0) +
+												(deployment.deploy_duration_seconds || 0)
+										)}</span
+									>
+								{/if}
+								<span>({formatCompactTime(deployment.created_at)})</span>
 							</div>
 						</div>
-					</CardContent>
-				</Card>
+
+						<div class="flex items-center gap-4">
+							{#if deployment.branch}
+								<div class="flex items-center gap-1.5 text-sm">
+									<GitBranch class="w-4 h-4 text-muted-foreground" />
+									<span>{deployment.branch}</span>
+								</div>
+							{/if}
+							{#if deployment.commit_hash}
+								<div class="flex items-center gap-1.5 text-sm">
+									<GitCommit class="w-4 h-4 text-muted-foreground" />
+									<span class="font-mono">{deployment.commit_hash.slice(0, 7)}</span>
+								</div>
+							{/if}
+						</div>
+					</div>
+				</button>
 			{/each}
 		</div>
 	{/if}

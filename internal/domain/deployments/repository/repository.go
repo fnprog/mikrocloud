@@ -11,16 +11,23 @@ import (
 	"github.com/mikrocloud/mikrocloud/internal/domain/users"
 	"github.com/stephenafamo/bob/dialect/sqlite"
 	"github.com/stephenafamo/bob/dialect/sqlite/im"
-	"github.com/stephenafamo/bob/dialect/sqlite/sm"
 )
+
+type DeploymentWithMetadata struct {
+	Deployment *deployments.Deployment
+	Username   *string
+}
 
 type DeploymentRepository interface {
 	Create(ctx context.Context, deployment *deployments.Deployment) error
 	GetByID(ctx context.Context, id deployments.DeploymentID) (*deployments.Deployment, error)
+	GetByIDWithMetadata(ctx context.Context, id deployments.DeploymentID) (*DeploymentWithMetadata, error)
 	Update(ctx context.Context, deployment *deployments.Deployment) error
 	Delete(ctx context.Context, id deployments.DeploymentID) error
 	List(ctx context.Context) ([]*deployments.Deployment, error)
+	ListWithMetadata(ctx context.Context) ([]*DeploymentWithMetadata, error)
 	ListByApplication(ctx context.Context, applicationID applications.ApplicationID) ([]*deployments.Deployment, error)
+	ListByApplicationWithMetadata(ctx context.Context, applicationID applications.ApplicationID) ([]*DeploymentWithMetadata, error)
 	GetLatestByApplication(ctx context.Context, applicationID applications.ApplicationID) (*deployments.Deployment, error)
 	ListByStatus(ctx context.Context, status deployments.DeploymentStatus) ([]*deployments.Deployment, error)
 }
@@ -38,6 +45,24 @@ func (r *sqliteDeploymentRepository) Create(ctx context.Context, deployment *dep
 	if deployment.TriggeredBy() != nil {
 		userID := deployment.TriggeredBy().String()
 		triggeredBy = &userID
+
+		var exists bool
+		err := r.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE id = ?)", userID).Scan(&exists)
+		if err != nil {
+			return fmt.Errorf("failed to check user existence: %w", err)
+		}
+		if !exists {
+			return fmt.Errorf("triggered_by user does not exist: %s", userID)
+		}
+	}
+
+	var appExists bool
+	err := r.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM applications WHERE id = ?)", deployment.ApplicationID().String()).Scan(&appExists)
+	if err != nil {
+		return fmt.Errorf("failed to check application existence: %w", err)
+	}
+	if !appExists {
+		return fmt.Errorf("application does not exist: %s", deployment.ApplicationID().String())
 	}
 
 	query := sqlite.Insert(
@@ -86,34 +111,27 @@ func (r *sqliteDeploymentRepository) Create(ctx context.Context, deployment *dep
 }
 
 func (r *sqliteDeploymentRepository) GetByID(ctx context.Context, id deployments.DeploymentID) (*deployments.Deployment, error) {
-	query := sqlite.Select(
-		sm.Columns(
-			"id", "application_id", "deployment_number", "is_production", "triggered_by",
-			"trigger_type", "status", "container_id", "image_tag", "image_digest",
-			"git_commit_hash", "git_commit_message", "git_branch", "git_author_name",
-			"build_logs", "deploy_logs", "error_message", "started_at",
-			"build_started_at", "build_completed_at", "deploy_started_at",
-			"deploy_completed_at", "stopped_at", "build_duration_seconds",
-			"deploy_duration_seconds", "updated_at",
-		),
-		sm.From("deployments"),
-		sm.Where(sqlite.Quote("id").EQ(sqlite.Arg(id.String()))),
-	)
-
-	queryStr, args, err := query.Build(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build query: %w", err)
-	}
+	query := `SELECT 
+		d.id, d.application_id, d.deployment_number, d.is_production, d.triggered_by,
+		d.trigger_type, d.status, d.container_id, d.image_tag, d.image_digest,
+		d.git_commit_hash, d.git_commit_message, d.git_branch, d.git_author_name,
+		d.build_logs, d.deploy_logs, d.error_message, d.started_at,
+		d.build_started_at, d.build_completed_at, d.deploy_started_at,
+		d.deploy_completed_at, d.stopped_at, d.build_duration_seconds,
+		d.deploy_duration_seconds, d.updated_at, COALESCE(u.username, u.email) AS triggered_by_username
+	FROM deployments d
+	LEFT JOIN users u ON d.triggered_by = u.id
+	WHERE d.id = ?`
 
 	row := deploymentRow{}
-	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(
+	err := r.db.QueryRowContext(ctx, query, id.String()).Scan(
 		&row.ID, &row.ApplicationID, &row.DeploymentNumber, &row.IsProduction, &row.TriggeredBy,
 		&row.TriggerType, &row.Status, &row.ContainerID, &row.ImageTag, &row.ImageDigest,
 		&row.GitCommitHash, &row.GitCommitMessage, &row.GitBranch, &row.GitAuthorName,
 		&row.BuildLogs, &row.DeployLogs, &row.ErrorMessage, &row.StartedAt,
 		&row.BuildStartedAt, &row.BuildCompletedAt, &row.DeployStartedAt,
 		&row.DeployCompletedAt, &row.StoppedAt, &row.BuildDurationSeconds,
-		&row.DeployDurationSeconds, &row.UpdatedAt,
+		&row.DeployDurationSeconds, &row.UpdatedAt, &row.TriggeredByUsername,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -123,6 +141,47 @@ func (r *sqliteDeploymentRepository) GetByID(ctx context.Context, id deployments
 	}
 
 	return r.mapRowToDeployment(row)
+}
+
+func (r *sqliteDeploymentRepository) GetByIDWithMetadata(ctx context.Context, id deployments.DeploymentID) (*DeploymentWithMetadata, error) {
+	query := `SELECT 
+		d.id, d.application_id, d.deployment_number, d.is_production, d.triggered_by,
+		d.trigger_type, d.status, d.container_id, d.image_tag, d.image_digest,
+		d.git_commit_hash, d.git_commit_message, d.git_branch, d.git_author_name,
+		d.build_logs, d.deploy_logs, d.error_message, d.started_at,
+		d.build_started_at, d.build_completed_at, d.deploy_started_at,
+		d.deploy_completed_at, d.stopped_at, d.build_duration_seconds,
+		d.deploy_duration_seconds, d.updated_at, COALESCE(u.username, u.email) AS triggered_by_username
+	FROM deployments d
+	LEFT JOIN users u ON d.triggered_by = u.id
+	WHERE d.id = ?`
+
+	row := deploymentRow{}
+	err := r.db.QueryRowContext(ctx, query, id.String()).Scan(
+		&row.ID, &row.ApplicationID, &row.DeploymentNumber, &row.IsProduction, &row.TriggeredBy,
+		&row.TriggerType, &row.Status, &row.ContainerID, &row.ImageTag, &row.ImageDigest,
+		&row.GitCommitHash, &row.GitCommitMessage, &row.GitBranch, &row.GitAuthorName,
+		&row.BuildLogs, &row.DeployLogs, &row.ErrorMessage, &row.StartedAt,
+		&row.BuildStartedAt, &row.BuildCompletedAt, &row.DeployStartedAt,
+		&row.DeployCompletedAt, &row.StoppedAt, &row.BuildDurationSeconds,
+		&row.DeployDurationSeconds, &row.UpdatedAt, &row.TriggeredByUsername,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("deployment not found: %s", id.String())
+		}
+		return nil, fmt.Errorf("failed to get deployment: %w", err)
+	}
+
+	deployment, err := r.mapRowToDeployment(row)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DeploymentWithMetadata{
+		Deployment: deployment,
+		Username:   row.TriggeredByUsername,
+	}, nil
 }
 
 func (r *sqliteDeploymentRepository) Update(ctx context.Context, deployment *deployments.Deployment) error {
@@ -187,26 +246,19 @@ func (r *sqliteDeploymentRepository) Delete(ctx context.Context, id deployments.
 }
 
 func (r *sqliteDeploymentRepository) List(ctx context.Context) ([]*deployments.Deployment, error) {
-	query := sqlite.Select(
-		sm.Columns(
-			"id", "application_id", "deployment_number", "is_production", "triggered_by",
-			"trigger_type", "status", "container_id", "image_tag", "image_digest",
-			"git_commit_hash", "git_commit_message", "git_branch", "git_author_name",
-			"build_logs", "deploy_logs", "error_message", "started_at",
-			"build_started_at", "build_completed_at", "deploy_started_at",
-			"deploy_completed_at", "stopped_at", "build_duration_seconds",
-			"deploy_duration_seconds", "updated_at",
-		),
-		sm.From("deployments"),
-		sm.OrderBy("started_at").Desc(),
-	)
+	query := `SELECT 
+		d.id, d.application_id, d.deployment_number, d.is_production, d.triggered_by,
+		d.trigger_type, d.status, d.container_id, d.image_tag, d.image_digest,
+		d.git_commit_hash, d.git_commit_message, d.git_branch, d.git_author_name,
+		d.build_logs, d.deploy_logs, d.error_message, d.started_at,
+		d.build_started_at, d.build_completed_at, d.deploy_started_at,
+		d.deploy_completed_at, d.stopped_at, d.build_duration_seconds,
+		d.deploy_duration_seconds, d.updated_at, u.username AS triggered_by_username
+	FROM deployments d
+	LEFT JOIN users u ON d.triggered_by = u.id
+	ORDER BY d.started_at DESC`
 
-	queryStr, args, err := query.Build(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build query: %w", err)
-	}
-
-	rows, err := r.db.QueryContext(ctx, queryStr, args...)
+	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list deployments: %w", err)
 	}
@@ -222,7 +274,7 @@ func (r *sqliteDeploymentRepository) List(ctx context.Context) ([]*deployments.D
 			&row.BuildLogs, &row.DeployLogs, &row.ErrorMessage, &row.StartedAt,
 			&row.BuildStartedAt, &row.BuildCompletedAt, &row.DeployStartedAt,
 			&row.DeployCompletedAt, &row.StoppedAt, &row.BuildDurationSeconds,
-			&row.DeployDurationSeconds, &row.UpdatedAt,
+			&row.DeployDurationSeconds, &row.UpdatedAt, &row.TriggeredByUsername,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan deployment row: %w", err)
@@ -238,28 +290,69 @@ func (r *sqliteDeploymentRepository) List(ctx context.Context) ([]*deployments.D
 	return result, nil
 }
 
-func (r *sqliteDeploymentRepository) ListByApplication(ctx context.Context, applicationID applications.ApplicationID) ([]*deployments.Deployment, error) {
-	query := sqlite.Select(
-		sm.Columns(
-			"id", "application_id", "deployment_number", "is_production", "triggered_by",
-			"trigger_type", "status", "container_id", "image_tag", "image_digest",
-			"git_commit_hash", "git_commit_message", "git_branch", "git_author_name",
-			"build_logs", "deploy_logs", "error_message", "started_at",
-			"build_started_at", "build_completed_at", "deploy_started_at",
-			"deploy_completed_at", "stopped_at", "build_duration_seconds",
-			"deploy_duration_seconds", "updated_at",
-		),
-		sm.From("deployments"),
-		sm.Where(sqlite.Quote("application_id").EQ(sqlite.Arg(applicationID.String()))),
-		sm.OrderBy("deployment_number").Desc(),
-	)
+func (r *sqliteDeploymentRepository) ListWithMetadata(ctx context.Context) ([]*DeploymentWithMetadata, error) {
+	query := `SELECT 
+		d.id, d.application_id, d.deployment_number, d.is_production, d.triggered_by,
+		d.trigger_type, d.status, d.container_id, d.image_tag, d.image_digest,
+		d.git_commit_hash, d.git_commit_message, d.git_branch, d.git_author_name,
+		d.build_logs, d.deploy_logs, d.error_message, d.started_at,
+		d.build_started_at, d.build_completed_at, d.deploy_started_at,
+		d.deploy_completed_at, d.stopped_at, d.build_duration_seconds,
+		d.deploy_duration_seconds, d.updated_at, u.username AS triggered_by_username
+	FROM deployments d
+	LEFT JOIN users u ON d.triggered_by = u.id
+	ORDER BY d.started_at DESC`
 
-	queryStr, args, err := query.Build(ctx)
+	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build query: %w", err)
+		return nil, fmt.Errorf("failed to list deployments: %w", err)
+	}
+	defer rows.Close()
+
+	var result []*DeploymentWithMetadata
+	for rows.Next() {
+		row := deploymentRow{}
+		err := rows.Scan(
+			&row.ID, &row.ApplicationID, &row.DeploymentNumber, &row.IsProduction, &row.TriggeredBy,
+			&row.TriggerType, &row.Status, &row.ContainerID, &row.ImageTag, &row.ImageDigest,
+			&row.GitCommitHash, &row.GitCommitMessage, &row.GitBranch, &row.GitAuthorName,
+			&row.BuildLogs, &row.DeployLogs, &row.ErrorMessage, &row.StartedAt,
+			&row.BuildStartedAt, &row.BuildCompletedAt, &row.DeployStartedAt,
+			&row.DeployCompletedAt, &row.StoppedAt, &row.BuildDurationSeconds,
+			&row.DeployDurationSeconds, &row.UpdatedAt, &row.TriggeredByUsername,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan deployment row: %w", err)
+		}
+
+		deployment, err := r.mapRowToDeployment(row)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, &DeploymentWithMetadata{
+			Deployment: deployment,
+			Username:   row.TriggeredByUsername,
+		})
 	}
 
-	rows, err := r.db.QueryContext(ctx, queryStr, args...)
+	return result, nil
+}
+
+func (r *sqliteDeploymentRepository) ListByApplication(ctx context.Context, applicationID applications.ApplicationID) ([]*deployments.Deployment, error) {
+	query := `SELECT 
+		d.id, d.application_id, d.deployment_number, d.is_production, d.triggered_by,
+		d.trigger_type, d.status, d.container_id, d.image_tag, d.image_digest,
+		d.git_commit_hash, d.git_commit_message, d.git_branch, d.git_author_name,
+		d.build_logs, d.deploy_logs, d.error_message, d.started_at,
+		d.build_started_at, d.build_completed_at, d.deploy_started_at,
+		d.deploy_completed_at, d.stopped_at, d.build_duration_seconds,
+		d.deploy_duration_seconds, d.updated_at, u.username AS triggered_by_username
+	FROM deployments d
+	LEFT JOIN users u ON d.triggered_by = u.id
+	WHERE d.application_id = ?
+	ORDER BY d.deployment_number DESC`
+
+	rows, err := r.db.QueryContext(ctx, query, applicationID.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to list deployments by application: %w", err)
 	}
@@ -275,7 +368,7 @@ func (r *sqliteDeploymentRepository) ListByApplication(ctx context.Context, appl
 			&row.BuildLogs, &row.DeployLogs, &row.ErrorMessage, &row.StartedAt,
 			&row.BuildStartedAt, &row.BuildCompletedAt, &row.DeployStartedAt,
 			&row.DeployCompletedAt, &row.StoppedAt, &row.BuildDurationSeconds,
-			&row.DeployDurationSeconds, &row.UpdatedAt,
+			&row.DeployDurationSeconds, &row.UpdatedAt, &row.TriggeredByUsername,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan deployment row: %w", err)
@@ -291,37 +384,79 @@ func (r *sqliteDeploymentRepository) ListByApplication(ctx context.Context, appl
 	return result, nil
 }
 
-func (r *sqliteDeploymentRepository) GetLatestByApplication(ctx context.Context, applicationID applications.ApplicationID) (*deployments.Deployment, error) {
-	query := sqlite.Select(
-		sm.Columns(
-			"id", "application_id", "deployment_number", "is_production", "triggered_by",
-			"trigger_type", "status", "container_id", "image_tag", "image_digest",
-			"git_commit_hash", "git_commit_message", "git_branch", "git_author_name",
-			"build_logs", "deploy_logs", "error_message", "started_at",
-			"build_started_at", "build_completed_at", "deploy_started_at",
-			"deploy_completed_at", "stopped_at", "build_duration_seconds",
-			"deploy_duration_seconds", "updated_at",
-		),
-		sm.From("deployments"),
-		sm.Where(sqlite.Quote("application_id").EQ(sqlite.Arg(applicationID.String()))),
-		sm.OrderBy("deployment_number").Desc(),
-		sm.Limit(1),
-	)
+func (r *sqliteDeploymentRepository) ListByApplicationWithMetadata(ctx context.Context, applicationID applications.ApplicationID) ([]*DeploymentWithMetadata, error) {
+	query := `SELECT 
+		d.id, d.application_id, d.deployment_number, d.is_production, d.triggered_by,
+		d.trigger_type, d.status, d.container_id, d.image_tag, d.image_digest,
+		d.git_commit_hash, d.git_commit_message, d.git_branch, d.git_author_name,
+		d.build_logs, d.deploy_logs, d.error_message, d.started_at,
+		d.build_started_at, d.build_completed_at, d.deploy_started_at,
+		d.deploy_completed_at, d.stopped_at, d.build_duration_seconds,
+		d.deploy_duration_seconds, d.updated_at, COALESCE(u.username, u.email) AS triggered_by_username
+	FROM deployments d
+	LEFT JOIN users u ON d.triggered_by = u.id
+	WHERE d.application_id = ?
+	ORDER BY d.deployment_number DESC`
 
-	queryStr, args, err := query.Build(ctx)
+	rows, err := r.db.QueryContext(ctx, query, applicationID.String())
 	if err != nil {
-		return nil, fmt.Errorf("failed to build query: %w", err)
+		return nil, fmt.Errorf("failed to list deployments by application: %w", err)
+	}
+	defer rows.Close()
+
+	var result []*DeploymentWithMetadata
+	for rows.Next() {
+		row := deploymentRow{}
+		err := rows.Scan(
+			&row.ID, &row.ApplicationID, &row.DeploymentNumber, &row.IsProduction, &row.TriggeredBy,
+			&row.TriggerType, &row.Status, &row.ContainerID, &row.ImageTag, &row.ImageDigest,
+			&row.GitCommitHash, &row.GitCommitMessage, &row.GitBranch, &row.GitAuthorName,
+			&row.BuildLogs, &row.DeployLogs, &row.ErrorMessage, &row.StartedAt,
+			&row.BuildStartedAt, &row.BuildCompletedAt, &row.DeployStartedAt,
+			&row.DeployCompletedAt, &row.StoppedAt, &row.BuildDurationSeconds,
+			&row.DeployDurationSeconds, &row.UpdatedAt, &row.TriggeredByUsername,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan deployment row: %w", err)
+		}
+
+		deployment, err := r.mapRowToDeployment(row)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, &DeploymentWithMetadata{
+			Deployment: deployment,
+			Username:   row.TriggeredByUsername,
+		})
 	}
 
+	return result, nil
+}
+
+func (r *sqliteDeploymentRepository) GetLatestByApplication(ctx context.Context, applicationID applications.ApplicationID) (*deployments.Deployment, error) {
+	query := `SELECT 
+		d.id, d.application_id, d.deployment_number, d.is_production, d.triggered_by,
+		d.trigger_type, d.status, d.container_id, d.image_tag, d.image_digest,
+		d.git_commit_hash, d.git_commit_message, d.git_branch, d.git_author_name,
+		d.build_logs, d.deploy_logs, d.error_message, d.started_at,
+		d.build_started_at, d.build_completed_at, d.deploy_started_at,
+		d.deploy_completed_at, d.stopped_at, d.build_duration_seconds,
+		d.deploy_duration_seconds, d.updated_at, COALESCE(u.username, u.email) AS triggered_by_username
+	FROM deployments d
+	LEFT JOIN users u ON d.triggered_by = u.id
+	WHERE d.application_id = ?
+	ORDER BY d.deployment_number DESC
+	LIMIT 1`
+
 	row := deploymentRow{}
-	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(
+	err := r.db.QueryRowContext(ctx, query, applicationID.String()).Scan(
 		&row.ID, &row.ApplicationID, &row.DeploymentNumber, &row.IsProduction, &row.TriggeredBy,
 		&row.TriggerType, &row.Status, &row.ContainerID, &row.ImageTag, &row.ImageDigest,
 		&row.GitCommitHash, &row.GitCommitMessage, &row.GitBranch, &row.GitAuthorName,
 		&row.BuildLogs, &row.DeployLogs, &row.ErrorMessage, &row.StartedAt,
 		&row.BuildStartedAt, &row.BuildCompletedAt, &row.DeployStartedAt,
 		&row.DeployCompletedAt, &row.StoppedAt, &row.BuildDurationSeconds,
-		&row.DeployDurationSeconds, &row.UpdatedAt,
+		&row.DeployDurationSeconds, &row.UpdatedAt, &row.TriggeredByUsername,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -334,27 +469,20 @@ func (r *sqliteDeploymentRepository) GetLatestByApplication(ctx context.Context,
 }
 
 func (r *sqliteDeploymentRepository) ListByStatus(ctx context.Context, status deployments.DeploymentStatus) ([]*deployments.Deployment, error) {
-	query := sqlite.Select(
-		sm.Columns(
-			"id", "application_id", "deployment_number", "is_production", "triggered_by",
-			"trigger_type", "status", "container_id", "image_tag", "image_digest",
-			"git_commit_hash", "git_commit_message", "git_branch", "git_author_name",
-			"build_logs", "deploy_logs", "error_message", "started_at",
-			"build_started_at", "build_completed_at", "deploy_started_at",
-			"deploy_completed_at", "stopped_at", "build_duration_seconds",
-			"deploy_duration_seconds", "updated_at",
-		),
-		sm.From("deployments"),
-		sm.Where(sqlite.Quote("status").EQ(sqlite.Arg(string(status)))),
-		sm.OrderBy("started_at").Desc(),
-	)
+	query := `SELECT 
+		d.id, d.application_id, d.deployment_number, d.is_production, d.triggered_by,
+		d.trigger_type, d.status, d.container_id, d.image_tag, d.image_digest,
+		d.git_commit_hash, d.git_commit_message, d.git_branch, d.git_author_name,
+		d.build_logs, d.deploy_logs, d.error_message, d.started_at,
+		d.build_started_at, d.build_completed_at, d.deploy_started_at,
+		d.deploy_completed_at, d.stopped_at, d.build_duration_seconds,
+		d.deploy_duration_seconds, d.updated_at, u.username AS triggered_by_username
+	FROM deployments d
+	LEFT JOIN users u ON d.triggered_by = u.id
+	WHERE d.status = ?
+	ORDER BY d.started_at DESC`
 
-	queryStr, args, err := query.Build(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build query: %w", err)
-	}
-
-	rows, err := r.db.QueryContext(ctx, queryStr, args...)
+	rows, err := r.db.QueryContext(ctx, query, string(status))
 	if err != nil {
 		return nil, fmt.Errorf("failed to list deployments by status: %w", err)
 	}
@@ -370,7 +498,7 @@ func (r *sqliteDeploymentRepository) ListByStatus(ctx context.Context, status de
 			&row.BuildLogs, &row.DeployLogs, &row.ErrorMessage, &row.StartedAt,
 			&row.BuildStartedAt, &row.BuildCompletedAt, &row.DeployStartedAt,
 			&row.DeployCompletedAt, &row.StoppedAt, &row.BuildDurationSeconds,
-			&row.DeployDurationSeconds, &row.UpdatedAt,
+			&row.DeployDurationSeconds, &row.UpdatedAt, &row.TriggeredByUsername,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan deployment row: %w", err)
@@ -392,6 +520,7 @@ type deploymentRow struct {
 	DeploymentNumber      int
 	IsProduction          int
 	TriggeredBy           *string
+	TriggeredByUsername   *string
 	TriggerType           string
 	Status                string
 	ContainerID           string

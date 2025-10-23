@@ -2,7 +2,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Plus } from 'lucide-svelte';
-	import type { Environment } from '$lib/api';
+	import { type Environment } from '$lib/features/environments/types';
 
 	interface Props {
 		environments: Environment[];

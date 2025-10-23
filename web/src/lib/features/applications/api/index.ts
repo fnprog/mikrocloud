@@ -23,15 +23,15 @@ export const applicationsApi = {
   },
 
   async start(data: SwitchApplicationStateRequest): Promise<void> {
-    return apiClient.post<void>(`/projects/${data.project_id}/applications/${data.application_id}/start`, {});
+    return apiClient.post<void>(`/projects/${data.project_id}/applications/${data.id}/start`, {});
   },
 
   async stop(data: SwitchApplicationStateRequest): Promise<void> {
-    return apiClient.post<void>(`/projects/${data.project_id}/applications/${data.application_id}/stop`, {});
+    return apiClient.post<void>(`/projects/${data.project_id}/applications/${data.id}/stop`, {});
   },
 
   async restart(data: SwitchApplicationStateRequest): Promise<void> {
-    return apiClient.post<void>(`/projects/${data.project_id}/applications/${data.application_id}/restart`, {});
+    return apiClient.post<void>(`/projects/${data.project_id}/applications/${data.id}/restart`, {});
   },
 
   async updateGeneral(data: UpdateGeneralSettingsRequest): Promise<void> {

@@ -7,7 +7,14 @@
 	import { Card } from '$lib/components/ui/card';
 	import { Switch } from '$lib/components/ui/switch';
 	import { Badge } from '$lib/components/ui/badge';
-	import { Dialog, DialogFooter, DialogContent, DialogTitle, DialogHeader, DialogDescription } from '$lib/components/ui/dialog';
+	import {
+		Dialog,
+		DialogFooter,
+		DialogContent,
+		DialogTitle,
+		DialogHeader,
+		DialogDescription
+	} from '$lib/components/ui/dialog';
 	import * as Table from '$lib/components/ui/table';
 	import {
 		Plus,
@@ -158,7 +165,7 @@
 	}
 </script>
 
-<div class="space-y-6">
+<div class="flex flex-col gap-6 p-6">
 	<div>
 		<h1 class="font-bold text-3xl">Shared Environment Variables</h1>
 		<p class="text-muted-foreground mt-1">
@@ -170,7 +177,7 @@
 		<AlertCircle class="size-4" />
 		<AlertTitle>Variable Syntax</AlertTitle>
 		<AlertDescription>
-			Use <code class="bg-muted px-1.5 py-0.5 rounded font-mono text-xs"
+			Use <code class="bg-muted inline-flex px-1.5 py-0.5 rounded font-mono text-xs"
 				>{'{{'} environment.VARIABLENAME {'}}'}</code
 			> to reference these variables in your applications.
 		</AlertDescription>
@@ -220,7 +227,7 @@
 			</div>
 		</Card>
 	{:else}
-		<Card>
+		<Card class="py-0 px-2">
 			<Table.Root>
 				<Table.Header>
 					<Table.Row>
@@ -309,9 +316,7 @@
 	<DialogContent class="sm:max-w-[500px]">
 		<DialogHeader>
 			<DialogTitle>Add Environment Variable</DialogTitle>
-			<DialogDescription>
-				Add a new shared environment variable for this project
-			</DialogDescription>
+			<DialogDescription>Add a new shared environment variable for this project</DialogDescription>
 		</DialogHeader>
 
 		<div class="space-y-4">

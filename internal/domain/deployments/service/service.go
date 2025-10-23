@@ -7,22 +7,13 @@ import (
 
 	"github.com/mikrocloud/mikrocloud/internal/domain/applications"
 	"github.com/mikrocloud/mikrocloud/internal/domain/deployments"
+	"github.com/mikrocloud/mikrocloud/internal/domain/deployments/logs"
+	"github.com/mikrocloud/mikrocloud/internal/domain/deployments/repository"
 	"github.com/mikrocloud/mikrocloud/internal/domain/users"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/build"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
 	services "github.com/mikrocloud/mikrocloud/pkg/containers/service"
 )
-
-type DeploymentRepository interface {
-	Create(ctx context.Context, deployment *deployments.Deployment) error
-	GetByID(ctx context.Context, id deployments.DeploymentID) (*deployments.Deployment, error)
-	Update(ctx context.Context, deployment *deployments.Deployment) error
-	Delete(ctx context.Context, id deployments.DeploymentID) error
-	List(ctx context.Context) ([]*deployments.Deployment, error)
-	ListByApplication(ctx context.Context, applicationID applications.ApplicationID) ([]*deployments.Deployment, error)
-	GetLatestByApplication(ctx context.Context, applicationID applications.ApplicationID) (*deployments.Deployment, error)
-	ListByStatus(ctx context.Context, status deployments.DeploymentStatus) ([]*deployments.Deployment, error)
-}
 
 type BuildService interface {
 	BuildImage(ctx context.Context, request build.BuildRequest) (*build.BuildResult, error)
@@ -33,11 +24,11 @@ type ApplicationService interface {
 }
 
 type DeploymentService struct {
-	repo             DeploymentRepository
+	repo             repository.DeploymentRepository
 	containerService *services.ContainerService
 }
 
-func NewDeploymentService(repo DeploymentRepository, containerService *services.ContainerService) *DeploymentService {
+func NewDeploymentService(repo repository.DeploymentRepository, containerService *services.ContainerService) *DeploymentService {
 	return &DeploymentService{
 		repo:             repo,
 		containerService: containerService,
@@ -298,6 +289,22 @@ func (s *DeploymentService) GetDeployment(ctx context.Context, id deployments.De
 	return deployment, nil
 }
 
+func (s *DeploymentService) GetDeploymentWithMetadata(ctx context.Context, id deployments.DeploymentID) (*repository.DeploymentWithMetadata, error) {
+	deploymentWithMeta, err := s.repo.GetByIDWithMetadata(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get deployment: %w", err)
+	}
+	return deploymentWithMeta, nil
+}
+
+func (s *DeploymentService) ListDeploymentsByApplicationWithMetadata(ctx context.Context, applicationID applications.ApplicationID) ([]*repository.DeploymentWithMetadata, error) {
+	deploymentsWithMeta, err := s.repo.ListByApplicationWithMetadata(ctx, applicationID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list deployments: %w", err)
+	}
+	return deploymentsWithMeta, nil
+}
+
 func (s *DeploymentService) StartBuild(ctx context.Context, id deployments.DeploymentID) error {
 	deployment, err := s.repo.GetByID(ctx, id)
 	if err != nil {
@@ -351,8 +358,40 @@ func (s *DeploymentService) CompleteDeploy(ctx context.Context, id deployments.D
 
 	deployment.CompleteDeploy()
 
+	if err := s.parseFinalLogs(deployment); err != nil {
+		return fmt.Errorf("failed to parse logs: %w", err)
+	}
+
 	if err := s.repo.Update(ctx, deployment); err != nil {
 		return fmt.Errorf("failed to update deployment: %w", err)
+	}
+
+	return nil
+}
+
+func (s *DeploymentService) parseFinalLogs(deployment *deployments.Deployment) error {
+	parser := logs.NewLogParser(deployment.StartedAt())
+
+	buildLogs := deployment.BuildLogs()
+	if buildLogs != "" {
+		parsedBuildLogs, err := parser.ParseAndSerialize(buildLogs)
+		if err != nil {
+			return fmt.Errorf("failed to parse build logs: %w", err)
+		}
+		if parsedBuildLogs != "" {
+			deployment.SetBuildLogs(parsedBuildLogs)
+		}
+	}
+
+	deployLogs := deployment.DeployLogs()
+	if deployLogs != "" {
+		parsedDeployLogs, err := parser.ParseAndSerialize(deployLogs)
+		if err != nil {
+			return fmt.Errorf("failed to parse deploy logs: %w", err)
+		}
+		if parsedDeployLogs != "" {
+			deployment.SetDeployLogs(parsedDeployLogs)
+		}
 	}
 
 	return nil
@@ -365,6 +404,10 @@ func (s *DeploymentService) FailDeployment(ctx context.Context, id deployments.D
 	}
 
 	deployment.Fail(errorMessage)
+
+	if err := s.parseFinalLogs(deployment); err != nil {
+		return fmt.Errorf("failed to parse logs: %w", err)
+	}
 
 	if err := s.repo.Update(ctx, deployment); err != nil {
 		return fmt.Errorf("failed to update deployment: %w", err)
@@ -380,6 +423,10 @@ func (s *DeploymentService) CancelDeployment(ctx context.Context, id deployments
 	}
 
 	deployment.Cancel()
+
+	if err := s.parseFinalLogs(deployment); err != nil {
+		return fmt.Errorf("failed to parse logs: %w", err)
+	}
 
 	if err := s.repo.Update(ctx, deployment); err != nil {
 		return fmt.Errorf("failed to update deployment: %w", err)

@@ -158,7 +158,7 @@
 	}
 </script>
 
-<div class="container max-w-5xl py-8">
+<div class="container mx-auto max-w-4xl py-8 px-4">
 	<div class="mb-6">
 		<h1 class="text-3xl font-bold">Create Database</h1>
 		<p class="text-muted-foreground">Add a new database to your project</p>
