@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/mikrocloud/mikrocloud/internal/domain/databases"
+	"github.com/mikrocloud/mikrocloud/pkg/containers"
 )
 
 // DefaultContainerConfigBuilder builds container configurations for different database types
@@ -66,10 +67,10 @@ func (b *DefaultContainerConfigBuilder) BuildPostgreSQLConfig(database *database
 	}
 
 	image := b.imageResolver.ResolveImage(databases.DatabaseTypePostgreSQL, pgConfig.Version)
-	containerName := fmt.Sprintf("mikrocloud-%s-%s-%s",
+	containerName := containers.SanitizeDockerName(fmt.Sprintf("mikrocloud-%s-%s-%s",
 		database.ProjectID(),
 		database.EnvironmentID(),
-		database.Name().String())
+		database.Name().String()))
 
 	environment := map[string]string{
 		"POSTGRES_DB":       pgConfig.DatabaseName,
@@ -122,10 +123,10 @@ func (b *DefaultContainerConfigBuilder) BuildMySQLConfig(database *databases.Dat
 	}
 
 	image := b.imageResolver.ResolveImage(databases.DatabaseTypeMySQL, mysqlConfig.Version)
-	containerName := fmt.Sprintf("mikrocloud-%s-%s-%s",
+	containerName := containers.SanitizeDockerName(fmt.Sprintf("mikrocloud-%s-%s-%s",
 		database.ProjectID(),
 		database.EnvironmentID(),
-		database.Name().String())
+		database.Name().String()))
 
 	environment := map[string]string{
 		"MYSQL_DATABASE":      mysqlConfig.DatabaseName,
@@ -180,10 +181,10 @@ func (b *DefaultContainerConfigBuilder) BuildMariaDBConfig(database *databases.D
 	}
 
 	image := b.imageResolver.ResolveImage(databases.DatabaseTypeMariaDB, mariaConfig.Version)
-	containerName := fmt.Sprintf("mikrocloud-%s-%s-%s",
+	containerName := containers.SanitizeDockerName(fmt.Sprintf("mikrocloud-%s-%s-%s",
 		database.ProjectID(),
 		database.EnvironmentID(),
-		database.Name().String())
+		database.Name().String()))
 
 	environment := map[string]string{
 		"MARIADB_DATABASE":      mariaConfig.DatabaseName,
@@ -238,10 +239,10 @@ func (b *DefaultContainerConfigBuilder) BuildRedisConfig(database *databases.Dat
 	}
 
 	image := b.imageResolver.ResolveImage(databases.DatabaseTypeRedis, redisConfig.Version)
-	containerName := fmt.Sprintf("mikrocloud-%s-%s-%s",
+	containerName := containers.SanitizeDockerName(fmt.Sprintf("mikrocloud-%s-%s-%s",
 		database.ProjectID(),
 		database.EnvironmentID(),
-		database.Name().String())
+		database.Name().String()))
 
 	environment := map[string]string{}
 
@@ -296,10 +297,10 @@ func (b *DefaultContainerConfigBuilder) BuildKeyDBConfig(database *databases.Dat
 	}
 
 	image := b.imageResolver.ResolveImage(databases.DatabaseTypeKeyDB, keydbConfig.Version)
-	containerName := fmt.Sprintf("mikrocloud-%s-%s-%s",
+	containerName := containers.SanitizeDockerName(fmt.Sprintf("mikrocloud-%s-%s-%s",
 		database.ProjectID(),
 		database.EnvironmentID(),
-		database.Name().String())
+		database.Name().String()))
 
 	environment := map[string]string{}
 
@@ -354,10 +355,10 @@ func (b *DefaultContainerConfigBuilder) BuildDragonflyConfig(database *databases
 	}
 
 	image := b.imageResolver.ResolveImage(databases.DatabaseTypeDragonfly, dragonflyConfig.Version)
-	containerName := fmt.Sprintf("mikrocloud-%s-%s-%s",
+	containerName := containers.SanitizeDockerName(fmt.Sprintf("mikrocloud-%s-%s-%s",
 		database.ProjectID(),
 		database.EnvironmentID(),
-		database.Name().String())
+		database.Name().String()))
 
 	environment := map[string]string{}
 
@@ -412,10 +413,10 @@ func (b *DefaultContainerConfigBuilder) BuildMongoDBConfig(database *databases.D
 	}
 
 	image := b.imageResolver.ResolveImage(databases.DatabaseTypeMongoDB, mongoConfig.Version)
-	containerName := fmt.Sprintf("mikrocloud-%s-%s-%s",
+	containerName := containers.SanitizeDockerName(fmt.Sprintf("mikrocloud-%s-%s-%s",
 		database.ProjectID(),
 		database.EnvironmentID(),
-		database.Name().String())
+		database.Name().String()))
 
 	environment := map[string]string{
 		"MONGO_INITDB_DATABASE":      mongoConfig.DatabaseName,
@@ -469,10 +470,10 @@ func (b *DefaultContainerConfigBuilder) BuildClickHouseConfig(database *database
 	}
 
 	image := b.imageResolver.ResolveImage(databases.DatabaseTypeClickHouse, clickhouseConfig.Version)
-	containerName := fmt.Sprintf("mikrocloud-%s-%s-%s",
+	containerName := containers.SanitizeDockerName(fmt.Sprintf("mikrocloud-%s-%s-%s",
 		database.ProjectID(),
 		database.EnvironmentID(),
-		database.Name().String())
+		database.Name().String()))
 
 	environment := map[string]string{
 		"CLICKHOUSE_DB":       clickhouseConfig.DatabaseName,

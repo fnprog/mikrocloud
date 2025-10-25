@@ -17,6 +17,7 @@ import (
 	"github.com/mikrocloud/mikrocloud/internal/domain/deployments/service"
 	"github.com/mikrocloud/mikrocloud/internal/domain/users"
 	"github.com/mikrocloud/mikrocloud/internal/utils"
+	"github.com/mikrocloud/mikrocloud/pkg/containers"
 )
 
 type DeploymentHandler struct {
@@ -706,7 +707,7 @@ func (h *DeploymentHandler) mapDeploymentWithMetadataToResponse(deploymentWithMe
 }
 
 func generateImageTag(app *applications.Application, gitCommitHash string) string {
-	imageName := sanitizeDockerImageName(app.Name().String())
+	imageName := containers.SanitizeDockerName(app.Name().String())
 	if gitCommitHash != "" {
 		if len(gitCommitHash) > 7 {
 			return imageName + ":" + gitCommitHash[:7]
@@ -714,16 +715,4 @@ func generateImageTag(app *applications.Application, gitCommitHash string) strin
 		return imageName + ":" + gitCommitHash
 	}
 	return imageName + ":latest"
-}
-
-func sanitizeDockerImageName(name string) string {
-	result := strings.ToLower(name)
-	result = strings.ReplaceAll(result, " ", "-")
-	result = strings.Map(func(r rune) rune {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
-			return r
-		}
-		return '-'
-	}, result)
-	return result
 }

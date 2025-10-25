@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mikrocloud/mikrocloud/internal/domain/databases"
+	"github.com/mikrocloud/mikrocloud/pkg/containers"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
 	services "github.com/mikrocloud/mikrocloud/pkg/containers/service"
 )
@@ -249,8 +250,8 @@ func (s *Service) GetLogs(ctx context.Context, database *databases.Database, fol
 
 // buildContainerName creates a consistent container name for the database
 func (s *Service) buildContainerName(database *databases.Database) string {
-	return fmt.Sprintf("mikrocloud-%s-%s-%s",
+	return containers.SanitizeDockerName(fmt.Sprintf("mikrocloud-%s-%s-%s",
 		database.ProjectID(),
 		database.EnvironmentID(),
-		database.Name().String())
+		database.Name().String()))
 }

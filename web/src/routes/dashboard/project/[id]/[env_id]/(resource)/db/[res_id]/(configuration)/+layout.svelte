@@ -111,7 +111,7 @@
 				</div>
 
 				<div class="flex gap-2">
-					{#if database.status === 'stopped' || database.status === 'created'}
+					{#if database.status === 'stopped' || database.status === 'created' || database.status === 'failed'}
 						<Button
 							variant="outline"
 							size="sm"
@@ -132,7 +132,7 @@
 							{stopMutation.isPending ? 'Stopping...' : 'Stop'}
 						</Button>
 					{/if}
-					{#if database.status !== 'created'}
+					{#if database.status !== 'created' && database.status !== 'failed' && database.status !== 'stopped'}
 						<Button
 							variant="outline"
 							size="sm"
@@ -149,7 +149,7 @@
 	</div>
 
 	<div class="flex gap-6">
-		<nav class="w-56 flex-shrink-0">
+		<nav class="w-56 shrink-0">
 			<div class="space-y-1">
 				{#each navItems as item}
 					<button

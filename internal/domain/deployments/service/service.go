@@ -3,13 +3,13 @@ package service
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/mikrocloud/mikrocloud/internal/domain/applications"
 	"github.com/mikrocloud/mikrocloud/internal/domain/deployments"
 	"github.com/mikrocloud/mikrocloud/internal/domain/deployments/logs"
 	"github.com/mikrocloud/mikrocloud/internal/domain/deployments/repository"
 	"github.com/mikrocloud/mikrocloud/internal/domain/users"
+	"github.com/mikrocloud/mikrocloud/pkg/containers"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/build"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
 	services "github.com/mikrocloud/mikrocloud/pkg/containers/service"
@@ -545,8 +545,7 @@ func (s *DeploymentService) ListDeploymentsByStatus(ctx context.Context, status 
 func (s *DeploymentService) deployContainer(ctx context.Context, deploymentID deployments.DeploymentID, deployment *deployments.Deployment, app *applications.Application, imageTag string) error {
 	s.AppendDeployLogs(ctx, deploymentID, "Starting container deployment...")
 
-	containerName := fmt.Sprintf("%s-%d", app.Name().String(), deployment.DeploymentNumber())
-	containerName = strings.ToLower(strings.ReplaceAll(containerName, " ", "-"))
+	containerName := containers.SanitizeDockerName(fmt.Sprintf("%s-%d", app.Name().String(), deployment.DeploymentNumber()))
 
 	ports := make(map[string]string)
 	if len(app.PortMappings()) > 0 {

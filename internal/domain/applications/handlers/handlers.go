@@ -14,6 +14,7 @@ import (
 	deploymentService "github.com/mikrocloud/mikrocloud/internal/domain/deployments/service"
 	"github.com/mikrocloud/mikrocloud/internal/domain/users"
 	"github.com/mikrocloud/mikrocloud/internal/utils"
+	"github.com/mikrocloud/mikrocloud/pkg/containers"
 	containerService "github.com/mikrocloud/mikrocloud/pkg/containers/service"
 )
 
@@ -514,7 +515,7 @@ func (h *ApplicationHandler) StartApplication(w http.ResponseWriter, r *http.Req
 }
 
 func generateImageTag(app *applications.Application, gitCommitHash string) string {
-	imageName := app.Name().String()
+	imageName := containers.SanitizeDockerName(app.Name().String())
 	if gitCommitHash != "" {
 		if len(gitCommitHash) > 7 {
 			return imageName + ":" + gitCommitHash[:7]

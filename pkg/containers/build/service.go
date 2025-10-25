@@ -7,6 +7,7 @@ import (
 	"maps"
 	"strings"
 
+	"github.com/mikrocloud/mikrocloud/pkg/containers"
 	"github.com/mikrocloud/mikrocloud/pkg/containers/manager"
 )
 
@@ -30,7 +31,7 @@ func NewBuildService(containerManager manager.ContainerManager, containerEngineS
 
 func (bs *BuildService) BuildImage(ctx context.Context, request BuildRequest) (*BuildResult, error) {
 	// Create a unique build container name
-	buildContainerName := fmt.Sprintf("mikrocloud-build-%s", request.ID)
+	buildContainerName := containers.SanitizeDockerName(fmt.Sprintf("mikrocloud-build-%s", request.ID))
 
 	// All building happens inside this helper container
 	// The helper container has access to the host Docker daemon via socket mount
@@ -107,7 +108,7 @@ func (bs *BuildService) buildWithNixpacks(ctx context.Context, request BuildRequ
 	// Commands to run inside the nixpacks build helper
 	commands := []string{
 		"echo 'Building with Nixpacks...'",
-		fmt.Sprintf("nixpacks build . --name %s", request.ImageTag),
+		fmt.Sprintf("nixpacks build . --name '%s'", request.ImageTag),
 	}
 
 	// Use nixpacks image as the build helper
@@ -133,7 +134,7 @@ func (bs *BuildService) buildStatic(ctx context.Context, request BuildRequest, c
 	commands := []string{
 		"echo 'Building static site...'",
 		// fmt.Sprintf("printf \"%s\" > Dockerfile", dockerfileContent),
-		fmt.Sprintf("docker build -t %s .", request.ImageTag),
+		fmt.Sprintf("docker build -t '%s' .", request.ImageTag),
 	}
 
 	// Use mikrocloud-builder with git and Docker CLI
@@ -172,7 +173,7 @@ func (bs *BuildService) buildWithDockerfile(ctx context.Context, request BuildRe
 
 	commands := []string{
 		"echo 'Building with Dockerfile...'",
-		fmt.Sprintf("docker build -f %s%s%s -t %s .", dockerfilePath, buildArgs, targetFlag, request.ImageTag),
+		fmt.Sprintf("docker build -f %s%s%s -t '%s' .", dockerfilePath, buildArgs, targetFlag, request.ImageTag),
 	}
 
 	return bs.createBuildHelper(ctx, HelperContainerImage, containerName, commands, request)
