@@ -13,6 +13,7 @@ type Server struct {
 	description    string
 	hostname       string
 	ipAddress      string
+	ipv6Address    string
 	port           int
 	sshKey         string
 	serverType     ServerType
@@ -85,13 +86,14 @@ const (
 	ServerStatusUnknown     ServerStatus = "unknown"
 )
 
-func NewServer(name ServerName, hostname, ipAddress string, port int, serverType ServerType, organizationID uuid.UUID) *Server {
+func NewServer(name ServerName, hostname, ipAddress, ipv6Address string, port int, serverType ServerType, organizationID uuid.UUID) *Server {
 	now := time.Now()
 	return &Server{
 		id:             NewServerID(),
 		name:           name,
 		hostname:       hostname,
 		ipAddress:      ipAddress,
+		ipv6Address:    ipv6Address,
 		port:           port,
 		serverType:     serverType,
 		status:         ServerStatusOnline,
@@ -121,6 +123,10 @@ func (s *Server) Hostname() string {
 
 func (s *Server) IPAddress() string {
 	return s.ipAddress
+}
+
+func (s *Server) IPv6Address() string {
+	return s.ipv6Address
 }
 
 func (s *Server) Port() int {
@@ -194,6 +200,11 @@ func (s *Server) UpdateHostname(hostname string) {
 
 func (s *Server) UpdateIPAddress(ipAddress string) {
 	s.ipAddress = ipAddress
+	s.updatedAt = time.Now()
+}
+
+func (s *Server) UpdateIPv6Address(ipv6Address string) {
+	s.ipv6Address = ipv6Address
 	s.updatedAt = time.Now()
 }
 
@@ -349,7 +360,7 @@ type ServerResources struct {
 func ReconstructServer(
 	id ServerID,
 	name ServerName,
-	description, hostname, ipAddress string,
+	description, hostname, ipAddress, ipv6Address string,
 	port int,
 	sshKey string,
 	serverType ServerType,
@@ -367,6 +378,7 @@ func ReconstructServer(
 		description:    description,
 		hostname:       hostname,
 		ipAddress:      ipAddress,
+		ipv6Address:    ipv6Address,
 		port:           port,
 		sshKey:         sshKey,
 		serverType:     serverType,

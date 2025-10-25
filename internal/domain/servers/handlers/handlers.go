@@ -22,17 +22,19 @@ func NewServersHandler(service *service.ServersService) *ServersHandler {
 }
 
 type CreateServerRequest struct {
-	Name       string `json:"name"`
-	Hostname   string `json:"hostname"`
-	IPAddress  string `json:"ip_address"`
-	Port       int    `json:"port"`
-	ServerType string `json:"server_type"`
+	Name        string `json:"name"`
+	Hostname    string `json:"hostname"`
+	IPAddress   string `json:"ip_address"`
+	IPv6Address string `json:"ipv6_address"`
+	Port        int    `json:"port"`
+	ServerType  string `json:"server_type"`
 }
 
 type UpdateServerRequest struct {
 	Description string   `json:"description,omitempty"`
 	Hostname    string   `json:"hostname,omitempty"`
 	IPAddress   string   `json:"ip_address,omitempty"`
+	IPv6Address string   `json:"ipv6_address,omitempty"`
 	Port        *int     `json:"port,omitempty"`
 	Status      string   `json:"status,omitempty"`
 	CPUCores    *int     `json:"cpu_cores,omitempty"`
@@ -125,7 +127,7 @@ func (h *ServersHandler) CreateServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	server, err := h.service.CreateServer(req.Name, req.Hostname, req.IPAddress, req.Port, servers.ServerType(req.ServerType), orgID)
+	server, err := h.service.CreateServer(req.Name, req.Hostname, req.IPAddress, req.IPv6Address, req.Port, servers.ServerType(req.ServerType), orgID)
 	if err != nil {
 		utils.SendError(w, http.StatusInternalServerError, "Failed to create server", err.Error())
 		return
@@ -168,6 +170,9 @@ func (h *ServersHandler) UpdateServer(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.IPAddress != "" {
 		server.UpdateIPAddress(req.IPAddress)
+	}
+	if req.IPv6Address != "" {
+		server.UpdateIPv6Address(req.IPv6Address)
 	}
 	if req.Port != nil {
 		server.UpdatePort(*req.Port)

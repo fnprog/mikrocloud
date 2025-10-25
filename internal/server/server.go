@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -187,7 +188,7 @@ func (s *Server) setupStaticRoutes() error {
 	frontendFS := s.staticFS
 
 	if frontendFS == nil {
-		return fmt.Errorf("No frontend assets available")
+		return fmt.Errorf("no frontend assets available")
 	}
 
 	// Catch-all handler for everything non-API
@@ -308,7 +309,6 @@ func (s *Server) initializeControlPlaneServer(ctx context.Context) error {
 		return nil
 	}
 
-	// Get the first organization from the database
 	var orgID string
 	err = s.deps.DB.MainDB().DB().QueryRowContext(ctx, "SELECT id FROM organizations LIMIT 1").Scan(&orgID)
 	if err != nil {
@@ -324,10 +324,14 @@ func (s *Server) initializeControlPlaneServer(ctx context.Context) error {
 	osInfo := runtime.GOOS
 	osVersion := runtime.Version()
 
+	ipv4Address := getLocalIPv4()
+	ipv6Address := getLocalIPv6()
+
 	createdServer, err := s.deps.ServerService.CreateServer(
 		"Control Plane - "+hostname,
 		hostname,
-		"127.0.0.1",
+		ipv4Address,
+		ipv6Address,
 		s.config.Server.Port,
 		servers.ServerTypeControlPlane,
 		defaultOrgID,
@@ -348,11 +352,47 @@ func (s *Server) initializeControlPlaneServer(ctx context.Context) error {
 	slog.Info("Control plane server initialized",
 		"server_id", createdServer.ID(),
 		"hostname", hostname,
+		"ipv4_address", ipv4Address,
+		"ipv6_address", ipv6Address,
 		"cpu_cores", cpuCores,
 		"memory_mb", memoryMB,
 	)
 
 	return nil
+}
+
+func getLocalIPv4() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "127.0.0.1"
+	}
+
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+
+	return "127.0.0.1"
+}
+
+func getLocalIPv6() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() == nil && ipnet.IP.To16() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+
+	return ""
 }
 
 func getSystemMemoryMB() int {

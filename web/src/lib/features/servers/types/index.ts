@@ -4,6 +4,7 @@ export interface Server {
 	description?: string;
 	hostname: string;
 	ip_address: string;
+	ipv6_address?: string;
 	port: number;
 	ssh_key?: string;
 	server_type: 'control_plane' | 'worker' | 'database' | 'proxy';
@@ -25,6 +26,7 @@ export interface CreateServerRequest {
 	description?: string;
 	hostname: string;
 	ip_address: string;
+	ipv6_address?: string;
 	port: number;
 	ssh_key?: string;
 	server_type: 'control_plane' | 'worker' | 'database' | 'proxy';
@@ -36,6 +38,7 @@ export interface UpdateServerRequest {
 	description?: string;
 	hostname?: string;
 	ip_address?: string;
+	ipv6_address?: string;
 	port?: number;
 	ssh_key?: string;
 	status?: 'online' | 'offline' | 'maintenance' | 'error' | 'unknown';

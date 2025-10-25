@@ -14,13 +14,13 @@ func NewServersService(repo *repository.ServersRepository) *ServersService {
 	return &ServersService{repo: repo}
 }
 
-func (s *ServersService) CreateServer(name, hostname, ipAddress string, port int, serverType servers.ServerType, organizationID uuid.UUID) (*servers.Server, error) {
+func (s *ServersService) CreateServer(name, hostname, ipAddress, ipv6Address string, port int, serverType servers.ServerType, organizationID uuid.UUID) (*servers.Server, error) {
 	serverName, err := servers.NewServerName(name)
 	if err != nil {
 		return nil, err
 	}
 
-	server := servers.NewServer(serverName, hostname, ipAddress, port, serverType, organizationID)
+	server := servers.NewServer(serverName, hostname, ipAddress, ipv6Address, port, serverType, organizationID)
 	if err := s.repo.Create(server); err != nil {
 		return nil, err
 	}

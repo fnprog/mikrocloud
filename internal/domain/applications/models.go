@@ -104,6 +104,8 @@ type StaticConfig struct {
 	BuildCommand string `json:"build_command,omitempty"`
 	OutputDir    string `json:"output_dir,omitempty"`
 	NginxConfig  string `json:"nginx_config,omitempty"`
+	IsStatic     bool   `json:"is_static,omitempty"`
+	IsSPA        bool   `json:"is_spa,omitempty"`
 }
 
 type DockerfileConfig struct {
@@ -752,6 +754,12 @@ func NewLegacyBuildpackConfig(buildpackType BuildpackType, config interface{}) *
 			}
 			if nginxCfg, ok := configMap["nginx_config"].(string); ok {
 				staticConfig.NginxConfig = nginxCfg
+			}
+			if isStatic, ok := configMap["is_static"].(bool); ok {
+				staticConfig.IsStatic = isStatic
+			}
+			if isSPA, ok := configMap["is_spa"].(bool); ok {
+				staticConfig.IsSPA = isSPA
 			}
 			buildConfig.SetStaticConfig(staticConfig)
 		}

@@ -25,6 +25,7 @@ type ServerDTO struct {
 	Description    string    `json:"description"`
 	Hostname       string    `json:"hostname"`
 	IPAddress      string    `json:"ip_address"`
+	IPv6Address    string    `json:"ipv6_address"`
 	Port           int       `json:"port"`
 	SSHKey         string    `json:"ssh_key,omitempty"`
 	ServerType     string    `json:"server_type"`
@@ -49,16 +50,17 @@ func (r *ServersRepository) Create(server *servers.Server) error {
 
 	_, err = r.db.Exec(`
 		INSERT INTO servers (
-			id, name, description, hostname, ip_address, port, ssh_key,
+			id, name, description, hostname, ip_address, ipv6_address, port, ssh_key,
 			server_type, status, cpu_cores, memory_mb, disk_gb, os, os_version,
 			metadata, tags, organization_id, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		server.ID().String(),
 		server.Name().String(),
 		server.Description(),
 		server.Hostname(),
 		server.IPAddress(),
+		server.IPv6Address(),
 		server.Port(),
 		server.SSHKey(),
 		server.ServerType(),
@@ -80,22 +82,22 @@ func (r *ServersRepository) Create(server *servers.Server) error {
 
 func (r *ServersRepository) GetByID(id servers.ServerID) (*servers.Server, error) {
 	var (
-		idStr, name, description, hostname, ipAddress, sshKey, metadata, tagsJSON string
-		port                                                                      int
-		serverType, status                                                        string
-		cpuCores, memoryMB, diskGB                                                *int
-		os, osVersion                                                             *string
-		orgIDStr                                                                  string
-		createdAt, updatedAt                                                      time.Time
+		idStr, name, description, hostname, ipAddress, ipv6Address, sshKey, metadata, tagsJSON string
+		port                                                                                   int
+		serverType, status                                                                     string
+		cpuCores, memoryMB, diskGB                                                             *int
+		os, osVersion                                                                          *string
+		orgIDStr                                                                               string
+		createdAt, updatedAt                                                                   time.Time
 	)
 
 	err := r.db.QueryRow(`
-		SELECT id, name, description, hostname, ip_address, port, ssh_key,
+		SELECT id, name, description, hostname, ip_address, ipv6_address, port, ssh_key,
 			server_type, status, cpu_cores, memory_mb, disk_gb, os, os_version,
 			metadata, tags, organization_id, created_at, updated_at
 		FROM servers WHERE id = ?
 	`, id.String()).Scan(
-		&idStr, &name, &description, &hostname, &ipAddress, &port, &sshKey,
+		&idStr, &name, &description, &hostname, &ipAddress, &ipv6Address, &port, &sshKey,
 		&serverType, &status, &cpuCores, &memoryMB, &diskGB, &os, &osVersion,
 		&metadata, &tagsJSON, &orgIDStr, &createdAt, &updatedAt,
 	)
@@ -107,7 +109,7 @@ func (r *ServersRepository) GetByID(id servers.ServerID) (*servers.Server, error
 		return nil, err
 	}
 
-	return r.scanServer(idStr, name, description, hostname, ipAddress, port, sshKey,
+	return r.scanServer(idStr, name, description, hostname, ipAddress, ipv6Address, port, sshKey,
 		serverType, status, cpuCores, memoryMB, diskGB, os, osVersion,
 		metadata, tagsJSON, orgIDStr, createdAt, updatedAt)
 }
@@ -120,7 +122,7 @@ func (r *ServersRepository) Update(server *servers.Server) error {
 
 	_, err = r.db.Exec(`
 		UPDATE servers SET
-			name = ?, description = ?, hostname = ?, ip_address = ?, port = ?,
+			name = ?, description = ?, hostname = ?, ip_address = ?, ipv6_address = ?, port = ?,
 			ssh_key = ?, status = ?, cpu_cores = ?, memory_mb = ?, disk_gb = ?,
 			os = ?, os_version = ?, metadata = ?, tags = ?, updated_at = ?
 		WHERE id = ?
@@ -129,6 +131,7 @@ func (r *ServersRepository) Update(server *servers.Server) error {
 		server.Description(),
 		server.Hostname(),
 		server.IPAddress(),
+		server.IPv6Address(),
 		server.Port(),
 		server.SSHKey(),
 		server.Status(),
@@ -153,7 +156,7 @@ func (r *ServersRepository) Delete(id servers.ServerID) error {
 
 func (r *ServersRepository) ListByOrganization(organizationID uuid.UUID) ([]*servers.Server, error) {
 	rows, err := r.db.Query(`
-		SELECT id, name, description, hostname, ip_address, port, ssh_key,
+		SELECT id, name, description, hostname, ip_address, ipv6_address, port, ssh_key,
 			server_type, status, cpu_cores, memory_mb, disk_gb, os, os_version,
 			metadata, tags, organization_id, created_at, updated_at
 		FROM servers WHERE organization_id = ?
@@ -169,7 +172,7 @@ func (r *ServersRepository) ListByOrganization(organizationID uuid.UUID) ([]*ser
 
 func (r *ServersRepository) ListByType(organizationID uuid.UUID, serverType servers.ServerType) ([]*servers.Server, error) {
 	rows, err := r.db.Query(`
-		SELECT id, name, description, hostname, ip_address, port, ssh_key,
+		SELECT id, name, description, hostname, ip_address, ipv6_address, port, ssh_key,
 			server_type, status, cpu_cores, memory_mb, disk_gb, os, os_version,
 			metadata, tags, organization_id, created_at, updated_at
 		FROM servers WHERE organization_id = ? AND server_type = ?
@@ -185,22 +188,22 @@ func (r *ServersRepository) ListByType(organizationID uuid.UUID, serverType serv
 
 func (r *ServersRepository) GetByHostname(hostname string) (*servers.Server, error) {
 	var (
-		idStr, name, description, hostnameStr, ipAddress, sshKey, metadata, tagsJSON string
-		port                                                                         int
-		serverType, status                                                           string
-		cpuCores, memoryMB, diskGB                                                   *int
-		os, osVersion                                                                *string
-		orgIDStr                                                                     string
-		createdAt, updatedAt                                                         time.Time
+		idStr, name, description, hostnameStr, ipAddress, ipv6Address, sshKey, metadata, tagsJSON string
+		port                                                                                      int
+		serverType, status                                                                        string
+		cpuCores, memoryMB, diskGB                                                                *int
+		os, osVersion                                                                             *string
+		orgIDStr                                                                                  string
+		createdAt, updatedAt                                                                      time.Time
 	)
 
 	err := r.db.QueryRow(`
-		SELECT id, name, description, hostname, ip_address, port, ssh_key,
+		SELECT id, name, description, hostname, ip_address, ipv6_address, port, ssh_key,
 			server_type, status, cpu_cores, memory_mb, disk_gb, os, os_version,
 			metadata, tags, organization_id, created_at, updated_at
 		FROM servers WHERE hostname = ?
 	`, hostname).Scan(
-		&idStr, &name, &description, &hostnameStr, &ipAddress, &port, &sshKey,
+		&idStr, &name, &description, &hostnameStr, &ipAddress, &ipv6Address, &port, &sshKey,
 		&serverType, &status, &cpuCores, &memoryMB, &diskGB, &os, &osVersion,
 		&metadata, &tagsJSON, &orgIDStr, &createdAt, &updatedAt,
 	)
@@ -212,7 +215,7 @@ func (r *ServersRepository) GetByHostname(hostname string) (*servers.Server, err
 		return nil, err
 	}
 
-	return r.scanServer(idStr, name, description, hostnameStr, ipAddress, port, sshKey,
+	return r.scanServer(idStr, name, description, hostnameStr, ipAddress, ipv6Address, port, sshKey,
 		serverType, status, cpuCores, memoryMB, diskGB, os, osVersion,
 		metadata, tagsJSON, orgIDStr, createdAt, updatedAt)
 }
@@ -222,17 +225,17 @@ func (r *ServersRepository) scanServers(rows *sql.Rows) ([]*servers.Server, erro
 
 	for rows.Next() {
 		var (
-			idStr, name, description, hostname, ipAddress, sshKey, metadata, tagsJSON string
-			port                                                                      int
-			serverType, status                                                        string
-			cpuCores, memoryMB, diskGB                                                *int
-			os, osVersion                                                             *string
-			orgIDStr                                                                  string
-			createdAt, updatedAt                                                      time.Time
+			idStr, name, description, hostname, ipAddress, ipv6Address, sshKey, metadata, tagsJSON string
+			port                                                                                   int
+			serverType, status                                                                     string
+			cpuCores, memoryMB, diskGB                                                             *int
+			os, osVersion                                                                          *string
+			orgIDStr                                                                               string
+			createdAt, updatedAt                                                                   time.Time
 		)
 
 		err := rows.Scan(
-			&idStr, &name, &description, &hostname, &ipAddress, &port, &sshKey,
+			&idStr, &name, &description, &hostname, &ipAddress, &ipv6Address, &port, &sshKey,
 			&serverType, &status, &cpuCores, &memoryMB, &diskGB, &os, &osVersion,
 			&metadata, &tagsJSON, &orgIDStr, &createdAt, &updatedAt,
 		)
@@ -240,7 +243,7 @@ func (r *ServersRepository) scanServers(rows *sql.Rows) ([]*servers.Server, erro
 			return nil, err
 		}
 
-		server, err := r.scanServer(idStr, name, description, hostname, ipAddress, port, sshKey,
+		server, err := r.scanServer(idStr, name, description, hostname, ipAddress, ipv6Address, port, sshKey,
 			serverType, status, cpuCores, memoryMB, diskGB, os, osVersion,
 			metadata, tagsJSON, orgIDStr, createdAt, updatedAt)
 		if err != nil {
@@ -254,7 +257,7 @@ func (r *ServersRepository) scanServers(rows *sql.Rows) ([]*servers.Server, erro
 }
 
 func (r *ServersRepository) scanServer(
-	idStr, name, description, hostname, ipAddress string, port int, sshKey,
+	idStr, name, description, hostname, ipAddress, ipv6Address string, port int, sshKey,
 	serverType, status string, cpuCores, memoryMB, diskGB *int, os, osVersion *string,
 	metadata, tagsJSON, orgIDStr string, createdAt, updatedAt time.Time,
 ) (*servers.Server, error) {
@@ -281,7 +284,7 @@ func (r *ServersRepository) scanServer(
 	}
 
 	return servers.ReconstructServer(
-		serverID, serverName, description, hostname, ipAddress, port, sshKey,
+		serverID, serverName, description, hostname, ipAddress, ipv6Address, port, sshKey,
 		servers.ServerType(serverType), servers.ServerStatus(status),
 		cpuCores, memoryMB, diskGB, os, osVersion, metadata, tags,
 		orgID, createdAt, updatedAt,
@@ -302,6 +305,7 @@ func ToDTO(server *servers.Server) (*ServerDTO, error) {
 		Description:    server.Description(),
 		Hostname:       server.Hostname(),
 		IPAddress:      server.IPAddress(),
+		IPv6Address:    server.IPv6Address(),
 		Port:           server.Port(),
 		SSHKey:         strings.TrimSpace(server.SSHKey()),
 		ServerType:     string(server.ServerType()),
