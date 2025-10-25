@@ -23,11 +23,13 @@ import (
 	"github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
 	templatesService "github.com/mikrocloud/mikrocloud/internal/domain/services/service"
 	settingsService "github.com/mikrocloud/mikrocloud/internal/domain/settings/service"
+	tunnelService "github.com/mikrocloud/mikrocloud/internal/domain/tunnels/service"
 	buildService "github.com/mikrocloud/mikrocloud/pkg/containers/build"
 	containerService "github.com/mikrocloud/mikrocloud/pkg/containers/service"
 
 	databaseContainers "github.com/mikrocloud/mikrocloud/pkg/containers/database"
 	proxyContainers "github.com/mikrocloud/mikrocloud/pkg/containers/proxy"
+	tunnelContainers "github.com/mikrocloud/mikrocloud/pkg/containers/tunnel"
 
 	"github.com/mikrocloud/mikrocloud/internal/domain/domains"
 )
@@ -55,6 +57,7 @@ type Dependencies struct {
 	DiskService     *diskService.DiskService
 	TemplateService *templatesService.TemplateService
 	SettingsService *settingsService.SettingsService
+	TunnelService   *tunnelService.TunnelService
 
 	// Sync services
 	DatabaseStatusSyncService *databaseService.StatusSyncService
@@ -97,6 +100,9 @@ func NewDependencies(cfg *config.Config, db *database.Database) (*Dependencies, 
 
 	dbStatusSyncSvc := databaseService.NewStatusSyncService(databaseSvc, containerService, 29*time.Second)
 
+	cloudflaredMgr := tunnelContainers.NewCloudflaredManager(containerService.GetManager())
+	tunnelSvc := tunnelService.NewTunnelService(db.TunnelRepository, cloudflaredMgr)
+
 	return &Dependencies{
 		DB:                  db,
 		Config:              cfg,
@@ -116,6 +122,7 @@ func NewDependencies(cfg *config.Config, db *database.Database) (*Dependencies, 
 		DiskService:         diskSvc,
 		TemplateService:     templateSvc,
 		SettingsService:     settingsSvc,
+		TunnelService:       tunnelSvc,
 
 		DatabaseStatusSyncService: dbStatusSyncSvc,
 		JwtKeys:                   tokenAuthSecret,

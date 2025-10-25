@@ -237,23 +237,22 @@
 	<title>Git Sources - Dashboard</title>
 </svelte:head>
 
-<div class="flex-1 flex flex-col overflow-hidden">
-	<div class=" px-6 py-4">
-		<div class="flex items-center justify-between">
-			<div>
-				<h1 class="text-2xl font-semibold">Git Sources</h1>
-				<p class="text-sm text-muted-foreground mt-1">
-					Manage Git provider connections and access tokens
-				</p>
+<div class="min-h-screen">
+	<div class="border-b">
+		<div class="max-w-7xl mx-auto px-6 flex items-center justify-between">
+			<div class="my-[40px] w-full mx-auto">
+				<h1 class="text-3xl font-semibold">Git Sources</h1>
+				<p class="text-sm mt-4">Manage Git provider connections and access tokens</p>
 			</div>
-			<Button onclick={() => (isCreateSheetOpen = true)}>
-				<Plus class="h-4 w-4 mr-2" />
+			<Button size="lg" onclick={() => (isCreateSheetOpen = true)}>
+				<Plus class="size-4" />
 				Add Source
 			</Button>
 		</div>
 	</div>
+	<div class="mt-[46px]"></div>
 
-	<div class="flex-1 overflow-y-auto p-6">
+	<div class="flex-1 overflow-y-auto p-6 max-w-7xl mx-auto">
 		{#if createFn.error || deleteFn.error}
 			<Card class="border-red-200 bg-red-50 mb-4">
 				<CardContent class="pt-6">
@@ -269,7 +268,7 @@
 		{/if}
 
 		{#if sourcesQuery.isLoading}
-			<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+			<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 max-w-7xl mx-auto px-6">
 				{#each [1, 2, 3] as _}
 					<Card>
 						<CardHeader>
@@ -283,7 +282,7 @@
 				{/each}
 			</div>
 		{:else if sourcesQuery.error}
-			<Card class="border-red-200 bg-red-50">
+			<Card class="border-red-200 bg-red-50 max-w-7xl mx-auto px-6">
 				<CardContent class="pt-6">
 					<p class="text-red-800">
 						Error loading sources: {sourcesQuery.error instanceof Error
@@ -293,7 +292,7 @@
 				</CardContent>
 			</Card>
 		{:else if sourcesQuery.data && sourcesQuery.data.length === 0}
-			<Card>
+			<Card class="max-w-7xl mx-auto px-6">
 				<CardContent class="pt-6 text-center py-12">
 					<GitBranch class="h-12 w-12 mx-auto text-gray-400 mb-4" />
 					<h3 class="text-lg font-medium text-gray-900 mb-2">No Git sources yet</h3>
@@ -307,7 +306,7 @@
 				</CardContent>
 			</Card>
 		{:else if sourcesQuery.data}
-			<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+			<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 max-w-7xl mx-auto px-7">
 				{#each sourcesQuery.data as source (source.id)}
 					{@const Icon = getProviderIcon(source.provider)}
 					<Card>

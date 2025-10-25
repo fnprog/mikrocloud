@@ -21,6 +21,7 @@ import (
 	projectsRepo "github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
 	proxyRepo "github.com/mikrocloud/mikrocloud/internal/domain/proxy/repository"
 	servicesRepo "github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
+	tunnelsRepo "github.com/mikrocloud/mikrocloud/internal/domain/tunnels/repository"
 	usersRepo "github.com/mikrocloud/mikrocloud/internal/domain/users/repository"
 )
 
@@ -42,6 +43,7 @@ type SQLiteDatabase struct {
 	diskBackupRepository    disksRepo.DiskBackupRepository
 	organizationRepository  organizationsRepo.Repository
 	gitRepository           gitRepo.GitRepository
+	tunnelRepository        tunnelsRepo.TunnelRepository
 }
 
 // NewSQLiteDatabase creates a new SQLite database instance
@@ -91,6 +93,7 @@ func NewSQLiteDatabase(databaseURL string) (MainDatabase, error) {
 	diskRepo := disksRepo.NewSQLiteDiskRepository(db)
 	diskBackupRepo := disksRepo.NewSQLiteDiskBackupRepository(db)
 	organizationRepo := organizationsRepo.NewSQLiteOrganizationRepository(db)
+	tunnelRepo := tunnelsRepo.NewSQLiteTunnelRepository(db)
 
 	return &SQLiteDatabase{
 		db:                      db,
@@ -109,6 +112,7 @@ func NewSQLiteDatabase(databaseURL string) (MainDatabase, error) {
 		diskBackupRepository:    diskBackupRepo,
 		organizationRepository:  organizationRepo,
 		gitRepository:           gitRepo,
+		tunnelRepository:        tunnelRepo,
 	}, nil
 }
 
@@ -188,6 +192,10 @@ func (d *SQLiteDatabase) OrganizationRepository() organizationsRepo.Repository {
 
 func (d *SQLiteDatabase) GitRepository() gitRepo.GitRepository {
 	return d.gitRepository
+}
+
+func (d *SQLiteDatabase) TunnelRepository() tunnelsRepo.TunnelRepository {
+	return d.tunnelRepository
 }
 
 // ensureDataDir creates the directory for the SQLite database if it doesn't exist

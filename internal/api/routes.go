@@ -16,6 +16,7 @@ import (
 	serversHandler "github.com/mikrocloud/mikrocloud/internal/domain/servers/handlers"
 	templatesHandler "github.com/mikrocloud/mikrocloud/internal/domain/services/handlers"
 	settingsHandler "github.com/mikrocloud/mikrocloud/internal/domain/settings/handlers"
+	tunnelsHandler "github.com/mikrocloud/mikrocloud/internal/domain/tunnels/handlers"
 )
 
 func SetupRoutes(api chi.Router, dependencies *deps.Dependencies) {
@@ -31,6 +32,7 @@ func SetupRoutes(api chi.Router, dependencies *deps.Dependencies) {
 	serversHandler.RegisterServersRoutes(api, dependencies)
 	settingsHandler.RegisterSettingsRoutes(api, dependencies)
 	templatesHandler.RegisterTemplatesRoutes(api, dependencies)
+	tunnelsHandler.RegisterTunnelRoutes(api, dependencies)
 
 	// Serve storage files (public access)
 	storageDir := "./storage"

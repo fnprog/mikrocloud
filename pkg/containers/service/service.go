@@ -106,3 +106,7 @@ func (cs *ContainerService) GetRuntimeInfo() map[string]any {
 		"build_dir":   cs.config.Docker.BuildDir,
 	}
 }
+
+func (cs *ContainerService) GetManager() manager.ContainerManager {
+	return cs.containerManager
+}

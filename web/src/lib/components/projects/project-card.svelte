@@ -1,15 +1,16 @@
 <script lang="ts">
-	import type { Project } from '$lib/api';
+	import type { Project } from '$lib/features/projects/types';
 	import { Card } from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
-	import { Badge } from '$lib/components/ui/badge';
 	import {
 		DropdownMenu,
 		DropdownMenuContent,
 		DropdownMenuItem,
 		DropdownMenuTrigger
 	} from '$lib/components/ui/dropdown-menu';
-	import { EllipsisVertical, FolderGit2, Trash2, Settings } from 'lucide-svelte';
+	import { EllipsisVertical, Trash2, Settings } from 'lucide-svelte';
+	import { IconStackFront } from '@tabler/icons-svelte';
+	import { formatTimeAgo } from '$lib/utils/dates';
 
 	interface Props {
 		project: Project;
@@ -19,35 +20,18 @@
 	}
 
 	let { project, onDelete, onEdit, onclick }: Props = $props();
-
-	const formatDate = (dateString: string) => {
-		const date = new Date(dateString);
-		const now = new Date();
-		const diffMs = now.getTime() - date.getTime();
-		const diffMins = Math.floor(diffMs / 60000);
-		const diffHours = Math.floor(diffMs / 3600000);
-		const diffDays = Math.floor(diffMs / 86400000);
-
-		if (diffMins < 1) return 'Just now';
-		if (diffMins < 60) return `${diffMins}m ago`;
-		if (diffHours < 24) return `${diffHours}h ago`;
-		if (diffDays < 30) return `${diffDays}d ago`;
-		return date.toLocaleDateString();
-	};
 </script>
 
 <Card
-	class="group relative flex flex-col gap-4 p-6 transition-shadow hover:shadow-md {onclick
+	class="group relative flex flex-col gap-10 p-6 transition-shadow hover:shadow-md {onclick
 		? 'cursor-pointer'
 		: ''}"
-	onclick={onclick}
+	{onclick}
 >
 	<div class="flex items-start justify-between">
 		<div class="flex items-center gap-3">
-			<div
-				class="bg-primary/10 text-primary flex size-12 items-center justify-center rounded-lg"
-			>
-				<FolderGit2 class="size-6" />
+			<div class="bg-primary/10 text-primary flex size-12 items-center justify-center rounded-lg">
+				<IconStackFront class="size-6" />
 			</div>
 			<div>
 				<h3 class="font-semibold text-lg">{project.name}</h3>
@@ -77,17 +61,8 @@
 		</DropdownMenu>
 	</div>
 
-	<div class="flex items-center justify-between">
-		<div class="flex items-center gap-2 text-sm">
-			<span class="text-muted-foreground">Last deploy:</span>
-			<span>{formatDate(project.created_at)}</span>
-		</div>
-
-		<div class="flex items-center gap-2">
-			<Badge variant="outline" class="gap-1">
-				<div class="size-2 rounded-full bg-green-500"></div>
-				Active
-			</Badge>
-		</div>
+	<div class="flex items-center gap-2 text-sm">
+		<span class="text-muted-foreground">Last deploy:</span>
+		<span>{formatTimeAgo(project.created_at)}</span>
 	</div>
 </Card>

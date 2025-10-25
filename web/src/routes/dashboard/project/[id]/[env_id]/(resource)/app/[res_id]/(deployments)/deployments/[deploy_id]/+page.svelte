@@ -4,6 +4,9 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
+	import * as Frame from '$lib/components/ui/frame';
+	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
+	import { Separator } from '$lib/components/ui/separator';
 	import { createQuery, createMutation, useQueryClient } from '@tanstack/svelte-query';
 	import { deploymentsApi, type DeploymentStatus } from '$lib/features/deployments/api';
 	import type { StructuredLog } from '$lib/features/deployments/types';
@@ -11,17 +14,13 @@
 	import { toast } from 'svelte-sonner';
 	import { onDestroy } from 'svelte';
 	import {
-		CheckCircle,
 		AlertCircle,
-		XCircle,
-		Clock,
 		GitBranch,
 		GitCommit,
-		User,
 		RotateCcw,
 		ArrowLeft,
-		PlayCircle,
-		StopCircle
+		StopCircle,
+		ChevronDown
 	} from 'lucide-svelte';
 	import { formatTimeAgo } from '$lib/utils/dates';
 
@@ -34,6 +33,7 @@
 
 	let streamedLogs = $state<StructuredLog[]>([]);
 	let isStreaming = $state(false);
+	let isBuildLogOpen = $state(true);
 	let closeStream: (() => void) | null = null;
 
 	const deploymentQuery = createQuery(() => ({
@@ -138,40 +138,6 @@
 		}
 	}));
 
-	function getStatusIcon(status: DeploymentStatus) {
-		switch (status) {
-			case 'success':
-				return CheckCircle;
-			case 'failed':
-				return AlertCircle;
-			case 'cancelled':
-				return XCircle;
-			case 'building':
-			case 'deploying':
-			case 'pending':
-				return Clock;
-			default:
-				return Clock;
-		}
-	}
-
-	function getStatusColor(status: DeploymentStatus) {
-		switch (status) {
-			case 'success':
-				return 'text-green-500';
-			case 'failed':
-				return 'text-red-500';
-			case 'cancelled':
-				return 'text-gray-500';
-			case 'building':
-			case 'deploying':
-			case 'pending':
-				return 'text-blue-500';
-			default:
-				return 'text-gray-500';
-		}
-	}
-
 	function getStatusDotColor(status: DeploymentStatus): string {
 		switch (status) {
 			case 'running':
@@ -214,25 +180,6 @@
 		}
 	}
 
-	function formatDuration(seconds?: number): string {
-		if (!seconds) return 'N/A';
-		const mins = Math.floor(seconds / 60);
-		const secs = seconds % 60;
-		return `${mins}m ${secs}s`;
-	}
-
-	function formatDateTime(timestamp: string): string {
-		const date = new Date(timestamp);
-		return date.toLocaleString('en-US', {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit',
-			second: '2-digit'
-		});
-	}
-
 	function formatCompactDuration(seconds?: number): string {
 		if (!seconds) return '';
 		if (seconds < 60) return `${seconds}s`;
@@ -270,15 +217,9 @@
 
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
-		<div class="flex items-center space-x-4">
-			<Button variant="ghost" size="sm" onclick={goBack}>
-				<ArrowLeft class="w-4 h-4 mr-2" />
-				Back
-			</Button>
-			<div>
-				<h2 class="text-2xl font-bold tracking-tight">Deployment Details</h2>
-				<p class="text-muted-foreground">View detailed information about this deployment</p>
-			</div>
+		<div>
+			<h2 class="text-2xl mb-3 font-bold tracking-tight">Deployment Details</h2>
+			<p class="text-muted-foreground">View detailed information about this deployment</p>
 		</div>
 
 		{#if deployment}
@@ -328,62 +269,57 @@
 		</Card>
 	{:else if deployment}
 		<div class="grid gap-6">
-			<div class="bg-card/80 rounded-xl">
-				<div class="flex px-6 py-6 justify-between text-muted-foreground">
-					<div>
-						<p>Created</p>
-						<div class="flex gap-2">
-							{deployment.triggered_by_username}
-							{formatTimeAgo(deployment.created_at)}
+			<Frame.Frame class="w-full">
+				<Frame.FrameHeader>
+					<div class="flex justify-between text-muted-foreground">
+						<div class="space-y-1">
+							<p class="font-semibold">Created</p>
+							<div class="flex gap-2">
+								{deployment.triggered_by_username}
+								{formatTimeAgo(deployment.created_at)}
+							</div>
 						</div>
-					</div>
 
-					<div>
-						<p>Status</p>
-						<div class="flex items-center gap-2">
-							<span class="w-2 h-2 rounded-full {getStatusDotColor(deployment.status)}"></span>
-							<span class="text-sm font-medium">
-								{getStatusText(deployment.status)}
-							</span>
+						<div class="space-y-1">
+							<p class="font-semibold">Status</p>
+							<div class="flex items-center gap-2 text-muted-foreground">
+								<span class="w-2 h-2 rounded-full {getStatusDotColor(deployment.status)}"></span>
+								<span class=" font-medium">
+									{getStatusText(deployment.status)}
+								</span>
+							</div>
 						</div>
-					</div>
 
-					<div>
-						<p>Time to Ready</p>
-						<div class="flex">
-							<div class="flex items-center gap-2 text-xs text-muted-foreground">
-								{#if deployment.build_duration_seconds !== undefined || deployment.deploy_duration_seconds !== undefined}
-									<span
-										>{formatCompactDuration(
-											(deployment.build_duration_seconds || 0) +
-												(deployment.deploy_duration_seconds || 0)
-										)}</span
-									>
-								{/if}
-								<span>({formatCompactTime(deployment.created_at)})</span>
+						<div>
+							<p>Time to Ready</p>
+							<div class="flex">
+								<div class="flex items-center gap-2 text-xs text-muted-foreground">
+									{#if deployment.build_duration_seconds !== undefined || deployment.deploy_duration_seconds !== undefined}
+										<span
+											>{formatCompactDuration(
+												(deployment.build_duration_seconds || 0) +
+													(deployment.deploy_duration_seconds || 0)
+											)}</span
+										>
+									{/if}
+									<span>({formatCompactTime(deployment.created_at)})</span>
+								</div>
 							</div>
 						</div>
 					</div>
-				</div>
-
-				<Card class="mx-1 rounded-b-none">
-					<CardHeader>
-						<CardTitle>Domains</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<div class="flex flex-col items-start space-y-3">
+				</Frame.FrameHeader>
+				<Frame.FramePanel class="space-y-4 ">
+					<div>
+						<h2 class="text-sm font-semibold text-muted-foreground mb-1">Domains</h2>
+						<div class="flex flex-col items-start gap-2 text-sm">
 							<p>example.com</p>
 							<p>asfsafass.example.com</p>
 							<p>sasfsfdsasa.example.com</p>
 						</div>
-					</CardContent>
-				</Card>
-
-				<Card class="mx-1 rounded-t-none">
-					<CardHeader>
-						<CardTitle>Source</CardTitle>
-					</CardHeader>
-					<CardContent>
+					</div>
+					<Separator class="-mx-5 data-[orientation=horizontal]:w-[calc(100%+2.5rem)] " />
+					<div>
+						<h2 class="text-sm font-semibold text-muted-foreground mb-1">Source</h2>
 						<div class="space-y-4">
 							{#if deployment.branch}
 								<div>
@@ -424,40 +360,52 @@
 								<!-- {/if} -->
 							</div>
 						</div>
-					</CardContent>
-				</Card>
-			</div>
+					</div>
+				</Frame.FramePanel>
+			</Frame.Frame>
 
-			<Card>
-				<CardHeader>
-					<CardTitle class="flex items-center justify-between">
-						<span>Build Logs</span>
-						{#if isStreaming}
-							<Badge variant="outline" class="text-xs">
-								<span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"
-								></span>
-								Live
-							</Badge>
-						{/if}
-					</CardTitle>
-				</CardHeader>
-				<CardContent>
-					{#if streamedLogs.length > 0}
-						<LogViewer logs={streamedLogs} {isStreaming} />
-					{:else if Array.isArray(completedLogs)}
-						<LogViewer logs={completedLogs} isStreaming={false} />
-					{:else if typeof completedLogs === 'string' && completedLogs}
-						<div class="bg-muted rounded-md p-4 overflow-x-auto overflow-y-auto max-h-[600px]">
-							<pre class="text-sm font-mono whitespace-pre-wrap">{completedLogs}</pre>
-						</div>
-					{:else if deployment.build_logs}
-						<div class="bg-muted rounded-md p-4 overflow-x-auto overflow-y-auto max-h-[600px]">
-							<pre class="text-sm font-mono whitespace-pre-wrap">{deployment.build_logs}</pre>
-						</div>
-					{:else}
-						<p class="text-sm text-muted-foreground">No logs available yet...</p>
-					{/if}
-				</CardContent>
+			<Card class="pb-0">
+				<Collapsible.Root bind:open={isBuildLogOpen}>
+					<CardHeader class="pb-4">
+						<CardTitle class="flex items-center justify-between">
+							<div class="flex items-center gap-3">
+								<Collapsible.Trigger>
+									<ChevronDown />
+									<span class="sr-only">Toggle</span>
+								</Collapsible.Trigger>
+								<span class="text-muted-foreground">Build Logs</span>
+							</div>
+							{#if isStreaming}
+								<Badge variant="outline" class="text-xs">
+									<span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"
+									></span>
+									Live
+								</Badge>
+							{/if}
+						</CardTitle>
+					</CardHeader>
+					<Collapsible.Content class="p-1">
+						<CardContent
+							class="relative bg-clip-padding rounded-xl border bg-muted p-5 px-0 pt-0 shadow-xs before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] has-[table]:before:hidden dark:bg-clip-border dark:before:shadow-[0_-1px_--theme(--color-white/8%)]"
+						>
+							{#if streamedLogs.length > 0}
+								<LogViewer logs={streamedLogs} {isStreaming} />
+							{:else if Array.isArray(completedLogs)}
+								<LogViewer logs={completedLogs} isStreaming={false} />
+							{:else if typeof completedLogs === 'string' && completedLogs}
+								<div class="bg-muted rounded-md p-4 overflow-x-auto overflow-y-auto max-h-[600px]">
+									<pre class="text-sm font-mono whitespace-pre-wrap">{completedLogs}</pre>
+								</div>
+							{:else if deployment.build_logs}
+								<div class="bg-muted rounded-md p-4 overflow-x-auto overflow-y-auto max-h-[600px]">
+									<pre class="text-sm font-mono whitespace-pre-wrap">{deployment.build_logs}</pre>
+								</div>
+							{:else}
+								<p class="text-sm text-muted-foreground">No logs available yet...</p>
+							{/if}
+						</CardContent>
+					</Collapsible.Content>
+				</Collapsible.Root>
 			</Card>
 		</div>
 	{/if}

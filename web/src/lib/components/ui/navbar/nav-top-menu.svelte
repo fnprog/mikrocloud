@@ -82,23 +82,23 @@
 		</DropdownMenuItem>
 
 		<!-- Create Team -->
-		<DropdownMenuItem class="cursor-pointer justify-between">
-			<span class="text-sm">Create Team</span>
-			<Plus class="h-4 w-4 text-muted-foreground" />
-		</DropdownMenuItem>
+		<!-- <DropdownMenuItem class="cursor-pointer justify-between"> -->
+		<!-- 	<span class="text-sm">Create Team</span> -->
+		<!-- 	<Plus class="h-4 w-4 text-muted-foreground" /> -->
+		<!-- </DropdownMenuItem> -->
 
 		<DropdownMenuSeparator />
 
 		<!-- Command Menu -->
-		<DropdownMenuItem class="cursor-pointer justify-between">
-			<div class="flex items-center">
-				<span class="text-sm">Command Menu</span>
-			</div>
-			<div class="flex items-center gap-1 text-xs text-muted-foreground">
-				<kbd class="px-1.5 py-0.5 bg-muted rounded text-[10px]">Ctl</kbd>
-				<kbd class="px-1.5 py-0.5 bg-muted rounded text-[10px]">K</kbd>
-			</div>
-		</DropdownMenuItem>
+		<!-- <DropdownMenuItem class="cursor-pointer justify-between"> -->
+		<!-- 	<div class="flex items-center"> -->
+		<!-- 		<span class="text-sm">Command Menu</span> -->
+		<!-- 	</div> -->
+		<!-- 	<div class="flex items-center gap-1 text-xs text-muted-foreground"> -->
+		<!-- 		<kbd class="px-1.5 py-0.5 bg-muted rounded text-[10px]">Ctl</kbd> -->
+		<!-- 		<kbd class="px-1.5 py-0.5 bg-muted rounded text-[10px]">K</kbd> -->
+		<!-- 	</div> -->
+		<!-- </DropdownMenuItem> -->
 
 		<!-- Theme Switch -->
 		<DropdownMenuItem class="cursor-pointer justify-between" onSelect={cycleTheme}>

@@ -236,138 +236,138 @@
 		</div>
 	</div>
 
-	<div class="border border-border rounded-lg p-6 space-y-6">
-		<div>
-			<h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
-				<Key class="w-5 h-5" />
-				Sign-in Methods
-			</h2>
+	<!-- <div class="border border-border rounded-lg p-6 space-y-6"> -->
+	<!-- 	<div> -->
+	<!-- 		<h2 class="text-lg font-semibold mb-4 flex items-center gap-2"> -->
+	<!-- 			<Key class="w-5 h-5" /> -->
+	<!-- 			Sign-in Methods -->
+	<!-- 		</h2> -->
+	<!---->
+	<!-- 		<div class="space-y-4"> -->
+	<!-- 			<div class="flex items-center justify-between p-4 border border-border rounded-lg"> -->
+	<!-- 				<div class="flex items-center gap-3"> -->
+	<!-- 					<Mail class="w-5 h-5 text-muted-foreground" /> -->
+	<!-- 					<div> -->
+	<!-- 						<p class="font-medium">Email</p> -->
+	<!-- 						<p class="text-sm text-muted-foreground">{user?.email || 'Loading...'}</p> -->
+	<!-- 					</div> -->
+	<!-- 				</div> -->
+	<!-- 				<Button variant="outline" size="sm">Manage</Button> -->
+	<!-- 			</div> -->
+	<!---->
+	<!-- 			<div class="flex items-center justify-between p-4 border border-border rounded-lg"> -->
+	<!-- 				<div class="flex items-center gap-3"> -->
+	<!-- 					<Key class="w-5 h-5 text-muted-foreground" /> -->
+	<!-- 					<div> -->
+	<!-- 						<p class="font-medium">Passkeys</p> -->
+	<!-- 						<p class="text-sm text-muted-foreground">0 passkeys registered</p> -->
+	<!-- 					</div> -->
+	<!-- 				</div> -->
+	<!-- 				<Button variant="outline" size="sm" onclick={handleAddPasskey}> -->
+	<!-- 					<Plus class="w-4 h-4 mr-1" /> -->
+	<!-- 					Add -->
+	<!-- 				</Button> -->
+	<!-- 			</div> -->
+	<!---->
+	<!-- 			<div class="border-t border-border pt-4"> -->
+	<!-- 				<p class="text-sm font-medium mb-3">OAuth Providers</p> -->
+	<!-- 				<div class="space-y-2"> -->
+	<!-- 					<div class="flex items-center justify-between p-3 border border-border rounded-lg"> -->
+	<!-- 						<div class="flex items-center gap-3"> -->
+	<!-- 							<Github class="w-5 h-5" /> -->
+	<!-- 							<span class="text-sm">GitHub</span> -->
+	<!-- 						</div> -->
+	<!-- 						<Button -->
+	<!-- 							variant="outline" -->
+	<!-- 							size="sm" -->
+	<!-- 							disabled -->
+	<!-- 							onclick={() => handleConnectOAuth('GitHub')} -->
+	<!-- 						> -->
+	<!-- 							Connect -->
+	<!-- 						</Button> -->
+	<!-- 					</div> -->
+	<!---->
+	<!-- 					<div class="flex items-center justify-between p-3 border border-border rounded-lg"> -->
+	<!-- 						<div class="flex items-center gap-3"> -->
+	<!-- 							<Gitlab class="w-5 h-5" /> -->
+	<!-- 							<span class="text-sm">GitLab</span> -->
+	<!-- 						</div> -->
+	<!-- 						<Button -->
+	<!-- 							variant="outline" -->
+	<!-- 							size="sm" -->
+	<!-- 							disabled -->
+	<!-- 							onclick={() => handleConnectOAuth('GitLab')} -->
+	<!-- 						> -->
+	<!-- 							Connect -->
+	<!-- 						</Button> -->
+	<!-- 					</div> -->
+	<!---->
+	<!-- 					<div class="flex items-center justify-between p-3 border border-border rounded-lg"> -->
+	<!-- 						<div class="flex items-center gap-3"> -->
+	<!-- 							<Container class="w-5 h-5" /> -->
+	<!-- 							<span class="text-sm">Bitbucket</span> -->
+	<!-- 						</div> -->
+	<!-- 						<Button -->
+	<!-- 							variant="outline" -->
+	<!-- 							size="sm" -->
+	<!-- 							disabled -->
+	<!-- 							onclick={() => handleConnectOAuth('Bitbucket')} -->
+	<!-- 						> -->
+	<!-- 							Connect -->
+	<!-- 						</Button> -->
+	<!-- 					</div> -->
+	<!-- 				</div> -->
+	<!-- 			</div> -->
+	<!-- 		</div> -->
+	<!-- 	</div> -->
+	<!-- </div> -->
 
-			<div class="space-y-4">
-				<div class="flex items-center justify-between p-4 border border-border rounded-lg">
-					<div class="flex items-center gap-3">
-						<Mail class="w-5 h-5 text-muted-foreground" />
-						<div>
-							<p class="font-medium">Email</p>
-							<p class="text-sm text-muted-foreground">{user?.email || 'Loading...'}</p>
-						</div>
-					</div>
-					<Button variant="outline" size="sm">Manage</Button>
-				</div>
-
-				<div class="flex items-center justify-between p-4 border border-border rounded-lg">
-					<div class="flex items-center gap-3">
-						<Key class="w-5 h-5 text-muted-foreground" />
-						<div>
-							<p class="font-medium">Passkeys</p>
-							<p class="text-sm text-muted-foreground">0 passkeys registered</p>
-						</div>
-					</div>
-					<Button variant="outline" size="sm" onclick={handleAddPasskey}>
-						<Plus class="w-4 h-4 mr-1" />
-						Add
-					</Button>
-				</div>
-
-				<div class="border-t border-border pt-4">
-					<p class="text-sm font-medium mb-3">OAuth Providers</p>
-					<div class="space-y-2">
-						<div class="flex items-center justify-between p-3 border border-border rounded-lg">
-							<div class="flex items-center gap-3">
-								<Github class="w-5 h-5" />
-								<span class="text-sm">GitHub</span>
-							</div>
-							<Button
-								variant="outline"
-								size="sm"
-								disabled
-								onclick={() => handleConnectOAuth('GitHub')}
-							>
-								Connect
-							</Button>
-						</div>
-
-						<div class="flex items-center justify-between p-3 border border-border rounded-lg">
-							<div class="flex items-center gap-3">
-								<Gitlab class="w-5 h-5" />
-								<span class="text-sm">GitLab</span>
-							</div>
-							<Button
-								variant="outline"
-								size="sm"
-								disabled
-								onclick={() => handleConnectOAuth('GitLab')}
-							>
-								Connect
-							</Button>
-						</div>
-
-						<div class="flex items-center justify-between p-3 border border-border rounded-lg">
-							<div class="flex items-center gap-3">
-								<Container class="w-5 h-5" />
-								<span class="text-sm">Bitbucket</span>
-							</div>
-							<Button
-								variant="outline"
-								size="sm"
-								disabled
-								onclick={() => handleConnectOAuth('Bitbucket')}
-							>
-								Connect
-							</Button>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
-
-	<div class="border border-border rounded-lg p-6">
-		<div>
-			<h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
-				<Shield class="w-5 h-5" />
-				Two-Factor Authentication
-			</h2>
-			<div class="space-y-4">
-				<div class="flex items-center justify-between p-4 border border-border rounded-lg">
-					<div>
-						<p class="font-medium">Enable 2FA</p>
-						<p class="text-sm text-muted-foreground">
-							Add an extra layer of security to your account
-						</p>
-					</div>
-					<Switch checked={twoFactorEnabled} onCheckedChange={handleToggle2FA} />
-				</div>
-
-				{#if twoFactorEnabled}
-					<div class="space-y-3 pl-4 border-l-2 border-primary">
-						<div class="flex items-center justify-between p-3 bg-muted rounded-lg">
-							<div class="flex items-center gap-3">
-								<Key class="w-4 h-4 text-muted-foreground" />
-								<div>
-									<p class="text-sm font-medium">Authenticator App</p>
-									<p class="text-xs text-muted-foreground">Use TOTP codes from an app</p>
-								</div>
-							</div>
-							<Button variant="outline" size="sm">Setup</Button>
-						</div>
-
-						<div class="flex items-center justify-between p-3 bg-muted rounded-lg">
-							<div class="flex items-center gap-3">
-								<Key class="w-4 h-4 text-muted-foreground" />
-								<div>
-									<p class="text-sm font-medium">Security Keys</p>
-									<p class="text-xs text-muted-foreground">Use passkeys for 2FA</p>
-								</div>
-							</div>
-							<Button variant="outline" size="sm">
-								<Plus class="w-3 h-3 mr-1" />
-								Add
-							</Button>
-						</div>
-					</div>
-				{/if}
-			</div>
-		</div>
-	</div>
+	<!-- <div class="border border-border rounded-lg p-6"> -->
+	<!-- 	<div> -->
+	<!-- 		<h2 class="text-lg font-semibold mb-4 flex items-center gap-2"> -->
+	<!-- 			<Shield class="w-5 h-5" /> -->
+	<!-- 			Two-Factor Authentication -->
+	<!-- 		</h2> -->
+	<!-- 		<div class="space-y-4"> -->
+	<!-- 			<div class="flex items-center justify-between p-4 border border-border rounded-lg"> -->
+	<!-- 				<div> -->
+	<!-- 					<p class="font-medium">Enable 2FA</p> -->
+	<!-- 					<p class="text-sm text-muted-foreground"> -->
+	<!-- 						Add an extra layer of security to your account -->
+	<!-- 					</p> -->
+	<!-- 				</div> -->
+	<!-- 				<Switch checked={twoFactorEnabled} onCheckedChange={handleToggle2FA} /> -->
+	<!-- 			</div> -->
+	<!---->
+	<!-- 			{#if twoFactorEnabled} -->
+	<!-- 				<div class="space-y-3 pl-4 border-l-2 border-primary"> -->
+	<!-- 					<div class="flex items-center justify-between p-3 bg-muted rounded-lg"> -->
+	<!-- 						<div class="flex items-center gap-3"> -->
+	<!-- 							<Key class="w-4 h-4 text-muted-foreground" /> -->
+	<!-- 							<div> -->
+	<!-- 								<p class="text-sm font-medium">Authenticator App</p> -->
+	<!-- 								<p class="text-xs text-muted-foreground">Use TOTP codes from an app</p> -->
+	<!-- 							</div> -->
+	<!-- 						</div> -->
+	<!-- 						<Button variant="outline" size="sm">Setup</Button> -->
+	<!-- 					</div> -->
+	<!---->
+	<!-- 					<div class="flex items-center justify-between p-3 bg-muted rounded-lg"> -->
+	<!-- 						<div class="flex items-center gap-3"> -->
+	<!-- 							<Key class="w-4 h-4 text-muted-foreground" /> -->
+	<!-- 							<div> -->
+	<!-- 								<p class="text-sm font-medium">Security Keys</p> -->
+	<!-- 								<p class="text-xs text-muted-foreground">Use passkeys for 2FA</p> -->
+	<!-- 							</div> -->
+	<!-- 						</div> -->
+	<!-- 						<Button variant="outline" size="sm"> -->
+	<!-- 							<Plus class="w-3 h-3 mr-1" /> -->
+	<!-- 							Add -->
+	<!-- 						</Button> -->
+	<!-- 					</div> -->
+	<!-- 				</div> -->
+	<!-- 			{/if} -->
+	<!-- 		</div> -->
+	<!-- 	</div> -->
+	<!-- </div> -->
 </div>

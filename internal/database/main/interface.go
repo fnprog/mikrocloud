@@ -15,6 +15,7 @@ import (
 	projectsRepo "github.com/mikrocloud/mikrocloud/internal/domain/projects/repository"
 	proxyRepo "github.com/mikrocloud/mikrocloud/internal/domain/proxy/repository"
 	servicesRepo "github.com/mikrocloud/mikrocloud/internal/domain/services/repository"
+	tunnelsRepo "github.com/mikrocloud/mikrocloud/internal/domain/tunnels/repository"
 	usersRepo "github.com/mikrocloud/mikrocloud/internal/domain/users/repository"
 )
 
@@ -41,6 +42,7 @@ type MainDatabase interface {
 	DiskBackupRepository() disksRepo.DiskBackupRepository
 	OrganizationRepository() organizationsRepo.Repository
 	GitRepository() gitRepo.GitRepository
+	TunnelRepository() tunnelsRepo.TunnelRepository
 }
 
 // DatabaseType represents the type of main database

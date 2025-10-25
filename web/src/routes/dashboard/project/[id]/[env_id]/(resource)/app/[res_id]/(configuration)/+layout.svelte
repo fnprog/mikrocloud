@@ -11,11 +11,10 @@
 	const navItems = [
 		{ path: 'general', label: 'General', icon: LayoutGrid },
 		{ path: 'networking', label: 'Networking', icon: LayoutGrid },
-		{ path: 'settings', label: 'Settings', icon: Settings },
-		{ path: 'storage', label: 'Persistent Storage', icon: HardDrive },
-		{ path: 'limits', label: 'Resource Limits', icon: Gauge },
-		{ path: 'metrics', label: 'Metrics', icon: BarChart3 },
-		{ path: 'scaling', label: 'Scaling', icon: Scale }
+		{ path: 'storage', label: 'Persistent Storage', icon: HardDrive }
+		// { path: 'limits', label: 'Resource Limits', icon: Gauge },
+		// { path: 'metrics', label: 'Metrics', icon: BarChart3 },
+		// { path: 'scaling', label: 'Scaling', icon: Scale }
 	];
 
 	const isActive = (path: string) => {
@@ -25,7 +24,7 @@
 
 <div class="container max-w-7xl py-8">
 	<div class="flex gap-6">
-		<nav class="w-56 flex-shrink-0">
+		<nav class="w-56 shrink-0">
 			<div class="space-y-1">
 				{#each navItems as item}
 					<button

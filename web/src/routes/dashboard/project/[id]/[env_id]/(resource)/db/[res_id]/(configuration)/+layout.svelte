@@ -82,10 +82,10 @@
 		{ path: 'overview', label: 'Overview', icon: LayoutGrid },
 		{ path: 'backups', label: 'Backups', icon: Clock },
 		{ path: 'settings', label: 'Settings', icon: Settings },
-		{ path: 'storage', label: 'Persistent Storage', icon: HardDrive },
-		{ path: 'limits', label: 'Resource Limits', icon: Gauge },
-		{ path: 'metrics', label: 'Metrics', icon: BarChart3 },
-		{ path: 'scaling', label: 'Scaling', icon: Scale }
+		{ path: 'storage', label: 'Persistent Storage', icon: HardDrive }
+		// { path: 'limits', label: 'Resource Limits', icon: Gauge },
+		// { path: 'metrics', label: 'Metrics', icon: BarChart3 },
+		// { path: 'scaling', label: 'Scaling', icon: Scale }
 	];
 
 	const isActive = (path: string) => {

@@ -6,6 +6,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
+	import * as Field from '$lib/components/ui/field/index.js';
 	import { Check, ChevronsUpDown } from 'lucide-svelte';
 	import { cn } from '$lib/utils';
 	import { tick } from 'svelte';
@@ -21,7 +22,6 @@
 	let ipv4 = $state('');
 	let ipv6 = $state('');
 	let allowRegistrations = $state(true);
-	let doNotTrack = $state(false);
 	let isDetecting = $state(false);
 	let timezoneOpen = $state(false);
 	let timezoneSearch = $state('');
@@ -48,7 +48,6 @@
 			ipv4 = settingsQuery.data.ipv4 || '';
 			ipv6 = settingsQuery.data.ipv6 || '';
 			allowRegistrations = settingsQuery.data.allow_registrations ?? true;
-			doNotTrack = settingsQuery.data.do_not_track ?? false;
 		}
 	});
 
@@ -59,7 +58,7 @@
 			ipv4,
 			ipv6,
 			allow_registrations: allowRegistrations,
-			do_not_track: doNotTrack
+			do_not_track: true
 		});
 	}
 
@@ -89,135 +88,147 @@
 </script>
 
 <div class="space-y-6">
-	<Card.Root>
+	<Card.Root class="gap-3">
 		<Card.Header>
-			<Card.Title>Instance Configuration</Card.Title>
+			<Card.Title class="text-xl">Domain</Card.Title>
 		</Card.Header>
-		<Card.Content class="space-y-6">
-			<div class="space-y-2">
-				<Label for="domain">Domain</Label>
-				<Input
-					id="domain"
-					type="text"
-					bind:value={domain}
-					placeholder="https://mikrocloud.example.com"
-				/>
-				<p class="text-xs text-muted-foreground">
-					Enter the full domain name (FQDN) of the instance, including 'https://' if you want to
-					secure the dashboard with HTTPS. Setting this will make the dashboard accessible via this
-					domain, secured by HTTPS, instead of just the IP address.
-				</p>
-			</div>
+		<Card.Content class="space-y-4">
+			<p class="text-xs">
+				Enter the full domain name (FQDN) of the instance, including 'https://' if you want to
+				secure the dashboard with HTTPS. Setting this will make the dashboard accessible via this
+				domain, secured by HTTPS, instead of just the IP address.
+			</p>
+			<Input
+				id="domain"
+				type="text"
+				bind:value={domain}
+				placeholder="https://mikrocloud.example.com"
+			/>
+		</Card.Content>
+	</Card.Root>
 
-			<div class="space-y-2">
-				<Label for="timezone">Timezone</Label>
-				<Popover.Root bind:open={timezoneOpen}>
-					<Popover.Trigger bind:ref={triggerRef}>
-						{#snippet child({ props })}
-							<Button
-								variant="outline"
-								class="w-full justify-between"
-								{...props}
-								role="combobox"
-								aria-expanded={timezoneOpen}
-							>
-								{timezone || 'Select timezone...'}
-								<ChevronsUpDown class="ml-2 size-4 shrink-0 opacity-50" />
+	<Card.Root class="gap-3">
+		<Card.Header>
+			<Card.Title class="text-xl">Timezone</Card.Title>
+		</Card.Header>
+		<Card.Content class="space-y-4">
+			<p class="text-xs">This is used for the update check and automatic update frequency.</p>
+			<Popover.Root bind:open={timezoneOpen}>
+				<Popover.Trigger bind:ref={triggerRef}>
+					{#snippet child({ props })}
+						<Button
+							variant="outline"
+							class="w-full justify-between"
+							{...props}
+							role="combobox"
+							aria-expanded={timezoneOpen}
+						>
+							{timezone || 'Select timezone...'}
+							<ChevronsUpDown class="ml-2 size-4 shrink-0 opacity-50" />
+						</Button>
+					{/snippet}
+				</Popover.Trigger>
+				<Popover.Content class="w-[400px] p-0">
+					<Command.Root>
+						<Command.Input placeholder="Search timezone..." bind:value={timezoneSearch} />
+						<Command.List>
+							<Command.Empty>No timezone found.</Command.Empty>
+							<Command.Group>
+								{#each filteredTimezones as tz}
+									<Command.Item
+										value={tz}
+										onSelect={() => {
+											timezone = tz;
+											closeAndFocusTrigger();
+										}}
+									>
+										<Check class={cn('mr-2 size-4', timezone !== tz && 'text-transparent')} />
+										{tz}
+									</Command.Item>
+								{/each}
+							</Command.Group>
+						</Command.List>
+					</Command.Root>
+				</Popover.Content>
+			</Popover.Root>
+		</Card.Content>
+	</Card.Root>
+
+	<Card.Root class="gap-3">
+		<Card.Header>
+			<Card.Title class="text-xl">Addressing</Card.Title>
+		</Card.Header>
+		<Card.Content class="space-y-4">
+			<Field.Set>
+				<Field.Group>
+					<Field.Field>
+						<Field.Label for="ipv4">Public IPv4 Address</Field.Label>
+						<div class="flex gap-2">
+							<Input
+								id="ipv4"
+								type="text"
+								bind:value={ipv4}
+								placeholder="192.168.1.100"
+								class="flex-1"
+							/>
+							<Button variant="outline" onclick={handleDetectIPs} disabled={isDetecting} size="sm">
+								{isDetecting ? 'Detecting...' : 'Auto-detect'}
 							</Button>
-						{/snippet}
-					</Popover.Trigger>
-					<Popover.Content class="w-[400px] p-0">
-						<Command.Root>
-							<Command.Input placeholder="Search timezone..." bind:value={timezoneSearch} />
-							<Command.List>
-								<Command.Empty>No timezone found.</Command.Empty>
-								<Command.Group>
-									{#each filteredTimezones as tz}
-										<Command.Item
-											value={tz}
-											onSelect={() => {
-												timezone = tz;
-												closeAndFocusTrigger();
-											}}
-										>
-											<Check class={cn('mr-2 size-4', timezone !== tz && 'text-transparent')} />
-											{tz}
-										</Command.Item>
-									{/each}
-								</Command.Group>
-							</Command.List>
-						</Command.Root>
-					</Popover.Content>
-				</Popover.Root>
-				<p class="text-xs text-muted-foreground">
-					This is used for the update check and automatic update frequency.
-				</p>
-			</div>
+						</div>
+						<Field.Description>
+							Enter the IPv4 address of the instance. It is useful if you have several IPv4
+							addresses.
+						</Field.Description>
+					</Field.Field>
 
-			<div class="space-y-2">
-				<Label for="ipv4">Public IPv4 Address</Label>
-				<div class="flex gap-2">
-					<Input id="ipv4" type="text" bind:value={ipv4} placeholder="192.168.1.100" class="flex-1" />
-					<Button variant="outline" onclick={handleDetectIPs} disabled={isDetecting} size="sm">
-						{isDetecting ? 'Detecting...' : 'Auto-detect'}
-					</Button>
-				</div>
-				<p class="text-xs text-muted-foreground">
-					Enter the IPv4 address of the instance. It is useful if you have several IPv4 addresses.
-				</p>
-			</div>
+					<Field.Field>
+						<Field.Label for="ipv6">Public IPv6 Address</Field.Label>
 
-			<div class="space-y-2">
-				<Label for="ipv6">Public IPv6 Address</Label>
-				<div class="flex gap-2">
-					<Input id="ipv6" type="text" bind:value={ipv6} placeholder="2001:db8::1" class="flex-1" />
-					<Button variant="outline" onclick={handleDetectIPs} disabled={isDetecting} size="sm">
-						{isDetecting ? 'Detecting...' : 'Auto-detect'}
-					</Button>
-				</div>
-				<p class="text-xs text-muted-foreground">
-					Enter the IPv6 address of the instance. It is useful if you have several IPv6 addresses.
-				</p>
-			</div>
+						<div class="flex gap-2">
+							<Input
+								id="ipv6"
+								type="text"
+								bind:value={ipv6}
+								placeholder="2001:db8::1"
+								class="flex-1"
+							/>
+							<Button variant="outline" onclick={handleDetectIPs} disabled={isDetecting} size="sm">
+								{isDetecting ? 'Detecting...' : 'Auto-detect'}
+							</Button>
+						</div>
+						<Field.Description>
+							Enter the IPv6 address of the instance. It is useful if you have several IPv6
+							addresses.
+						</Field.Description>
+					</Field.Field>
+				</Field.Group>
+			</Field.Set>
 		</Card.Content>
 	</Card.Root>
 
-	<Card.Root>
+	<Card.Root class="gap-3">
 		<Card.Header>
-			<Card.Title>Access Control</Card.Title>
+			<Card.Title class="text-xl">Allow Registrations</Card.Title>
 		</Card.Header>
-		<Card.Content class="space-y-6">
-			<div class="flex items-center justify-between">
-				<div class="space-y-1">
-					<Label for="allow-registrations">Allow Registrations</Label>
-					<p class="text-xs text-muted-foreground">
-						If disabled, the signup button will be removed and the registration route will be
-						blocked.
-					</p>
-				</div>
+		<Card.Content class="space-y-4">
+			<p class="text-xs">
+				If disabled, the signup button will be removed and the registration route will be blocked.
+			</p>
+			<Label for="allow-registrations" class="hidden sr-only">Allow Registrations</Label>
+			<div class="flex items-center gap-3">
 				<Switch id="allow-registrations" bind:checked={allowRegistrations} />
+				{#if allowRegistrations}
+					<span>Enabled</span>
+				{:else}
+					<span>Disabled</span>
+				{/if}
 			</div>
 		</Card.Content>
 	</Card.Root>
 
-	<Card.Root>
-		<Card.Header>
-			<Card.Title>Privacy</Card.Title>
-		</Card.Header>
-		<Card.Content class="space-y-6">
-			<div class="flex items-center justify-between">
-				<div class="space-y-1">
-					<Label for="do-not-track">Do Not Track</Label>
-					<p class="text-xs text-muted-foreground">Disable telemetry and analytics collection.</p>
-				</div>
-				<Switch id="do-not-track" bind:checked={doNotTrack} />
-			</div>
-		</Card.Content>
-	</Card.Root>
-
-	<div class="flex justify-end">
-		<Button onclick={handleSave} disabled={updateSettingsMutation.isPending}>
-			{updateSettingsMutation.isPending ? 'Saving...' : 'Save Changes'}
-		</Button>
-	</div>
+	<!-- <div class="flex justify-end"> -->
+	<!-- 	<Button onclick={handleSave} disabled={updateSettingsMutation.isPending}> -->
+	<!-- 		{updateSettingsMutation.isPending ? 'Saving...' : 'Save Changes'} -->
+	<!-- 	</Button> -->
+	<!-- </div> -->
 </div>

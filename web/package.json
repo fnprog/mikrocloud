@@ -64,6 +64,7 @@
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@icons-pack/svelte-simple-icons": "^6.5.0",
+    "@tabler/icons-svelte": "^3.35.0",
     "@tanstack/svelte-query": "^6.0.3",
     "@tanstack/svelte-table": "^8.21.3",
     "@xterm/addon-fit": "^0.10.0",

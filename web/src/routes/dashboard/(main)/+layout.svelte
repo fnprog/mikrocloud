@@ -5,9 +5,9 @@
 	const tabs = [
 		{ name: 'Overview', href: '/dashboard/overview' },
 		{ name: 'Projects', href: '/dashboard/projects' },
-		{ name: 'Infrastructure', href: '/dashboard/infra' },
+		// { name: 'Infrastructure', href: '/dashboard/infra' },
 		{ name: 'Version Control', href: '/dashboard/git' },
-		{ name: 'Organization', href: '/dashboard/organizations/general' },
+		// { name: 'Organization', href: '/dashboard/organizations/general' },
 		{ name: 'Settings', href: '/dashboard/settings' }
 	];
 </script>
@@ -15,7 +15,7 @@
 <main>
 	<NavBarBottom {tabs} />
 
-	<div class="p-6 pt-[104px]">
+	<div class="pt-[50px]">
 		{@render children()}
 	</div>
 </main>

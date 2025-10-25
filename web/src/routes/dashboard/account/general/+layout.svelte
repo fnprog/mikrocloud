@@ -14,12 +14,12 @@
 			label: 'Authentication',
 			href: '/dashboard/account/general/auth',
 			icon: Shield
-		},
-		{
-			label: 'Appearance',
-			href: '/dashboard/account/general/appearance',
-			icon: Palette
 		}
+		// {
+		// 	label: 'Appearance',
+		// 	href: '/dashboard/account/general/appearance',
+		// 	icon: Palette
+		// }
 	];
 </script>
 

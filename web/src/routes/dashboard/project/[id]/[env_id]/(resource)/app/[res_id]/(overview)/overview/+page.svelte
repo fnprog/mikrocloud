@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
+	import { Frame, FramePanel, FrameHeader, FrameTitle } from '$lib/components/ui/frame';
 	import { Separator } from '$lib/components/ui/separator';
 	import { toast } from 'svelte-sonner';
 	import {
@@ -12,11 +13,11 @@
 		ExternalLink,
 		GitBranch,
 		GitCommit,
-		User,
-		Calendar,
 		FileText,
-		Eye,
-		RotateCcw
+		RotateCcw,
+		Github,
+		Globe,
+		ChevronDown
 	} from 'lucide-svelte';
 	import { createApplicationFetchQuery } from '$lib/features/applications/queries';
 	import { createDeploymentsListQuery } from '$lib/features/deployments/queries';
@@ -29,8 +30,6 @@
 	const projectId = page.params.id!;
 	const resId = page.params.res_id!;
 	const envId = page.params.env_id!;
-
-	console.log(resId);
 
 	const applicationQuery = createApplicationFetchQuery(projectId, envId, resId);
 	const deploymentsQuery = createDeploymentsListQuery(projectId, resId);
@@ -90,6 +89,23 @@
 		startMutation.isPending || stopMutation.isPending || restartMutation.isPending
 	);
 
+	const isGitDeployment = $derived(
+		application?.deployment_source?.source_type === 'git' ||
+			application?.deployment_source?.type === 'git'
+	);
+
+	const gitUrl = $derived(
+		application?.deployment_source?.git_url || application?.deployment_source?.git_repo?.url || null
+	);
+
+	const hasConfiguredDomain = $derived(
+		!!(application?.custom_domain || application?.generated_domain || application?.domain)
+	);
+
+	const primaryDomain = $derived(
+		application?.custom_domain || application?.generated_domain || application?.domain || null
+	);
+
 	function getStatusBadgeVariant(
 		status: string
 	): 'default' | 'secondary' | 'destructive' | 'outline' {
@@ -136,209 +152,218 @@
 </script>
 
 {#if application}
-	<div class="space-y-6">
-		<Card>
-			<CardHeader>
-				<div class="flex items-center justify-between">
-					<div class="flex items-center space-x-3">
-						<CardTitle>Latest Deployment</CardTitle>
-						{#if latestDeployment}
-							<Badge variant={getStatusBadgeVariant(latestDeployment.status)}>
-								{latestDeployment.status}
-							</Badge>
-						{/if}
-					</div>
-					<div class="flex gap-2">
-						{#if application.status === 'stopped' || application.status === 'pending' || application.status === 'created'}
-							<Button
-								size="sm"
-								disabled={isAnyActionPending}
-								onclick={() => startMutation.mutate()}
-							>
-								<Play class="mr-2 h-4 w-4" />
-								{startMutation.isPending ? 'Starting...' : 'Start'}
-							</Button>
-						{:else if application.status === 'running'}
-							<Button
-								size="sm"
-								variant="outline"
-								disabled={isAnyActionPending}
-								onclick={() => stopMutation.mutate()}
-							>
-								<Square class="mr-2 h-4 w-4" />
-								{stopMutation.isPending ? 'Stopping...' : 'Stop'}
-							</Button>
-						{/if}
-						{#if application.status !== 'pending'}
-							<Button
-								size="sm"
-								variant="outline"
-								disabled={isAnyActionPending}
-								onclick={() => restartMutation.mutate()}
-							>
-								<RefreshCw class="mr-2 h-4 w-4 {restartMutation.isPending ? 'animate-spin' : ''}" />
-								{restartMutation.isPending ? 'Restarting...' : 'Restart'}
-							</Button>
-						{/if}
-					</div>
-				</div>
-			</CardHeader>
-			<CardContent>
+	<div class="container mx-auto space-y-6 p-6">
+		<div class="flex items-center justify-between">
+			<h1 class="text-4xl font-bold">{application.name}</h1>
+			<div class="flex items-center gap-2">
+				{#if isGitDeployment && gitUrl}
+					<Button size="lg" variant="outline" href={gitUrl} target="_blank">
+						<Github class="mr-2 h-4 w-4" />
+						Repository
+					</Button>
+				{/if}
+				{#if application.status === 'stopped' || application.status === 'pending' || application.status === 'created'}
+					<Button size="lg" disabled={isAnyActionPending} onclick={() => startMutation.mutate()}>
+						<Play class="mr-2 h-4 w-4" />
+						{startMutation.isPending ? 'Starting...' : 'Start'}
+					</Button>
+				{:else if application.status === 'running'}
+					<Button
+						size="lg"
+						variant="outline"
+						disabled={isAnyActionPending}
+						onclick={() => stopMutation.mutate()}
+					>
+						<Square class="mr-2 h-4 w-4" />
+						{stopMutation.isPending ? 'Stopping...' : 'Stop'}
+					</Button>
+				{/if}
+				{#if application.status !== 'pending'}
+					<Button
+						size="lg"
+						variant="outline"
+						disabled={isAnyActionPending}
+						onclick={() => restartMutation.mutate()}
+					>
+						<RefreshCw class="mr-2 h-4 w-4 {restartMutation.isPending ? 'animate-spin' : ''}" />
+						{restartMutation.isPending ? 'Restarting...' : 'Restart'}
+					</Button>
+				{/if}
+				<Button
+					size="lg"
+					variant="outline"
+					href="/dashboard/project/{projectId}/{envId}/app/{resId}/domains"
+				>
+					<Globe class="mr-2 h-4 w-4" />
+					Domains
+				</Button>
+				{#if hasConfiguredDomain && primaryDomain}
+					<Button variant="outline" href="https://{primaryDomain}" target="_blank">
+						Visit
+						<ChevronDown class="ml-2 h-4 w-4" />
+					</Button>
+				{/if}
+			</div>
+		</div>
+
+		<Separator class="-mx-48 data-[orientation=horizontal]:w-[calc(100%+21rem)]" />
+		<div class="flex items-center justify-between">
+			<div class="flex items-center gap-3">
+				<h1 class="text-xl font-semibold">Production Deployment</h1>
+			</div>
+			<div class="flex items-center gap-2">
 				{#if latestDeployment}
-					<div class="space-y-4">
+					<Button
+						size="sm"
+						variant="outline"
+						href="/dashboard/project/{projectId}/{envId}/app/{resId}/deployments/{latestDeployment.id}"
+					>
+						Build Logs
+					</Button>
+				{/if}
+				<Button
+					size="sm"
+					variant="outline"
+					href="/dashboard/project/{projectId}/{envId}/app/{resId}/logs"
+				>
+					Runtime Logs
+				</Button>
+				<Button size="sm" variant="outline" disabled>
+					<RotateCcw class="mr-2 h-4 w-4" />
+					Instant Rollback
+				</Button>
+			</div>
+		</div>
+		<Frame>
+			<FramePanel>
+				{#if latestDeployment}
+					<div class="px-5 py-4 space-y-4">
 						<div class="grid grid-cols-2 gap-6">
 							<div>
-								<div class="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-									<Calendar class="h-4 w-4" />
-									<span>Deployed</span>
-								</div>
-								<p class="font-medium">
-									{formatDate(latestDeployment.started_at)}
-								</p>
-								<p class="text-sm text-muted-foreground">
-									{formatRelativeTime(latestDeployment.started_at)}
+								<p class="text-sm text-muted-foreground mb-1">Deployment</p>
+								<p class="font-medium text-sm break-all">
+									{latestDeployment.id || 'N/A'}
 								</p>
 							</div>
-							{#if latestDeployment.commit_hash}
+							<div>
+								<p class="text-sm text-muted-foreground mb-1">Domains</p>
+								{#if hasConfiguredDomain && primaryDomain}
+									<a
+										href="https://{primaryDomain}"
+										target="_blank"
+										class="font-medium text-sm hover:underline flex items-center gap-1"
+									>
+										{primaryDomain}
+										<ExternalLink class="h-3 w-3" />
+									</a>
+								{:else}
+									<p class="text-sm text-muted-foreground">No domain configured</p>
+								{/if}
+							</div>
+						</div>
+
+						<div class="grid grid-cols-2 gap-6">
+							<div>
+								<p class="text-sm text-muted-foreground mb-1">Status</p>
+								<div class="flex items-center gap-2">
+									<Badge variant={getStatusBadgeVariant(latestDeployment.status)}>
+										{latestDeployment.status}
+									</Badge>
+									<span class="text-sm">
+										{formatRelativeTime(latestDeployment.created_at)}
+									</span>
+								</div>
+							</div>
+							<div>
+								<p class="text-sm text-muted-foreground mb-1">Created</p>
+								<p class="text-sm">
+									{formatDate(latestDeployment.created_at)}
+									{#if latestDeployment.author}
+										by {latestDeployment.author}
+									{/if}
+								</p>
+							</div>
+						</div>
+
+						{#if latestDeployment.branch || latestDeployment.commit_hash}
+							<div class="grid grid-cols-2 gap-6">
+								{#if latestDeployment.branch}
+									<div>
+										<div class="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+											<GitBranch class="h-4 w-4" />
+											<span>Source</span>
+										</div>
+										<p class="font-medium flex items-center gap-1">
+											<GitBranch class="h-4 w-4" />
+											{latestDeployment.branch}
+										</p>
+									</div>
+								{/if}
+								{#if latestDeployment.commit_hash}
+									<div>
+										<div class="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+											<GitCommit class="h-4 w-4" />
+											<span>Commit</span>
+										</div>
+										<p class="font-mono font-medium flex items-center gap-1">
+											<GitCommit class="h-4 w-4" />
+											{latestDeployment.commit_hash.slice(0, 7)}
+											{latestDeployment.commit_message || ''}
+										</p>
+									</div>
+								{/if}
+							</div>
+						{/if}
+
+						{#if application.deployment_source}
+							{@const source = application.deployment_source}
+							{#if source.source_type === 'git' || source.type === 'git'}
+								<div class="grid grid-cols-2 gap-6">
+									{#if source.git_branch || source.git_repo?.branch}
+										<div>
+											<span class=" text-muted-foreground mb-1 text-sm"> Source </span>
+											<a
+												class="font-medium flex items-center gap-2 text-sm"
+												href={source.git_url || source.git_repo?.url}
+											>
+												<GitBranch class="h-4 w-4" />
+												<span>{source.git_branch || source.git_repo?.branch}</span>
+											</a>
+										</div>
+									{/if}
+									{#if source.git_path || source.git_repo?.path}
+										<div>
+											<div class="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+												<span>Path</span>
+											</div>
+											<p
+												class="font-medium font-mono flex items-center gap-2 text-sm text-muted-foreground"
+											>
+												<span>{source.git_path || source.git_repo?.path}</span>
+											</p>
+										</div>
+									{/if}
+								</div>
+							{:else if source.source_type === 'docker' || source.type === 'registry'}
 								<div>
 									<div class="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-										<GitCommit class="h-4 w-4" />
-										<span>Commit</span>
+										<span>Docker Image</span>
 									</div>
-									<p class="font-mono font-medium">{latestDeployment.commit_hash.slice(0, 7)}</p>
+									<p class="font-medium font-mono text-sm">
+										{source.docker_image || source.registry?.image || 'Not configured'}
+									</p>
 								</div>
 							{/if}
-						</div>
-
-						<Separator />
-
-						{#if latestDeployment.branch}
-							<div>
-								<div class="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-									<GitBranch class="h-4 w-4" />
-									<span>Branch</span>
-								</div>
-								<p class="font-medium">{latestDeployment.branch}</p>
-							</div>
+						{:else}
+							<p class="text-muted-foreground">No source configured</p>
 						{/if}
-
-						{#if latestDeployment.commit_message}
-							<div>
-								<div class="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-									<FileText class="h-4 w-4" />
-									<span>Commit Message</span>
-								</div>
-								<p class="font-medium">{latestDeployment.commit_message}</p>
-							</div>
-						{/if}
-
-						{#if latestDeployment.author}
-							<div>
-								<div class="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-									<User class="h-4 w-4" />
-									<span>Author</span>
-								</div>
-								<p class="font-medium">{latestDeployment.author}</p>
-							</div>
-						{/if}
-
-						<Separator />
-
-						<div class="flex gap-2">
-							<Button
-								size="sm"
-								variant="outline"
-								href="/dashboard/project/{projectId}/{envId}/app/{resId}/deployments/{latestDeployment.id}"
-							>
-								<Eye class="mr-2 h-4 w-4" />
-								View Logs
-							</Button>
-							{#if latestDeployment.status === 'success'}
-								<Button size="sm" variant="outline">
-									<RotateCcw class="mr-2 h-4 w-4" />
-									Instant Rollback
-								</Button>
-							{/if}
-						</div>
 					</div>
 				{:else}
-					<div class="text-center py-8 text-muted-foreground">
+					<div class="text-center py-8 text-muted-foreground px-5">
 						<p>No deployments yet</p>
 					</div>
 				{/if}
-			</CardContent>
-		</Card>
-
-		{#if application.domain}
-			<Card>
-				<CardHeader>
-					<CardTitle>Domain</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div class="flex items-center justify-between">
-						<div>
-							<p class="font-medium mb-1">{application.domain}</p>
-							<p class="text-sm text-muted-foreground">Application is accessible at this domain</p>
-						</div>
-						<Button size="sm" variant="outline" href="https://{application.domain}" target="_blank">
-							<ExternalLink class="h-4 w-4" />
-						</Button>
-					</div>
-				</CardContent>
-			</Card>
-		{/if}
-
-		<Card>
-			<CardHeader>
-				<CardTitle>Source</CardTitle>
-			</CardHeader>
-			<CardContent>
-				<div class="space-y-4">
-					{#if application.deployment_source}
-						{@const source = application.deployment_source}
-						{#if source.source_type === 'git'}
-							<div>
-								<div class="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-									<GitBranch class="h-4 w-4" />
-									<span>Repository</span>
-								</div>
-								<p class="font-medium font-mono text-sm break-all">
-									{source.git_url || 'Not configured'}
-								</p>
-							</div>
-							{#if source.git_branch}
-								<div>
-									<div class="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-										<GitBranch class="h-4 w-4" />
-										<span>Branch</span>
-									</div>
-									<p class="font-medium">{source.git_branch}</p>
-								</div>
-							{/if}
-							{#if source.git_path}
-								<div>
-									<div class="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-										<FileText class="h-4 w-4" />
-										<span>Path</span>
-									</div>
-									<p class="font-medium font-mono text-sm">{source.git_path}</p>
-								</div>
-							{/if}
-						{:else if source.source_type === 'docker'}
-							<div>
-								<div class="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-									<span>Docker Image</span>
-								</div>
-								<p class="font-medium font-mono text-sm">
-									{source.docker_image || 'Not configured'}
-								</p>
-							</div>
-						{/if}
-					{:else}
-						<p class="text-muted-foreground">No source configured</p>
-					{/if}
-				</div>
-			</CardContent>
-		</Card>
+			</FramePanel>
+		</Frame>
 	</div>
 {/if}

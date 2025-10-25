@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
+	import * as InputGroup from '$lib/components/ui/input-group/index.js';
 	import ProjectCard from '$lib/components/projects/project-card.svelte';
 	import AddProjectModal from '$lib/components/projects/add-project-modal.svelte';
 	import { Plus, Search } from 'lucide-svelte';
@@ -50,66 +50,71 @@
 	);
 </script>
 
-<div class="container mx-auto space-y-6 p-6">
-	<div class="flex items-center justify-between">
-		<div>
-			<h1 class="font-bold text-3xl">Projects</h1>
-			<p class="text-muted-foreground">Manage your projects and deployments</p>
-		</div>
-		<Button onclick={() => (showAddModal = true)}>
-			<Plus class="size-4" />
-			Add Project
-		</Button>
-	</div>
-
-	<div class="relative">
-		<Search class="text-muted-foreground absolute left-3 top-1/2 size-4 -translate-y-1/2" />
-		<Input
-			bind:value={searchQuery}
-			placeholder="Search projects..."
-			class="pl-9"
-			disabled={projectsQuery.isLoading}
-		/>
-	</div>
-
-	{#if projectsQuery.isLoading}
-		<div class="flex min-h-[400px] items-center justify-center">
-			<p class="text-muted-foreground">Loading projects...</p>
-		</div>
-	{:else if projectsQuery.isError}
-		<div class="flex min-h-[400px] items-center justify-center">
-			<div class="text-center">
-				<p class="text-destructive mb-2">{projectsQuery.error}</p>
-				<Button variant="outline" onclick={projectsQuery.refetch}>Retry</Button>
+<div class="min-h-screen">
+	<div class="border-b">
+		<div class="max-w-7xl mx-auto px-6 flex items-center justify-between">
+			<div class="my-[40px] w-full mx-auto">
+				<h1 class="text-3xl font-semibold">Projects</h1>
 			</div>
+			<Button size="lg" onclick={() => (showAddModal = true)}>
+				<Plus class="size-4" />
+				Add Project
+			</Button>
 		</div>
-	{:else if filteredProjects.length === 0}
-		<div class="flex min-h-[400px] items-center justify-center">
-			<div class="text-center">
-				{#if searchQuery}
-					<p class="text-muted-foreground">No projects found matching "{searchQuery}"</p>
-				{:else}
-					<p class="text-muted-foreground mb-4">
-						No projects yet. Create your first project to get started.
-					</p>
-					<Button onclick={() => (showAddModal = true)}>
-						<Plus class="size-4" />
-						Create Project
-					</Button>
-				{/if}
+	</div>
+	<div class="mt-[46px]"></div>
+
+	<div class="max-w-7xl mx-auto px-6 space-y-6">
+		<InputGroup.Root>
+			<InputGroup.Input
+				placeholder="Search projects..."
+				bind:value={searchQuery}
+				disabled={projectsQuery.isLoading}
+			/>
+			<InputGroup.Addon>
+				<Search />
+			</InputGroup.Addon>
+		</InputGroup.Root>
+
+		<!-- TODO: Shimmer for loading stuffs -->
+		<!-- TODO: Better looking error state -->
+		<!-- TODO: Better looking error state -->
+
+		{#if projectsQuery.isLoading}
+			<div class="flex min-h-[400px] items-center justify-center">
+				<p class="text-muted-foreground">Loading projects...</p>
 			</div>
-		</div>
-	{:else}
-		<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-			{#each filteredProjects as project (project.id)}
-				<ProjectCard
-					{project}
-					onDelete={handleDeleteProject}
-					onclick={() => goto(`/dashboard/project/${project.id}/overview`)}
-				/>
-			{/each}
-		</div>
-	{/if}
+		{:else if projectsQuery.isError}
+			<div class="flex min-h-[400px] items-center justify-center">
+				<div class="text-center">
+					<p class="text-destructive mb-2">{projectsQuery.error}</p>
+					<Button variant="outline" onclick={projectsQuery.refetch}>Retry</Button>
+				</div>
+			</div>
+		{:else if filteredProjects.length === 0}
+			<div class="flex min-h-[400px] items-center justify-center">
+				<div class="text-center">
+					{#if searchQuery}
+						<p class="text-muted-foreground">No projects found matching "{searchQuery}"</p>
+					{:else}
+						<p class="text-muted-foreground mb-4">
+							No projects yet. Add your first project to get started.
+						</p>
+					{/if}
+				</div>
+			</div>
+		{:else}
+			<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+				{#each filteredProjects as project (project.id)}
+					<ProjectCard
+						{project}
+						onDelete={handleDeleteProject}
+						onclick={() => goto(`/dashboard/project/${project.id}/overview`)}
+					/>
+				{/each}
+			</div>
+		{/if}
+	</div>
 </div>
 
 <AddProjectModal bind:open={showAddModal} onSubmit={handleCreateProject} />

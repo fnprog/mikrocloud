@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { StructuredLog, LogLevel } from '../types';
-	import { Filter } from 'lucide-svelte';
 
 	interface Props {
 		logs: StructuredLog[];
@@ -59,9 +58,8 @@
 </script>
 
 <div class={className}>
-	<div class="flex items-center gap-2 mb-4">
-		<Filter class="w-4 h-4 text-muted-foreground" />
-		<div class="flex gap-2">
+	<div class="flex items-center gap-2 py-4 border-b">
+		<div class="flex gap-2 px-3">
 			<button
 				onclick={() => (selectedFilter = 'all')}
 				class="px-3 py-1 rounded-md text-sm transition-colors {selectedFilter === 'all'
@@ -91,11 +89,11 @@
 
 	<div
 		bind:this={logsContainer}
-		class="relative bg-muted rounded-md p-4 overflow-x-auto overflow-y-auto max-h-[600px] font-mono text-sm"
+		class="relative r overflow-x-auto overflow-y-auto max-h-[600px] font-mono text-sm px-3"
 	>
-		<div
-			class="sticky top-0 left-0 right-0 h-8 bg-linear-to-b from-muted to-transparent pointer-events-none"
-		></div>
+		<!-- <div -->
+		<!-- 	class="sticky top-0 left-0 right-0 h-8 bg-linear-to-b from-muted to-transparent pointer-events-none" -->
+		<!-- ></div> -->
 
 		{#if filteredLogs.length > 0}
 			<div class="space-y-0.5 -mt-8 pt-8">
