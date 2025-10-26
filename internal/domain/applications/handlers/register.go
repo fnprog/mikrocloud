@@ -7,7 +7,7 @@ import (
 )
 
 func RegisterApplicationRoutes(r chi.Router, deps *deps.Dependencies) {
-	applicationHandler := NewApplicationHandler(deps.ApplicationService, deps.DeploymentService, deps.ContainerService)
+	applicationHandler := NewApplicationHandler(deps.ApplicationService, deps.DeploymentService, deps.ContainerService, deps.Config)
 
 	// Application routes within project
 	r.Route("/applications", func(r chi.Router) {
@@ -26,6 +26,7 @@ func RegisterApplicationRoutes(r chi.Router, deps *deps.Dependencies) {
 			r.Post("/domain/generate", applicationHandler.GenerateDomain)
 			r.Put("/domain", applicationHandler.AssignDomain)
 			r.Put("/ports", applicationHandler.UpdatePorts)
+			r.Post("/upload", applicationHandler.UploadContent)
 
 			// Deployment routes within application
 			deploymentsHandler.RegisterDeploymentsRoutes(r, deps)

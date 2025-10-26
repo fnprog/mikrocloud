@@ -24,7 +24,6 @@ import (
 	"github.com/mikrocloud/mikrocloud/internal/api/deps"
 	"github.com/mikrocloud/mikrocloud/internal/config"
 	"github.com/mikrocloud/mikrocloud/internal/database"
-	"github.com/mikrocloud/mikrocloud/internal/domain/proxy"
 	"github.com/mikrocloud/mikrocloud/internal/domain/servers"
 	proxyContainers "github.com/mikrocloud/mikrocloud/pkg/containers/proxy"
 )
@@ -162,19 +161,6 @@ func (s *Server) setupMiddlewares() {
 }
 
 func (s *Server) setupDependencies(ctx context.Context) error {
-	if s.traefikSvc != nil {
-		slog.Info("Starting Traefik reverse proxy service")
-
-		// Create default global configuration for Traefik
-		globalConfig := proxy.NewTraefikGlobalConfig()
-
-		if err := s.traefikSvc.Start(ctx, globalConfig); err != nil {
-			return err
-		} else {
-			slog.Info("Traefik service started successfully")
-		}
-	}
-
 	return nil
 }
 

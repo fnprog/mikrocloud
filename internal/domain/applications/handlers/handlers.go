@@ -9,6 +9,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/mikrocloud/mikrocloud/internal/api/middleware"
+	"github.com/mikrocloud/mikrocloud/internal/config"
 	"github.com/mikrocloud/mikrocloud/internal/domain/applications"
 	"github.com/mikrocloud/mikrocloud/internal/domain/applications/service"
 	deploymentService "github.com/mikrocloud/mikrocloud/internal/domain/deployments/service"
@@ -22,14 +23,16 @@ type ApplicationHandler struct {
 	appService        *service.ApplicationService
 	deploymentService *deploymentService.DeploymentService
 	containerService  *containerService.ContainerService
+	config            *config.Config
 	validator         *validator.Validate
 }
 
-func NewApplicationHandler(appService *service.ApplicationService, deploymentService *deploymentService.DeploymentService, containerService *containerService.ContainerService) *ApplicationHandler {
+func NewApplicationHandler(appService *service.ApplicationService, deploymentService *deploymentService.DeploymentService, containerService *containerService.ContainerService, cfg *config.Config) *ApplicationHandler {
 	return &ApplicationHandler{
 		appService:        appService,
 		deploymentService: deploymentService,
 		containerService:  containerService,
+		config:            cfg,
 		validator:         validator.New(),
 	}
 }
@@ -981,4 +984,191 @@ func (h *ApplicationHandler) UpdatePorts(w http.ResponseWriter, r *http.Request)
 	}
 
 	utils.SendJSON(w, http.StatusOK, response)
+}
+
+type UploadContentRequest struct {
+	ContentType   string `json:"content_type" validate:"required,oneof=dockerfile compose zip"`
+	InlineContent string `json:"inline_content,omitempty"`
+}
+
+func (h *ApplicationHandler) UploadContent(w http.ResponseWriter, r *http.Request) {
+	appIDStr := chi.URLParam(r, "application_id")
+	appID, err := applications.ApplicationIDFromString(appIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_application_id", "Invalid application ID")
+		return
+	}
+
+	projectIDStr := chi.URLParam(r, "project_id")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_project_id", "Invalid project ID")
+		return
+	}
+
+	app, err := h.appService.GetApplication(r.Context(), appID)
+	if err != nil {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found")
+		return
+	}
+
+	if app.ProjectID() != projectID {
+		utils.SendError(w, http.StatusNotFound, "application_not_found", "Application not found in project")
+		return
+	}
+
+	contentType := r.Header.Get("Content-Type")
+	var req UploadContentRequest
+	var uploadedFile io.Reader
+	var uploadedFileName string
+
+	if contentType == "multipart/form-data" || r.Header.Get("Content-Type")[:19] == "multipart/form-data" {
+		if err := r.ParseMultipartForm(100 << 20); err != nil {
+			utils.SendError(w, http.StatusBadRequest, "parse_error", "Failed to parse multipart form")
+			return
+		}
+
+		req.ContentType = r.FormValue("content_type")
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			utils.SendError(w, http.StatusBadRequest, "file_required", "File upload required")
+			return
+		}
+		defer file.Close()
+
+		uploadedFile = file
+		uploadedFileName = header.Filename
+	} else {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			utils.SendError(w, http.StatusBadRequest, "invalid_json", "Invalid JSON format")
+			return
+		}
+	}
+
+	if err := h.validator.Struct(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "validation_error", err.Error())
+		return
+	}
+
+	workspace, err := utils.CreateBuildWorkspace(appID.String(), h.config.Docker.BuildDir)
+	if err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "workspace_error", "Failed to create build workspace: "+err.Error())
+		return
+	}
+
+	var uploadPath string
+
+	switch req.ContentType {
+	case "dockerfile":
+		if req.InlineContent != "" {
+			err = workspace.SaveInlineDockerfile(req.InlineContent)
+			uploadPath = workspace.Path
+		} else if uploadedFile != nil {
+			fileContent, err := io.ReadAll(uploadedFile)
+			if err != nil {
+				workspace.Cleanup()
+				utils.SendError(w, http.StatusInternalServerError, "read_error", "Failed to read uploaded file")
+				return
+			}
+			err = workspace.SaveUploadedFile("Dockerfile", fileContent)
+			uploadPath = workspace.Path
+		} else {
+			utils.SendError(w, http.StatusBadRequest, "content_required", "Either inline_content or file upload required")
+			return
+		}
+
+	case "compose":
+		if req.InlineContent != "" {
+			err = workspace.SaveInlineCompose(req.InlineContent)
+			uploadPath = workspace.Path
+		} else if uploadedFile != nil {
+			fileContent, err := io.ReadAll(uploadedFile)
+			if err != nil {
+				workspace.Cleanup()
+				utils.SendError(w, http.StatusInternalServerError, "read_error", "Failed to read uploaded file")
+				return
+			}
+			err = workspace.SaveUploadedFile("docker-compose.yml", fileContent)
+			uploadPath = workspace.Path
+		} else {
+			utils.SendError(w, http.StatusBadRequest, "content_required", "Either inline_content or file upload required")
+			return
+		}
+
+	case "zip":
+		if uploadedFile == nil {
+			utils.SendError(w, http.StatusBadRequest, "file_required", "Zip file upload required")
+			return
+		}
+		fileContent, err := io.ReadAll(uploadedFile)
+		if err != nil {
+			workspace.Cleanup()
+			utils.SendError(w, http.StatusInternalServerError, "read_error", "Failed to read uploaded zip")
+			return
+		}
+		err = workspace.SaveUploadedFile(uploadedFileName, fileContent)
+		if err != nil {
+			workspace.Cleanup()
+			utils.SendError(w, http.StatusInternalServerError, "save_error", "Failed to save uploaded zip")
+			return
+		}
+		tempZipPath := workspace.Path + "/" + uploadedFileName
+		err = workspace.ExtractZip(tempZipPath)
+		uploadPath = workspace.Path
+	}
+
+	if err != nil {
+		workspace.Cleanup()
+		utils.SendError(w, http.StatusInternalServerError, "upload_error", "Failed to process upload: "+err.Error())
+		return
+	}
+
+	uploadSource := applications.UploadSource{
+		FilePath: uploadPath,
+		Filename: uploadedFileName,
+	}
+
+	deploymentSource := applications.DeploymentSource{
+		Type:   applications.DeploymentSourceTypeUpload,
+		Upload: &uploadSource,
+	}
+
+	updateCmd := service.UpdateApplicationCommand{
+		ID:               appID,
+		DeploymentSource: &deploymentSource,
+	}
+
+	updatedApp, err := h.appService.UpdateApplication(r.Context(), updateCmd)
+	if err != nil {
+		workspace.Cleanup()
+		utils.SendError(w, http.StatusInternalServerError, "update_failed", "Failed to update deployment source: "+err.Error())
+		return
+	}
+
+	response := ApplicationResponse{
+		ID:               updatedApp.ID().String(),
+		Name:             updatedApp.Name().String(),
+		Description:      updatedApp.Description(),
+		ProjectID:        updatedApp.ProjectID().String(),
+		EnvironmentID:    updatedApp.EnvironmentID().String(),
+		DeploymentSource: updatedApp.DeploymentSource(),
+		Domain:           updatedApp.Domain(),
+		CustomDomain:     updatedApp.Domain(),
+		GeneratedDomain:  updatedApp.GeneratedDomain(),
+		ExposedPorts:     updatedApp.ExposedPorts(),
+		PortMappings:     updatedApp.PortMappings(),
+		Buildpack:        convertToLegacyBuildpackConfig(updatedApp.Buildpack()),
+		EnvVars:          updatedApp.EnvVars(),
+		AutoDeploy:       updatedApp.AutoDeploy(),
+		Status:           updatedApp.Status(),
+		CreatedAt:        updatedApp.CreatedAt().Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:        updatedApp.UpdatedAt().Format("2006-01-02T15:04:05Z07:00"),
+	}
+
+	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
+		"message":     "Content uploaded successfully",
+		"upload_path": uploadPath,
+		"type":        req.ContentType,
+		"application": response,
+	})
 }

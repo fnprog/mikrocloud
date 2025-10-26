@@ -187,9 +187,11 @@ func (s *DeploymentService) createBuildRequest(deployment *deployments.Deploymen
 		// For registry deployments, we don't need to build
 		return nil, fmt.Errorf("registry deployments don't require building")
 	case applications.DeploymentSourceTypeUpload:
-		// For upload deployments, the build context is different
-		// TODO: Implement upload-based builds
-		return nil, fmt.Errorf("upload deployments not yet implemented")
+		if deploymentSource.Upload != nil {
+			contextRoot = deploymentSource.Upload.FilePath
+		} else {
+			return nil, fmt.Errorf("upload source missing file path")
+		}
 	default:
 		return nil, fmt.Errorf("unsupported deployment source type: %s", deploymentSource.Type)
 	}

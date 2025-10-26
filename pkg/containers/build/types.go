@@ -69,9 +69,11 @@ func (n *NixpacksConfig) Validate() error {
 }
 
 type StaticConfig struct {
-	OutputDir   string `json:"output_dir,omitempty"`
-	NginxConfig string `json:"nginx_config,omitempty"`
-	IS_SPA      string `json:"is_spa,omitempty"`
+	BuildCommand string `json:"build_command,omitempty"`
+	OutputDir    string `json:"output_dir,omitempty"`
+	NginxConfig  string `json:"nginx_config,omitempty"`
+	IsStatic     bool   `json:"is_static,omitempty"`
+	IsSPA        bool   `json:"is_spa,omitempty"`
 }
 
 func (s *StaticConfig) GetBuildCommands() []string {

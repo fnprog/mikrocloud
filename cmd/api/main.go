@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mikrocloud/mikrocloud/assets"
 	"github.com/mikrocloud/mikrocloud/internal/config"
@@ -91,13 +92,6 @@ var serveCmd = &cobra.Command{
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		// TODO: Initialize dbs if the user chose non-file dbs (clickhouse or pg)
-		//
-		// TODO: Initialize the Queue DB (dragonfly)
-
-		// Run migrations automatically before starting server
-		slog.Info("Running database migrations...")
-
 		if err := runMigrations(cfg); err != nil {
 			return fmt.Errorf("failed to run migrations: %w", err)
 		}
@@ -120,37 +114,50 @@ var versionCmd = &cobra.Command{
 }
 
 func runMigrations(cfg *config.Config) error {
-	// Migrate main database (SQlite or postgres)
+	slog.Info("Running database migrations...")
+
 	if err := migrateMainDatabase(cfg); err != nil {
 		return fmt.Errorf("failed to migrate main database: %w", err)
 	}
 
-	// Migrate analytics database (DuckDB or ClickHouse)
 	if err := migrateAnalyticsDatabase(cfg); err != nil {
 		return fmt.Errorf("failed to migrate analytics database: %w", err)
 	}
 
+	if err := migrateQueueDatabase(cfg); err != nil {
+		return fmt.Errorf("failed to migrate queue database: %w", err)
+	}
+
+	slog.Info("Database migrations completed successfully")
 	return nil
 }
 
 func migrateMainDatabase(cfg *config.Config) error {
-	// Ensure database directory exists
-	dbDir := filepath.Dir(cfg.Database.URL)
-	if err := ensureDir(dbDir); err != nil {
-		return fmt.Errorf("failed to create main database directory: %w", err)
+	var db *sql.DB
+	var err error
+	var dialect string
+
+	if cfg.Database.Type == "postgres" {
+		db, err = sql.Open("postgres", cfg.Database.URL)
+		dialect = "postgres"
+		slog.Info("Using PostgreSQL for main database", "url", cfg.Database.URL)
+	} else {
+		dbDir := filepath.Dir(cfg.Database.URL)
+		if err := ensureDir(dbDir); err != nil {
+			return fmt.Errorf("failed to create main database directory: %w", err)
+		}
+		db, err = sql.Open("sqlite3", cfg.Database.URL)
+		dialect = "sqlite3"
+		slog.Info("Using SQLite for main database", "url", cfg.Database.URL)
 	}
 
-	// Open database connection
-	db, err := sql.Open("sqlite3", cfg.Database.URL)
 	if err != nil {
 		return fmt.Errorf("failed to open main database: %w", err)
 	}
 	defer db.Close()
 
-	// Set up goose for main database
-	goose.SetDialect("sqlite3")
+	goose.SetDialect(dialect)
 
-	// Run migrations from main migrations directory
 	if err := goose.Up(db, "./migrations/main"); err != nil {
 		return fmt.Errorf("failed to run main database migrations: %w", err)
 	}
@@ -172,6 +179,11 @@ func migrateAnalyticsDatabase(cfg *config.Config) error {
 	}
 
 	// TODO: For ClickHouse analytics, use goose migrations
+	return nil
+}
+
+func migrateQueueDatabase(cfg *config.Config) error {
+	slog.Info("Queue database requires no schema migrations (Redis/Dragonfly)", "url", cfg.Queue.URL)
 	return nil
 }
 

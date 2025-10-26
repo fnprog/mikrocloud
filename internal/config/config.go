@@ -16,6 +16,9 @@ type Config struct {
 	Docker    DockerConfig    `mapstructure:"docker"`
 	SSL       SSLConfig       `mapstructure:"ssl"`
 	Auth      AuthConfig      `mapstructure:"auth"`
+	Proxy     ProxyConfig     `mapstructure:"proxy"`
+	Metrics   MetricsConfig   `mapstructure:"metrics"`
+	Tunnel    TunnelConfig    `mapstructure:"tunnel"`
 }
 
 type ServerConfig struct {
@@ -39,8 +42,32 @@ type AnalyticsConfig struct {
 }
 
 type QueueConfig struct {
-	Type string `mapstructure:"type"` // "dragonfly"
-	URL  string `mapstructure:"url"`  // Connection string for Dragonfly
+	Enabled   bool   `mapstructure:"enabled"`
+	AutoStart bool   `mapstructure:"auto_start"`
+	Type      string `mapstructure:"type"`
+	URL       string `mapstructure:"url"`
+}
+
+type ProxyConfig struct {
+	Enabled       bool   `mapstructure:"enabled"`
+	AutoStart     bool   `mapstructure:"auto_start"`
+	Image         string `mapstructure:"image"`
+	HTTPPort      int    `mapstructure:"http_port"`
+	HTTPSPort     int    `mapstructure:"https_port"`
+	DashboardPort int    `mapstructure:"dashboard_port"`
+}
+
+type MetricsConfig struct {
+	Enabled   bool   `mapstructure:"enabled"`
+	AutoStart bool   `mapstructure:"auto_start"`
+	Image     string `mapstructure:"image"`
+	Port      int    `mapstructure:"port"`
+}
+
+type TunnelConfig struct {
+	Enabled   bool   `mapstructure:"enabled"`
+	AutoStart bool   `mapstructure:"auto_start"`
+	Token     string `mapstructure:"token"`
 }
 
 type DockerConfig struct {
@@ -128,8 +155,29 @@ func setDefaults() {
 	viper.SetDefault("analytics.url", "${HOME}/.local/share/mikrocloud/analytics.duckdb")
 
 	// Queue defaults - Dragonfly connection
+	viper.SetDefault("queue.enabled", true)
+	viper.SetDefault("queue.auto_start", true)
 	viper.SetDefault("queue.type", "dragonfly")
 	viper.SetDefault("queue.url", "redis://localhost:6379/0")
+
+	// Proxy defaults
+	viper.SetDefault("proxy.enabled", true)
+	viper.SetDefault("proxy.auto_start", true)
+	viper.SetDefault("proxy.image", "traefik:v3.0")
+	viper.SetDefault("proxy.http_port", 80)
+	viper.SetDefault("proxy.https_port", 443)
+	viper.SetDefault("proxy.dashboard_port", 8080)
+
+	// Metrics defaults
+	viper.SetDefault("metrics.enabled", false)
+	viper.SetDefault("metrics.auto_start", false)
+	viper.SetDefault("metrics.image", "prom/prometheus:latest")
+	viper.SetDefault("metrics.port", 9090)
+
+	// Tunnel defaults
+	viper.SetDefault("tunnel.enabled", false)
+	viper.SetDefault("tunnel.auto_start", false)
+	viper.SetDefault("tunnel.token", "")
 
 	// Docker defaults
 	viper.SetDefault("docker.runtime", "docker")

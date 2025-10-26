@@ -55,32 +55,42 @@ func (bs *BuildService) BuildImage(ctx context.Context, request BuildRequest) (*
 // Generate a shell script that will run inside the build helper container
 func (bs *BuildService) generateBuildScript(commands []string, request BuildRequest) string {
 	script := []string{
-		"set -e", // Exit on any error
+		"set -e",
 		"echo '=== Starting build process ==='",
 		"",
-		"# Clone the repository",
-		"echo '=== Cloning repository ==='",
 	}
 
-	// Add git clone command
-	if request.GitBranch != "" {
-		cloneCmd := fmt.Sprintf("git clone -b %s %s /workspace/source", request.GitBranch, request.GitRepo)
-		script = append(script, fmt.Sprintf("echo 'Running: %s'", cloneCmd))
-		script = append(script, cloneCmd)
-	} else {
-		cloneCmd := fmt.Sprintf("git clone %s /workspace/source", request.GitRepo)
-		script = append(script, fmt.Sprintf("echo 'Running: %s'", cloneCmd))
-		script = append(script, cloneCmd)
-	}
+	if request.GitRepo != "" {
+		script = append(script,
+			"# Clone the repository",
+			"echo '=== Cloning repository ==='",
+		)
 
-	// Change to context directory if specified
-	if request.ContextRoot != "" {
-		cdCmd := fmt.Sprintf("cd /workspace/source/%s", request.ContextRoot)
-		script = append(script, fmt.Sprintf("echo 'Running: %s'", cdCmd))
-		script = append(script, cdCmd)
+		if request.GitBranch != "" {
+			cloneCmd := fmt.Sprintf("git clone -b %s %s /workspace/source", request.GitBranch, request.GitRepo)
+			script = append(script, fmt.Sprintf("echo 'Running: %s'", cloneCmd))
+			script = append(script, cloneCmd)
+		} else {
+			cloneCmd := fmt.Sprintf("git clone %s /workspace/source", request.GitRepo)
+			script = append(script, fmt.Sprintf("echo 'Running: %s'", cloneCmd))
+			script = append(script, cloneCmd)
+		}
+
+		if request.ContextRoot != "" {
+			cdCmd := fmt.Sprintf("cd /workspace/source/%s", request.ContextRoot)
+			script = append(script, fmt.Sprintf("echo 'Running: %s'", cdCmd))
+			script = append(script, cdCmd)
+		} else {
+			script = append(script, "echo 'Running: cd /workspace/source'")
+			script = append(script, "cd /workspace/source")
+		}
 	} else {
-		script = append(script, "echo 'Running: cd /workspace/source'")
-		script = append(script, "cd /workspace/source")
+		script = append(script,
+			"# Using uploaded source (no git clone)",
+			"echo '=== Using uploaded source from /workspace/source ==='",
+			"echo 'Running: cd /workspace/source'",
+			"cd /workspace/source",
+		)
 	}
 
 	script = append(script, "")
@@ -115,7 +125,6 @@ func (bs *BuildService) buildWithNixpacks(ctx context.Context, request BuildRequ
 	return bs.createBuildHelper(ctx, HelperContainerImage, containerName, commands, request)
 }
 
-// TODO: Here we want to use nixpacks to build then send to nginx for serving
 func (bs *BuildService) buildStatic(ctx context.Context, request BuildRequest, containerName string) (*BuildResult, error) {
 	config := request.StaticConfig
 
@@ -127,17 +136,14 @@ func (bs *BuildService) buildStatic(ctx context.Context, request BuildRequest, c
 		return &BuildResult{Success: false, Error: err.Error()}, nil
 	}
 
-	// Generate Dockerfile content inside the container
-	// dockerfileContent := strings.ReplaceAll(config.GetDockerfile(), "\n", "\\n")
-	// dockerfileContent = strings.ReplaceAll(dockerfileContent, "\"", "\\\"")
+	dockerfileContent := GenerateStaticDockerfile(config)
 
 	commands := []string{
 		"echo 'Building static site...'",
-		// fmt.Sprintf("printf \"%s\" > Dockerfile", dockerfileContent),
+		fmt.Sprintf("cat > Dockerfile <<'EOF'\n%s\nEOF", dockerfileContent),
 		fmt.Sprintf("docker build -t '%s' .", request.ImageTag),
 	}
 
-	// Use mikrocloud-builder with git and Docker CLI
 	return bs.createBuildHelper(ctx, HelperContainerImage, containerName, commands, request)
 }
 
@@ -211,7 +217,6 @@ func (bs *BuildService) buildWithCompose(ctx context.Context, request BuildReque
 
 // Helper function to create a build helper container that clones repo and executes build commands
 func (bs *BuildService) createBuildHelper(ctx context.Context, image, containerName string, commands []string, request BuildRequest) (*BuildResult, error) {
-	// Environment variables for the build helper
 	env := map[string]string{
 		"GIT_REPO":     request.GitRepo,
 		"GIT_BRANCH":   request.GitBranch,
@@ -220,17 +225,13 @@ func (bs *BuildService) createBuildHelper(ctx context.Context, image, containerN
 		"BUILD_ID":     request.ID,
 	}
 
-	// Add user-defined environment variables
 	maps.Copy(env, request.Environment)
 
-	// Prepare the command to run inside the helper container
-	// This will clone the repo and execute the build commands
 	fullCommand := []string{
 		"/bin/sh", "-c",
 		bs.generateBuildScript(commands, request),
 	}
 
-	// Pull the build helper image if not present
 	if err := bs.containerManager.PullImage(ctx, image); err != nil {
 		return &BuildResult{Success: false, Error: fmt.Sprintf("failed to pull build helper image: %v", err)}, nil
 	}
@@ -241,10 +242,14 @@ func (bs *BuildService) createBuildHelper(ctx context.Context, image, containerN
 		Command:     fullCommand,
 		Environment: env,
 		Volumes: map[string]string{
-			bs.containerEngineSocket: "/var/run/docker.sock", // Mount Docker socket for building images
+			bs.containerEngineSocket: "/var/run/docker.sock",
 		},
 		WorkingDir: "/workspace",
-		AutoRemove: true, // Automatically remove container when it exits
+		AutoRemove: true,
+	}
+
+	if request.GitRepo == "" && request.ContextRoot != "" {
+		containerConfig.Volumes[request.ContextRoot] = "/workspace/source"
 	}
 
 	containerID, err := bs.containerManager.Create(ctx, containerConfig)

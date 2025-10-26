@@ -30,3 +30,28 @@ jwt_secret = "dev-secret-key-for-testing-only-please-change-in-production"
 [analytics]
 type = "duckdb"                                          #duckdb or clickhouse
 url = "${HOME}/.local/share/mikrocloud/analytics.duckdb"
+
+[queue]
+enabled = true
+auto_start = true
+type = "dragonfly"
+url = "redis://localhost:6379/0"
+
+[proxy]
+enabled = true
+auto_start = true
+image = "traefik:v3.0"
+http_port = 80
+https_port = 443
+dashboard_port = 8080
+
+[metrics]
+enabled = false
+auto_start = false
+image = "prom/prometheus:latest"
+port = 9090
+
+[tunnel]
+enabled = false
+auto_start = false
+token = ""
