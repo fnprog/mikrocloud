@@ -23,6 +23,26 @@ type UpdateSettings struct {
 	AutoUpdateTime       string `json:"auto_update_time"`
 }
 
+type SMTPSettings struct {
+	Enabled   bool   `json:"enabled"`
+	Host      string `json:"host"`
+	Port      int    `json:"port"`
+	Username  string `json:"username"`
+	Password  string `json:"password"`
+	FromEmail string `json:"from_email"`
+	FromName  string `json:"from_name"`
+}
+
+type UpdateSMTPSettings struct {
+	Enabled   bool   `json:"enabled"`
+	Host      string `json:"host"`
+	Port      int    `json:"port"`
+	Username  string `json:"username"`
+	Password  string `json:"password"`
+	FromEmail string `json:"from_email"`
+	FromName  string `json:"from_name"`
+}
+
 type InstanceInfo struct {
 	FQDN string `json:"fqdn"`
 	IPv4 string `json:"ipv4"`

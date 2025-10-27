@@ -14,6 +14,8 @@
 </script>
 
 <NavBarBottom {tabs} />
-<div class="p-6 pt-[104px]">
-	{@render children()}
+<div class="pt-[50px]">
+	<div class="min-h-screen">
+		{@render children()}
+	</div>
 </div>

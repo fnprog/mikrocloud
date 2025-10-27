@@ -1,6 +1,10 @@
 import { apiClient } from '$lib/api/client';
 import type { User, LoginRequest, RegisterRequest, AuthResponse, UpdateProfileRequest } from '../types';
 
+export interface SetupStatus {
+  is_setup: boolean;
+}
+
 export const authApi = {
   async login(credentials: LoginRequest): Promise<AuthResponse> {
     const response = await apiClient.post<AuthResponse>('/auth/login', credentials);
@@ -16,6 +20,10 @@ export const authApi = {
       localStorage.setItem('auth_token', response.token);
     }
     return response;
+  },
+
+  async getSetupStatus(): Promise<SetupStatus> {
+    return apiClient.get<SetupStatus>('/auth/setup');
   },
 
   async getProfile(): Promise<User> {
@@ -47,8 +55,8 @@ export const authApi = {
     return response.json();
   },
 
-  async deleteProfile() {
-    return await apiClient.delete('/auth/profile');
+  async requestPasswordReset(data: { email: string }) {
+    return await apiClient.post('/auth/request-password-reset', data);
   },
 
   logout(): void {

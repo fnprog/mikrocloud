@@ -94,13 +94,10 @@ export const createLogoutMutation = (options: GenericMutationOptions = {}) => {
   }));
 };
 
-export const createUploadAvatarMutation = (options: GenericMutationOptions = {}) => {
-  const queryClient = useQueryClient();
-
+export const createRequestPasswordResetMutation = (options: GenericMutationOptions = {}) => {
   return createMutation(() => ({
-    mutationFn: (file: File) => authApi.uploadAvatar(file),
+    mutationFn: (data: { email: string }) => authApi.requestPasswordReset(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: authKeys.profile() });
       options.onSuccess?.()
     },
     onError: (error: Error) => {

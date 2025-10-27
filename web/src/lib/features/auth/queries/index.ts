@@ -9,3 +9,10 @@ export const createProfileQuery = () =>
 		enabled: authApi.isAuthenticated(),
 		staleTime: 1000 * 60 * 5
 	}));
+
+export const createSetupStatusQuery = () =>
+	createQuery(() => ({
+		queryKey: authKeys.setupStatus(),
+		queryFn: () => authApi.getSetupStatus(),
+		staleTime: 1000 * 60 * 5
+	}));

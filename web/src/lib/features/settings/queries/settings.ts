@@ -7,3 +7,9 @@ export const createGeneralSettingsQuery = () =>
 		queryKey: settingsKeys.general(),
 		queryFn: () => settingsApi.getGeneral()
 	}));
+
+export const createSMTPSettingsQuery = () =>
+	createQuery(() => ({
+		queryKey: settingsKeys.smtp(),
+		queryFn: () => settingsApi.getSMTP()
+	}));

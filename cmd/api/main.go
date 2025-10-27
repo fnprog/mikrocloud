@@ -30,6 +30,7 @@ var (
 	}
 )
 
+// TODO: WE Have to  support podman too, this is very dockercentric
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
@@ -124,11 +125,6 @@ func runMigrations(cfg *config.Config) error {
 		return fmt.Errorf("failed to migrate analytics database: %w", err)
 	}
 
-	if err := migrateQueueDatabase(cfg); err != nil {
-		return fmt.Errorf("failed to migrate queue database: %w", err)
-	}
-
-	slog.Info("Database migrations completed successfully")
 	return nil
 }
 
@@ -141,13 +137,17 @@ func migrateMainDatabase(cfg *config.Config) error {
 		db, err = sql.Open("postgres", cfg.Database.URL)
 		dialect = "postgres"
 		slog.Info("Using PostgreSQL for main database", "url", cfg.Database.URL)
+
 	} else {
 		dbDir := filepath.Dir(cfg.Database.URL)
+
 		if err := ensureDir(dbDir); err != nil {
 			return fmt.Errorf("failed to create main database directory: %w", err)
 		}
+
 		db, err = sql.Open("sqlite3", cfg.Database.URL)
 		dialect = "sqlite3"
+
 		slog.Info("Using SQLite for main database", "url", cfg.Database.URL)
 	}
 
@@ -169,6 +169,7 @@ func migrateMainDatabase(cfg *config.Config) error {
 func migrateAnalyticsDatabase(cfg *config.Config) error {
 	// Ensure database directory exists
 	dbDir := filepath.Dir(cfg.Analytics.URL)
+
 	if err := ensureDir(dbDir); err != nil {
 		return fmt.Errorf("failed to create analytics database directory: %w", err)
 	}
@@ -179,11 +180,6 @@ func migrateAnalyticsDatabase(cfg *config.Config) error {
 	}
 
 	// TODO: For ClickHouse analytics, use goose migrations
-	return nil
-}
-
-func migrateQueueDatabase(cfg *config.Config) error {
-	slog.Info("Queue database requires no schema migrations (Redis/Dragonfly)", "url", cfg.Queue.URL)
 	return nil
 }
 

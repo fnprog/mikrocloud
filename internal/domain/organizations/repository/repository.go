@@ -281,7 +281,7 @@ func (r *SQLiteOrganizationRepository) FindMembersByOrganizationID(ctx context.C
 	query := `
 		SELECT 
 			om.id, om.organization_id, om.user_id, om.role, om.invited_by, om.invited_at, om.joined_at, om.status,
-			u.id, u.email, u.password_hash, u.name, u.username, u.avatar_url, u.status, u.email_verified_at, u.last_login_at, u.timezone, u.created_at, u.updated_at
+			u.id, u.email, u.password_hash, u.name, u.username, u.avatar_url, u.oauth_provider, u.oauth_provider_id, u.status, u.email_verified_at, u.last_login_at, u.timezone, u.created_at, u.updated_at
 		FROM organization_members om
 		JOIN users u ON om.user_id = u.id
 		WHERE om.organization_id = ?
@@ -314,6 +314,8 @@ func (r *SQLiteOrganizationRepository) FindMembersByOrganizationID(ctx context.C
 			&userRow.Name,
 			&userRow.Username,
 			&userRow.AvatarURL,
+			&userRow.OAuthProvider,
+			&userRow.OAuthProviderID,
 			&userRow.Status,
 			&userRow.EmailVerifiedAt,
 			&userRow.LastLoginAt,
@@ -509,6 +511,8 @@ type userRow struct {
 	Name            string
 	Username        sql.NullString
 	AvatarURL       sql.NullString
+	OAuthProvider   sql.NullString
+	OAuthProviderID sql.NullString
 	Status          string
 	EmailVerifiedAt sql.NullString
 	LastLoginAt     sql.NullString
@@ -624,6 +628,15 @@ func (r *SQLiteOrganizationRepository) mapRowToUser(row userRow) (*users.User, e
 		return nil, fmt.Errorf("invalid updated_at timestamp: %w", err)
 	}
 
+	var oauthProvider *string
+	if row.OAuthProvider.Valid && row.OAuthProvider.String != "" {
+		oauthProvider = &row.OAuthProvider.String
+	}
+	var oauthProviderID *string
+	if row.OAuthProviderID.Valid && row.OAuthProviderID.String != "" {
+		oauthProviderID = &row.OAuthProviderID.String
+	}
+
 	return users.ReconstructUser(
 		userID,
 		email,
@@ -631,6 +644,8 @@ func (r *SQLiteOrganizationRepository) mapRowToUser(row userRow) (*users.User, e
 		row.Name,
 		username,
 		avatarURL,
+		oauthProvider,
+		oauthProviderID,
 		users.UserStatus(row.Status),
 		emailVerifiedAt,
 		lastLoginAt,

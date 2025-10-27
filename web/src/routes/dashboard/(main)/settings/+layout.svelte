@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { Settings, Shield, RefreshCw, Network } from 'lucide-svelte';
+	import { Settings, Shield, RefreshCw, Network, Mail } from 'lucide-svelte';
 
 	const navItems = [
 		{ path: 'general', label: 'General', icon: Settings },
 		// { path: 'advanced', label: 'Advanced', icon: Shield },
 		{ path: 'updates', label: 'Updates', icon: RefreshCw },
+		{ path: 'smtp', label: 'SMTP', icon: Mail },
 		// { path: 'backup-location', label: 'S3 Destinations', icon: Database },
 		// { path: 'backup', label: 'Backup', icon: Database },
 		// { path: 'oauth-keys', label: 'Oauth Keys', icon: Database },

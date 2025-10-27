@@ -14,6 +14,7 @@ in
     pkgs.goose
     pkgs.awscli2
     pkgs.golangci-lint
+    pkgs.gosec
     pkgs.pkg-config
     pkgs.gpgme
     pkgs.btrfs-progs

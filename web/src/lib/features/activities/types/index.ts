@@ -1,15 +1,17 @@
 export interface Activity {
   id: string;
-  organization_id: string;
-  activity_type: string;
-  description: string;
-  initiator_id?: string;
-  initiator_name: string;
-  resource_type?: string;
-  resource_id?: string;
-  resource_name?: string;
+  event_type: string;
+  level: ActivityLevel;
+  description?: string;
+  initiator: Initiator;
   metadata?: Record<string, any>;
   created_at: string;
+}
+
+export interface Initiator {
+  name: string;
+  avatar?: string;
+  initials: string;
 }
 
 export interface ActivitiesRequest {
@@ -26,3 +28,5 @@ export interface ActivitiesResponse {
   activities: Activity[];
   total: number;
 }
+
+export type ActivityLevel = 'info' | 'error' | 'warn' | 'success';

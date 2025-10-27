@@ -6,6 +6,8 @@
 	import { type ApiError } from '$lib/api/client';
 	import { authStore } from '$lib/features/auth/stores/auth.svelte';
 	import { createRegisterMutation } from '$lib/features/auth/mutations';
+	import { createSetupStatusQuery } from '$lib/features/auth/queries';
+	import { createGeneralSettingsQuery } from '$lib/features/settings/queries/settings';
 
 	let name = $state('');
 	let email = $state('');
@@ -14,6 +16,8 @@
 	let error = $state('');
 
 	const signupMutation = createRegisterMutation();
+	const setupStatusQuery = createSetupStatusQuery();
+	const generalSettingsQuery = createGeneralSettingsQuery();
 
 	async function handleSubmit(event: SubmitEvent) {
 		event.preventDefault();
@@ -41,6 +45,13 @@
 	}
 
 	$effect(() => {
+		// Check if registrations are disabled and it's not first-time setup
+		if (setupStatusQuery.data?.is_setup && !generalSettingsQuery.data?.allow_registrations) {
+			goto('/login');
+		}
+	});
+
+	$effect(() => {
 		if (name || email || password || confirmPassword) {
 			error = '';
 		}
@@ -57,16 +68,25 @@
 		<div class="flex items-center">
 			<Logo class="h-[25px]" />
 		</div>
-		<Button variant="outline" onclick={() => goto('/login')}>Login</Button>
+		{#if setupStatusQuery.data?.is_setup}
+			<Button variant="outline" onclick={() => goto('/login')}>Login</Button>
+		{/if}
 	</header>
 
 	<div class="flex-1 flex">
 		<div class="flex-1 flex flex-col justify-center max-w-md">
 			<div class="mb-8">
-				<h1 class="text-xl font-bold text-white mb-2">Self Hosting made easy</h1>
-				<p class="text-muted-foreground text-base">
-					Deploy apps with ease and keep full control of your data and environment.
-				</p>
+				{#if setupStatusQuery.data?.is_setup === false}
+					<h1 class="text-xl font-bold text-white mb-2">Setup Admin Account</h1>
+					<p class="text-muted-foreground text-base">
+						Welcome to mikrocloud! You're setting up the admin account for your instance.
+					</p>
+				{:else}
+					<h1 class="text-xl font-bold text-white mb-2">Self Hosting made easy</h1>
+					<p class="text-muted-foreground text-base">
+						Deploy apps with ease and keep full control of your data and environment.
+					</p>
+				{/if}
 			</div>
 
 			<form onsubmit={handleSubmit} class="space-y-5">

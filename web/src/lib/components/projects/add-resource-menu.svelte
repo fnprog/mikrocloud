@@ -4,19 +4,16 @@
 		DropdownMenu,
 		DropdownMenuContent,
 		DropdownMenuItem,
-		DropdownMenuTrigger,
-		DropdownMenuSeparator
+		DropdownMenuTrigger
 	} from '$lib/components/ui/dropdown-menu';
-	import { Plus, Server, Database, FileStack, LayoutGrid } from 'lucide-svelte';
+	import { Plus, Server, Database, LayoutGrid } from 'lucide-svelte';
 
 	interface Props {
-		onAddApplication: () => void;
-		onAddDatabase: () => void;
-		onAddCompose?: () => void;
-		onAddTemplate?: () => void;
+		projectId: string;
+		envId?: string;
 	}
 
-	let { onAddApplication, onAddDatabase, onAddCompose, onAddTemplate }: Props = $props();
+	let { projectId, envId }: Props = $props();
 </script>
 
 <DropdownMenu>
@@ -27,26 +24,23 @@
 		</Button>
 	</DropdownMenuTrigger>
 	<DropdownMenuContent align="end" class="w-56">
-		<DropdownMenuItem onclick={onAddApplication}>
-			<Server class="mr-2 h-4 w-4" />
-			Application
-		</DropdownMenuItem>
-		<DropdownMenuItem onclick={onAddDatabase}>
-			<Database class="mr-2 h-4 w-4" />
-			Database
-		</DropdownMenuItem>
-		{#if onAddCompose}
-			<DropdownMenuSeparator />
-			<DropdownMenuItem onclick={onAddCompose}>
-				<FileStack class="mr-2 h-4 w-4" />
-				Docker Compose
+		<a href={`/dashboard/project/${projectId}/${envId}/create-app`}>
+			<DropdownMenuItem>
+				<Server class="mr-2 h-4 w-4" />
+				Application
 			</DropdownMenuItem>
-		{/if}
-		{#if onAddTemplate}
-			<DropdownMenuItem onclick={onAddTemplate}>
+		</a>
+		<a href={`/dashboard/project/${projectId}/${envId}/create-db`}>
+			<DropdownMenuItem>
+				<Database class="mr-2 h-4 w-4" />
+				Database
+			</DropdownMenuItem>
+		</a>
+		<a href={`/dashboard/project/${projectId}/${envId}/create-service`}>
+			<DropdownMenuItem>
 				<LayoutGrid class="mr-2 h-4 w-4" />
 				Template
 			</DropdownMenuItem>
-		{/if}
+		</a>
 	</DropdownMenuContent>
 </DropdownMenu>

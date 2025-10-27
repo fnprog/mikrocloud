@@ -86,6 +86,21 @@ type RegisterResult struct {
 	Token string
 }
 
+type OAuthLoginCommand struct {
+	Provider   string
+	ProviderID string
+	Email      string
+	Name       string
+	Username   *string
+	AvatarURL  *string
+}
+
+type OAuthLoginResult struct {
+	User         *users.User
+	Token        string
+	RefreshToken string
+}
+
 type RefreshTokenResult struct {
 	Token        string
 	RefreshToken string
@@ -238,6 +253,124 @@ func (s *AuthService) Register(ctx context.Context, cmd RegisterCommand) (*Regis
 	return &RegisterResult{
 		User:  user,
 		Token: token,
+	}, nil
+}
+
+// OAuthLogin authenticates or creates a user via OAuth
+func (s *AuthService) OAuthLogin(ctx context.Context, cmd OAuthLoginCommand) (*OAuthLoginResult, error) {
+	// Validate input
+	if cmd.Email == "" || cmd.Name == "" || cmd.Provider == "" || cmd.ProviderID == "" {
+		return nil, errors.New("invalid OAuth login data")
+	}
+
+	// Create email value object
+	email, err := users.NewEmail(cmd.Email)
+	if err != nil {
+		return nil, ErrInvalidEmail
+	}
+
+	// Check if user exists by email
+	user, err := s.authRepo.GetUserByEmail(ctx, email)
+	if err != nil && err != ErrUserNotFound {
+		return nil, fmt.Errorf("failed to check user existence: %w", err)
+	}
+
+	// If user doesn't exist, create them
+	if err == ErrUserNotFound {
+		// Check if this is the first user (setup scenario)
+		hasUsers, err := s.authRepo.HasAnyUsers(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check if users exist: %w", err)
+		}
+		isFirstUser := !hasUsers
+
+		// Create new user with OAuth data
+		user = users.NewUserWithName(email, "", cmd.Name) // Empty password for OAuth users
+
+		// Set OAuth provider info
+		user.SetOAuthProvider(cmd.Provider, cmd.ProviderID)
+
+		if cmd.Username != nil {
+			username, err := users.NewUsername(*cmd.Username)
+			if err == nil {
+				user.SetUsername(username)
+			}
+		}
+
+		if cmd.AvatarURL != nil {
+			user.SetAvatarURL(cmd.AvatarURL)
+		}
+
+		// If this is the first user, make them active and set up admin
+		if isFirstUser {
+			user.ChangeStatus(users.UserStatusActive)
+		}
+
+		// Save user
+		if err := s.authRepo.CreateUser(ctx, user); err != nil {
+			return nil, fmt.Errorf("failed to create OAuth user: %w", err)
+		}
+
+		// If this is the first user, set up default organization and admin role
+		if isFirstUser {
+			if err := s.setupFirstUser(ctx, user); err != nil {
+				return nil, fmt.Errorf("failed to set up first OAuth user: %w", err)
+			}
+		}
+	} else {
+		// Update existing user's OAuth info if needed
+		if user.OAuthProvider() != cmd.Provider || user.OAuthProviderID() != cmd.ProviderID {
+			user.SetOAuthProvider(cmd.Provider, cmd.ProviderID)
+			if err := s.usersRepo.Save(ctx, user); err != nil {
+				return nil, fmt.Errorf("failed to update user OAuth info: %w", err)
+			}
+		}
+
+		// Check if user is active
+		if user.Status() != users.UserStatusActive {
+			return nil, ErrInvalidCredentials
+		}
+	}
+
+	// Generate JWT token
+	token, err := s.generateJWTToken(ctx, user.ID().String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate JWT token: %w", err)
+	}
+
+	// Generate session token for database tracking
+	sessionToken, err := s.generateSecureToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate session token: %w", err)
+	}
+
+	// Create session
+	session := auth.NewSession(user.ID(), sessionToken, s.sessionDuration)
+	if err := s.sessionRepo.SaveSession(ctx, session); err != nil {
+		return nil, fmt.Errorf("failed to save session: %w", err)
+	}
+
+	// Generate refresh token
+	refreshTokenStr, err := s.generateSecureToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	refreshToken := auth.NewRefreshToken(user.ID(), session.ID(), refreshTokenStr, s.refreshTokenDuration)
+	if err := s.sessionRepo.SaveRefreshToken(ctx, refreshToken); err != nil {
+		return nil, fmt.Errorf("failed to save refresh token: %w", err)
+	}
+
+	// Update last login
+	if err := s.authRepo.UpdateLastLogin(ctx, user.ID()); err != nil {
+		// Log error but don't fail the login
+		slog.Error("failed to update last login", "error", err, "user_id", user.ID())
+	}
+
+	return &OAuthLoginResult{
+		User:         user,
+		Token:        token,
+		RefreshToken: refreshTokenStr,
 	}, nil
 }
 
@@ -481,20 +614,18 @@ func (s *AuthService) generateJWTToken(ctx context.Context, userID string) (stri
 }
 
 func (s *AuthService) setupFirstUser(ctx context.Context, user *users.User) error {
-	org := users.NewOrganization(
-		user.Name(),
-		user.Name(),
-		user.ID(),
-	)
-
-	if err := s.usersRepo.SaveOrganization(ctx, org); err != nil {
-		return fmt.Errorf("failed to create default organization: %w", err)
+	// Find the default organization
+	defaultOrg, err := s.usersRepo.FindOrganizationBySlug(ctx, "default")
+	if err != nil {
+		return fmt.Errorf("failed to find default organization: %w", err)
 	}
 
-	if err := s.usersRepo.AddOrganizationMember(ctx, org.ID(), user.ID(), "owner", nil); err != nil {
+	// Add user to the default organization as owner
+	if err := s.usersRepo.AddOrganizationMember(ctx, defaultOrg.ID(), user.ID(), "owner", nil); err != nil {
 		return fmt.Errorf("failed to add user to organization: %w", err)
 	}
 
+	// Find admin role and assign it
 	adminRoleID, err := s.usersRepo.FindRoleByName(ctx, "admin")
 	if err != nil {
 		return fmt.Errorf("failed to find admin role: %w", err)
@@ -561,6 +692,11 @@ type UpdateEmailCommand struct {
 	Password string
 }
 
+type UpdatePasswordCommand struct {
+	CurrentPassword string
+	NewPassword     string
+}
+
 func (s *AuthService) UpdateEmail(ctx context.Context, userID users.UserID, cmd UpdateEmailCommand) (*users.User, error) {
 	user, err := s.authRepo.GetUserByID(ctx, userID)
 	if err != nil {
@@ -584,6 +720,15 @@ func (s *AuthService) UpdateEmail(ctx context.Context, userID users.UserID, cmd 
 		return nil, ErrEmailAlreadyExists
 	}
 
+	var oauthProvider *string
+	if p := user.OAuthProvider(); p != "" {
+		oauthProvider = &p
+	}
+	var oauthProviderID *string
+	if pid := user.OAuthProviderID(); pid != "" {
+		oauthProviderID = &pid
+	}
+
 	reconstructed := users.ReconstructUser(
 		user.ID(),
 		newEmail,
@@ -591,6 +736,8 @@ func (s *AuthService) UpdateEmail(ctx context.Context, userID users.UserID, cmd 
 		user.Name(),
 		user.Username(),
 		user.AvatarURL(),
+		oauthProvider,
+		oauthProviderID,
 		user.Status(),
 		user.EmailVerifiedAt(),
 		user.LastLoginAt(),
@@ -606,9 +753,13 @@ func (s *AuthService) UpdateEmail(ctx context.Context, userID users.UserID, cmd 
 	return reconstructed, nil
 }
 
-type UpdatePasswordCommand struct {
-	CurrentPassword string
-	NewPassword     string
+type RequestPasswordResetCommand struct {
+	Email string
+}
+
+type ResetPasswordCommand struct {
+	Token    string
+	Password string
 }
 
 func (s *AuthService) UpdatePassword(ctx context.Context, userID users.UserID, cmd UpdatePasswordCommand) error {
@@ -641,6 +792,80 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID users.UserID) er
 	if err := s.usersRepo.Delete(ctx, userID); err != nil {
 		return fmt.Errorf("failed to delete user account: %w", err)
 	}
+
+	return nil
+}
+
+// RequestPasswordReset sends a password reset email to the user
+func (s *AuthService) RequestPasswordReset(ctx context.Context, cmd RequestPasswordResetCommand) error {
+	// Validate input
+	if cmd.Email == "" {
+		return errors.New("email is required")
+	}
+
+	// Create email value object
+	email, err := users.NewEmail(cmd.Email)
+	if err != nil {
+		return ErrInvalidEmail
+	}
+
+	// Check if user exists
+	user, err := s.authRepo.GetUserByEmail(ctx, email)
+	if err != nil {
+		if err == ErrUserNotFound {
+			// Don't reveal if user exists or not for security
+			return nil
+		}
+		return fmt.Errorf("failed to check user existence: %w", err)
+	}
+
+	// Check if user is active
+	if user.Status() != users.UserStatusActive {
+		// Don't reveal user status for security
+		return nil
+	}
+
+	// Generate reset token
+	resetToken, err := s.generateSecureToken()
+	if err != nil {
+		return fmt.Errorf("failed to generate reset token: %w", err)
+	}
+
+	// Store reset token (we'll need to add this to the database)
+	// For now, we'll just log it - in a real implementation, you'd store it with expiration
+	slog.Info("Password reset requested", "email", cmd.Email, "token", resetToken)
+
+	// TODO: Send email with reset link
+	// This will be implemented when we add email sending functionality
+
+	return nil
+}
+
+// ResetPassword resets the user's password using a valid reset token
+func (s *AuthService) ResetPassword(ctx context.Context, cmd ResetPasswordCommand) error {
+	// Validate input
+	if cmd.Token == "" || cmd.Password == "" {
+		return errors.New("token and password are required")
+	}
+
+	if len(cmd.Password) < 8 {
+		return ErrWeakPassword
+	}
+
+	// TODO: Validate reset token from database
+	// For now, we'll accept any token for testing
+	// In a real implementation, you'd check the token exists and hasn't expired
+
+	// TODO: Get user ID from token and update password
+	// For now, we'll just log the action
+	slog.Info("Password reset completed", "token", cmd.Token)
+
+	// Hash new password (placeholder - will be used when we implement token validation)
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(cmd.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+	_ = passwordHash // Placeholder to avoid unused variable error
 
 	return nil
 }

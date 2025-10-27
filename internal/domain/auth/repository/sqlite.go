@@ -85,7 +85,6 @@ func (r *SQLiteSessionRepository) GetSessionByToken(ctx context.Context, token s
 	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(
 		&row.ID, &row.UserID, &row.Token, &row.ExpiresAt, &row.CreatedAt, &row.IsRevoked,
 	)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("session not found for token")
@@ -112,7 +111,6 @@ func (r *SQLiteSessionRepository) GetSessionByID(ctx context.Context, sessionID 
 	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(
 		&row.ID, &row.UserID, &row.Token, &row.ExpiresAt, &row.CreatedAt, &row.IsRevoked,
 	)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("session not found: %s", sessionID.String())
@@ -287,7 +285,6 @@ func (r *SQLiteSessionRepository) GetRefreshTokenByToken(ctx context.Context, to
 	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(
 		&row.ID, &row.UserID, &row.SessionID, &row.Token, &row.ExpiresAt, &row.CreatedAt, &row.IsUsed,
 	)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("refresh token not found")
@@ -314,7 +311,6 @@ func (r *SQLiteSessionRepository) GetRefreshTokenByID(ctx context.Context, token
 	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(
 		&row.ID, &row.UserID, &row.SessionID, &row.Token, &row.ExpiresAt, &row.CreatedAt, &row.IsUsed,
 	)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("refresh token not found: %s", tokenID.String())
@@ -439,7 +435,6 @@ func (r *SQLiteAuthRepository) GetUserByEmail(ctx context.Context, email users.E
 		&row.ID, &row.Email, &row.PasswordHash, &row.Username, &row.Name, &row.Status,
 		&row.EmailVerifiedAt, &row.LastLoginAt, &row.Timezone, &row.CreatedAt, &row.UpdatedAt,
 	)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("user not found: %s", email.String())
@@ -467,7 +462,6 @@ func (r *SQLiteAuthRepository) GetUserByID(ctx context.Context, userID users.Use
 		&row.ID, &row.Email, &row.PasswordHash, &row.Username, &row.Name, &row.Status,
 		&row.EmailVerifiedAt, &row.LastLoginAt, &row.Timezone, &row.CreatedAt, &row.UpdatedAt,
 	)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("user not found: %s", userID.String())
@@ -594,24 +588,16 @@ func (r *SQLiteAuthRepository) UserExistsByEmail(ctx context.Context, email user
 }
 
 func (r *SQLiteAuthRepository) HasAnyUsers(ctx context.Context) (bool, error) {
-	query := sqlite.Select(
-		sm.Columns("COUNT(*)"),
-		sm.From("users"),
-		sm.Where(sqlite.Quote("status").EQ(sqlite.Arg("active"))),
-	)
-
-	queryStr, args, err := query.Build(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to build query: %w", err)
-	}
+	query := "SELECT COUNT(*) FROM users WHERE status = ?"
+	args := []any{"active"}
 
 	var count int
-	err = r.db.QueryRowContext(ctx, queryStr, args...).Scan(&count)
+	err := r.db.QueryRowContext(ctx, query, args...).Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("failed to check if any users exist: %w", err)
 	}
 
-	return count > 0, nil
+	return count > 1, nil
 }
 
 // Helper types and functions
@@ -642,6 +628,8 @@ type userRow struct {
 	Username        sql.NullString
 	Name            string
 	AvatarURL       sql.NullString
+	OAuthProvider   sql.NullString
+	OAuthProviderID sql.NullString
 	Status          string
 	EmailVerifiedAt sql.NullTime
 	LastLoginAt     sql.NullTime
@@ -753,8 +741,17 @@ func (r *SQLiteAuthRepository) mapRowToUser(row userRow) (*users.User, error) {
 		avatarURL = &row.AvatarURL.String
 	}
 
+	var oauthProvider *string
+	if row.OAuthProvider.Valid && row.OAuthProvider.String != "" {
+		oauthProvider = &row.OAuthProvider.String
+	}
+	var oauthProviderID *string
+	if row.OAuthProviderID.Valid && row.OAuthProviderID.String != "" {
+		oauthProviderID = &row.OAuthProviderID.String
+	}
+
 	return users.ReconstructUser(
-		userID, email, row.PasswordHash, row.Name, username, avatarURL, status,
+		userID, email, row.PasswordHash, row.Name, username, avatarURL, oauthProvider, oauthProviderID, status,
 		emailVerifiedAt, lastLoginAt, row.Timezone, createdAt, updatedAt,
 	), nil
 }

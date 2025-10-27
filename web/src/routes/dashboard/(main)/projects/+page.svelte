@@ -78,7 +78,7 @@
 
 		<!-- TODO: Shimmer for loading stuffs -->
 		<!-- TODO: Better looking error state -->
-		<!-- TODO: Better looking error state -->
+		<!-- TODO: Better looking not found state -->
 
 		{#if projectsQuery.isLoading}
 			<div class="flex min-h-[400px] items-center justify-center">

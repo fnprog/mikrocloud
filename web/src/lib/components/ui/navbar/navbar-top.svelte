@@ -11,8 +11,8 @@
 	<div class="px-6 relative">
 		<Logo
 			class={cn(
-				'h-[24px] text-foreground absolute left-6 hidden md:flex items-center gap-4 transition-all duration-300 ease-in-out z-10',
-				getIsScrolled() ? 'translate-y-[12px] scale-[0.8]' : 'translate-y-[18px]'
+				'h-[20px] text-foreground absolute left-6 hidden md:block items-center gap-4 transition-all duration-300 ease-in-out z-10',
+				getIsScrolled() ? 'translate-y-[18px] scale-[0.9]' : 'translate-y-[18px]'
 			)}
 		/>
 
@@ -23,7 +23,7 @@
 			)}
 		>
 			<div class="w-[25px] shrink-0 hidden md:block"></div>
-			<ChevronRight class="h-4 w-4 text-muted-foreground" />
+			<ChevronRight class="h-4 w-4 text-muted-foreground hidden md:block" />
 			<NavbarBreadcrumb />
 			<div class="ml-auto">
 				<UserMenu />

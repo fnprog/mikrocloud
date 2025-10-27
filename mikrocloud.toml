@@ -31,12 +31,6 @@ jwt_secret = "dev-secret-key-for-testing-only-please-change-in-production"
 type = "duckdb"                                          #duckdb or clickhouse
 url = "${HOME}/.local/share/mikrocloud/analytics.duckdb"
 
-[queue]
-enabled = true
-auto_start = true
-type = "dragonfly"
-url = "redis://localhost:6379/0"
-
 [proxy]
 enabled = true
 auto_start = true

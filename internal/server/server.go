@@ -18,12 +18,14 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/exp/slog"
 
 	"github.com/mikrocloud/mikrocloud/internal/api"
 	"github.com/mikrocloud/mikrocloud/internal/api/deps"
 	"github.com/mikrocloud/mikrocloud/internal/config"
 	"github.com/mikrocloud/mikrocloud/internal/database"
+	"github.com/mikrocloud/mikrocloud/internal/domain/proxy"
 	"github.com/mikrocloud/mikrocloud/internal/domain/servers"
 	proxyContainers "github.com/mikrocloud/mikrocloud/pkg/containers/proxy"
 )
@@ -161,6 +163,19 @@ func (s *Server) setupMiddlewares() {
 }
 
 func (s *Server) setupDependencies(ctx context.Context) error {
+	// Start Traefik proxy if configured
+	if s.config.Proxy.Enabled && s.config.Proxy.AutoStart {
+		slog.Info("Starting Traefik proxy container", "image", s.config.Proxy.Image)
+		globalConfig := proxy.NewTraefikGlobalConfig()
+
+		if err := s.deps.TraefikService.Start(ctx, globalConfig); err != nil {
+			return fmt.Errorf("failed to start Traefik container: %w", err)
+		}
+
+		s.traefikSvc = s.deps.TraefikService
+		slog.Info("Traefik proxy container started successfully")
+	}
+
 	return nil
 }
 
@@ -286,6 +301,87 @@ func (s *Server) initializeControlPlaneServer(ctx context.Context) error {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"
+	}
+
+	// Check if organizations exist, if not create default org and system user
+	var count int
+	err = s.deps.DB.MainDB().DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM organizations").Scan(&count)
+	if err != nil {
+		return fmt.Errorf("failed to check organizations: %w", err)
+	}
+
+	if count == 0 {
+		// Start transaction
+		tx, err := s.deps.DB.MainDB().DB().BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("failed to start transaction: %w", err)
+		}
+		defer tx.Rollback()
+
+		// Generate UUIDs
+		systemUserID := uuid.New().String()
+		defaultOrgID := uuid.New().String()
+		systemRoleID := "role-system-00000000"
+		userRoleID := uuid.New().String()
+		orgMemberID := uuid.New().String()
+
+		// Dummy password hash (bcrypt of empty string - not usable for login)
+		dummyPasswordHash, err := bcrypt.GenerateFromPassword([]byte(""), bcrypt.DefaultCost)
+		if err != nil {
+			return fmt.Errorf("failed to generate dummy password hash: %w", err)
+		}
+
+		// Insert system role
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO roles (id, name, description, permissions, created_at)
+			VALUES (?, 'system', 'System role for automated tasks', '["deployment:create","deployment:read","activity:log"]', CURRENT_TIMESTAMP)
+		`, systemRoleID)
+		if err != nil {
+			return fmt.Errorf("failed to insert system role: %w", err)
+		}
+
+		// Insert system user
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO users (id, email, password_hash, username, name, status, email_verified_at, timezone, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, 'UTC', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		`, systemUserID, "system@mikrocloud.local", string(dummyPasswordHash), "mikrocloud-system", "System User")
+		if err != nil {
+			return fmt.Errorf("failed to insert system user: %w", err)
+		}
+
+		// Insert default org
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO organizations (id, name, slug, description, owner_id, billing_email, plan, status, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, 'free', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		`, defaultOrgID, "Default Organization", "default", "Default organization for mikrocloud", systemUserID, "system@mikrocloud.local")
+		if err != nil {
+			return fmt.Errorf("failed to insert default org: %w", err)
+		}
+
+		// Assign system role to system user
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO user_roles (id, user_id, role_id, granted_by, granted_at)
+			VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+		`, userRoleID, systemUserID, systemRoleID, systemUserID)
+		if err != nil {
+			return fmt.Errorf("failed to assign system role: %w", err)
+		}
+
+		// Add system user to org
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO organization_members (id, organization_id, user_id, role, invited_by, invited_at, joined_at, status)
+			VALUES (?, ?, ?, 'owner', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'active')
+		`, orgMemberID, defaultOrgID, systemUserID, systemUserID)
+		if err != nil {
+			return fmt.Errorf("failed to add org member: %w", err)
+		}
+
+		// Commit transaction
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("failed to commit transaction: %w", err)
+		}
+
+		slog.Info("Default organization and system user initialized")
 	}
 
 	existingServer, err := s.deps.ServerService.GetServerByHostname(hostname)

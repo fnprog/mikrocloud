@@ -77,15 +77,14 @@ func New(cfg *config.Config) (*Database, error) {
 		return nil, fmt.Errorf("failed to initialize analytics database: %w", err)
 	}
 
-	queueDB, err := queueFactory.Create(queuedb.DatabaseType(cfg.Queue.Type), cfg.Queue.URL)
+	queueDB, err := queueFactory.Create(queuedb.DatabaseType("dragonfly"), "redis://localhost:6379/0")
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize queue database: %w", err)
 	}
 
 	slog.Info("Multi-database system initialized",
 		"main_db", cfg.Database.Type,
-		"analytics_db", cfg.Analytics.Type,
-		"queue_db", cfg.Queue.Type)
+		"analytics_db", cfg.Analytics.Type)
 
 	// Create analytics metric repository
 	// TODO: Send it inside like for maindb

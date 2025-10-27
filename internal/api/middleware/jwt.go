@@ -1,3 +1,4 @@
+// Package middleware contains internal middlewares
 package middleware
 
 import (
@@ -49,7 +50,6 @@ func AuthenticateAndExtract() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, claims, err := jwtauth.FromContext(r.Context())
-
 			if err != nil {
 				utils.SendError(w, http.StatusUnauthorized, "unauthorized", "Invalid or missing token")
 				return

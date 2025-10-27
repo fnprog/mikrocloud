@@ -16,6 +16,26 @@ export interface UpdateGeneralSettingsRequest {
 	do_not_track: boolean;
 }
 
+export interface SMTPSettings {
+	enabled: boolean;
+	host: string;
+	port: number;
+	username: string;
+	password: string;
+	from_email: string;
+	from_name: string;
+}
+
+export interface UpdateSMTPSettingsRequest {
+	enabled: boolean;
+	host: string;
+	port: number;
+	username: string;
+	password: string;
+	from_email: string;
+	from_name: string;
+}
+
 export interface DetectedIPs {
 	ipv4: string;
 	ipv6: string;

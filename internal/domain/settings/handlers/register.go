@@ -19,6 +19,8 @@ func RegisterSettingsRoutes(r chi.Router, deps *deps.Dependencies) {
 			r.Post("/advanced", handler.SaveAdvancedSettings)
 			r.Get("/updates", handler.GetUpdateSettings)
 			r.Post("/updates", handler.SaveUpdateSettings)
+			r.Get("/smtp", handler.GetSMTPSettings)
+			r.Post("/smtp", handler.SaveSMTPSettings)
 			r.Get("/instance", handler.GetInstanceInfo)
 			r.Get("/detect-ips", handler.DetectIPAddresses)
 			r.Post("/backup", handler.CreateBackup)

@@ -108,7 +108,6 @@ docker-run:
 docker-stop:
 	docker-compose down
 
-# Build helper image for builds
 build-helper:
 	docker build -t mikrocloud-builder:latest ./docker/Build-Helper
 	docker tag mikrocloud-builder:latest ghcr.io/fantasy-programming/mikrocloud-2/mikrocloud-builder:latest
@@ -124,7 +123,6 @@ db-init:
 db-clean:
 	rm -f $(HOME)/.local/share/mikrocloud/mikrocloud.db*
 
-# Install tools
 install-tools:
 	go install github.com/pressly/goose/v3/cmd/goose@latest
 	go install github.com/cosmtrek/air@latest
@@ -142,24 +140,15 @@ dev-full:
 dev-embedded: build-full
 	air
 
-# Format code
 fmt:
 	go fmt ./...
 
-# Lint code (requires golangci-lint)
 lint:
 	golangci-lint run
 
-# Run security checks (requires gosec)
 security:
 	gosec ./...
 
-# Generate code coverage
 coverage:
 	go test -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
-
-# Default environment variables
-export DATABASE_URL ?= $(HOME)/.local/share/mikrocloud/mikrocloud.db
-export PORT ?= 3000
-export LOG_LEVEL ?= info

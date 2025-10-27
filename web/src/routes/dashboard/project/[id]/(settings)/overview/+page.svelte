@@ -2,13 +2,13 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 
-	import { Input } from '$lib/components/ui/input';
 	import { Search } from 'lucide-svelte';
 	import EnvironmentTabs from '$lib/components/projects/environment-tabs.svelte';
 	import AddResourceMenu from '$lib/components/projects/add-resource-menu.svelte';
 	import ApplicationCard from '$lib/components/projects/application-card.svelte';
 	import DatabaseCard from '$lib/components/projects/database-card.svelte';
 	import * as Empty from '$lib/components/ui/empty/index.js';
+	import * as InputGroup from '$lib/components/ui/input-group/index.js';
 
 	import { createProjectQuery } from '$lib/features/projects/queries';
 	import { createEnvironmentsListQuery } from '$lib/features/environments/queries';
@@ -18,15 +18,15 @@
 	import type { Application } from '$lib/features/applications/types';
 	import type { Database } from '$lib/features/databases/types';
 
-	const projectId = $derived(page.params.id!);
+	const projectId = page.params.id!;
 
 	let selectedEnvironmentId = $state<string | undefined>(undefined);
 	let searchQuery = $state('');
 
-	const projectQuery = $derived(createProjectQuery(projectId));
-	const environmentsQuery = $derived(createEnvironmentsListQuery(projectId));
-	const applicationsQuery = $derived(createApplicationsFetchQuery(projectId, ''));
-	const databasesQuery = $derived(createDatabasesFetchQuery(projectId, ''));
+	const projectQuery = createProjectQuery(projectId);
+	const environmentsQuery = createEnvironmentsListQuery(projectId);
+	const applicationsQuery = createApplicationsFetchQuery(projectId, '');
+	const databasesQuery = createDatabasesFetchQuery(projectId, '');
 
 	$effect(() => {
 		if (environmentsQuery.data && !selectedEnvironmentId) {
@@ -80,46 +80,28 @@
 		return counts;
 	});
 
-	function handleAddApplication() {
-		if (!selectedEnvironmentId) {
-			return;
-		}
-		goto(`/dashboard/project/${projectId}/${selectedEnvironmentId}/create-app`);
-	}
-
-	function handleAddDatabase() {
-		if (!selectedEnvironmentId) {
-			return;
-		}
-		goto(`/dashboard/project/${projectId}/${selectedEnvironmentId}/create-db`);
-	}
-
-	function handleAddTemplate() {
-		if (!selectedEnvironmentId) {
-			return;
-		}
-		goto(`/dashboard/project/${projectId}/${selectedEnvironmentId}/create-service`);
-	}
-
 	function handleAddEnvironment() {
 		console.log('Add environment clicked');
 	}
 </script>
 
-<div class="flex flex-col gap-6 p-6">
+<!-- TODO: Better loading and skeletton for the active stuff -->
+<div class="flex flex-col gap-6 max-w-7xl mx-auto p-6">
 	{#if projectQuery.isLoading}
 		<div class="text-muted-foreground">Loading project...</div>
 	{:else if projectQuery.error}
 		<div class="text-destructive">Error loading project: {projectQuery.error.message}</div>
 	{:else if projectQuery.data}
 		<div class="space-y-6">
-			<div>
+			<div class="my-[40px] w-full mx-auto">
 				<h1 class="text-3xl font-bold">{projectQuery.data.name}</h1>
 				{#if projectQuery.data.description}
-					<p class="text-muted-foreground">{projectQuery.data.description}</p>
+					<p class="text-muted-foreground mt-4">{projectQuery.data.description}</p>
 				{/if}
 			</div>
+			<div class="mt-[46px]"></div>
 
+			<!-- TODO: Add a modal to create new environments -->
 			<EnvironmentTabs
 				environments={environmentsQuery.data || []}
 				bind:selectedEnvironmentId
@@ -129,21 +111,14 @@
 			/>
 
 			<div class="flex items-center justify-between gap-4">
-				<div class="relative flex-1 max-w-md">
-					<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						type="text"
-						placeholder="Search resources..."
-						bind:value={searchQuery}
-						class="pl-9"
-					/>
-				</div>
+				<InputGroup.Root class=" max-w-md">
+					<InputGroup.Input placeholder="Search projects..." bind:value={searchQuery} />
+					<InputGroup.Addon>
+						<Search />
+					</InputGroup.Addon>
+				</InputGroup.Root>
 
-				<AddResourceMenu
-					onAddApplication={handleAddApplication}
-					onAddDatabase={handleAddDatabase}
-					onAddTemplate={handleAddTemplate}
-				/>
+				<AddResourceMenu {projectId} envId={selectedEnvironmentId} />
 			</div>
 
 			{#if applicationsQuery.isLoading || databasesQuery.isLoading}

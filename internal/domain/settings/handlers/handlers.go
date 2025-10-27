@@ -115,6 +115,31 @@ func (h *SettingsHandler) GetInstanceInfo(w http.ResponseWriter, r *http.Request
 	utils.SendJSON(w, http.StatusOK, instanceInfo)
 }
 
+func (h *SettingsHandler) GetSMTPSettings(w http.ResponseWriter, r *http.Request) {
+	smtpSettings, err := h.service.GetSMTPSettings()
+	if err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "Failed to retrieve SMTP settings", err.Error())
+		return
+	}
+
+	utils.SendJSON(w, http.StatusOK, smtpSettings)
+}
+
+func (h *SettingsHandler) SaveSMTPSettings(w http.ResponseWriter, r *http.Request) {
+	var input settings.UpdateSMTPSettings
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "Invalid request body", err.Error())
+		return
+	}
+
+	if err := h.service.SaveSMTPSettings(&input); err != nil {
+		utils.SendError(w, http.StatusInternalServerError, "Failed to save SMTP settings", err.Error())
+		return
+	}
+
+	utils.SendJSON(w, http.StatusOK, map[string]string{"message": "SMTP settings saved successfully"})
+}
+
 func (h *SettingsHandler) DetectIPAddresses(w http.ResponseWriter, r *http.Request) {
 	detectedIPs, err := h.service.DetectIPAddresses()
 	if err != nil {

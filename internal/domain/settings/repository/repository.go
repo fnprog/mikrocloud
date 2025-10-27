@@ -125,3 +125,43 @@ func (r *SettingsRepository) SaveUpdateSettings(s *settings.UpdateSettings) erro
 
 	return err
 }
+
+func (r *SettingsRepository) GetSMTPSettings() (*settings.SMTPSettings, error) {
+	var jsonData string
+	err := r.db.QueryRow("SELECT value FROM system_settings WHERE key = 'smtp'").Scan(&jsonData)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &settings.SMTPSettings{
+				Enabled:   false,
+				Host:      "",
+				Port:      587,
+				Username:  "",
+				Password:  "",
+				FromEmail: "",
+				FromName:  "Mikrocloud",
+			}, nil
+		}
+		return nil, err
+	}
+
+	var smtpSettings settings.SMTPSettings
+	if err := json.Unmarshal([]byte(jsonData), &smtpSettings); err != nil {
+		return nil, err
+	}
+
+	return &smtpSettings, nil
+}
+
+func (r *SettingsRepository) SaveSMTPSettings(s *settings.UpdateSMTPSettings) error {
+	jsonData, err := json.Marshal(s)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Exec(`
+		INSERT INTO system_settings (key, value) VALUES ('smtp', ?)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+	`, string(jsonData))
+
+	return err
+}

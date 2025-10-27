@@ -1,6 +1,8 @@
 <script lang="ts">
 	let { children } = $props();
 	import { NavBarBottom } from '$lib/components/ui/navbar';
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 
 	const tabs = [
 		{ name: 'Overview', href: '/dashboard/overview' },
@@ -10,6 +12,18 @@
 		// { name: 'Organization', href: '/dashboard/organizations/general' },
 		{ name: 'Settings', href: '/dashboard/settings' }
 	];
+
+	onMount(async () => {
+		try {
+			const response = await fetch('/api/auth/setup');
+			const data = await response.json();
+			if (!data.is_setup) {
+				goto('/register?firstTime=true');
+			}
+		} catch (error) {
+			console.error('Failed to check setup status:', error);
+		}
+	});
 </script>
 
 <main>

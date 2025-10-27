@@ -108,3 +108,11 @@ func detectPublicIPv6() (string, error) {
 
 	return ip, nil
 }
+
+func (s *SettingsService) GetSMTPSettings() (*settings.SMTPSettings, error) {
+	return s.repo.GetSMTPSettings()
+}
+
+func (s *SettingsService) SaveSMTPSettings(smtpSettings *settings.UpdateSMTPSettings) error {
+	return s.repo.SaveSMTPSettings(smtpSettings)
+}

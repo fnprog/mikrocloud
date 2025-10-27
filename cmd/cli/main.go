@@ -16,6 +16,9 @@ import (
 	"github.com/mikrocloud/mikrocloud/internal/config"
 )
 
+// TODO: The cli tool doesn't need structured login it can just send normal human readable logs to stdout
+// TODO: As for the log level we can just have a default and a verbose flag
+// TODO: We have to take into account podman too, there is no docker stuff on podman
 var (
 	configFile string
 	rootCmd    = &cobra.Command{
@@ -33,6 +36,7 @@ func main() {
 	slog.SetDefault(logger)
 
 	ctx := context.Background()
+
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		slog.Error("CLI failed", "error", err)
 		os.Exit(1)
@@ -78,11 +82,12 @@ func startMikrocloud() error {
 
 	runtime := cfg.Docker.Runtime
 	port := cfg.Server.Port
+
 	dataDir := cfg.Server.DataDir
 	socketPath := cfg.Docker.SocketPath
 
 	if isContainerRunning(runtime, containerName) {
-		fmt.Println("✅ Mikrocloud is already running")
+		fmt.Println("Mikrocloud is already running")
 		return nil
 	}
 
@@ -94,10 +99,10 @@ func startMikrocloud() error {
 		return fmt.Errorf("failed to create network: %w", err)
 	}
 
-	if cfg.Queue.Enabled && cfg.Queue.AutoStart {
-		if err := startQueue(runtime, cfg); err != nil {
-			return fmt.Errorf("failed to start queue: %w", err)
-		}
+	// TODO: This should be dragonfly + some kind of go-server (new queue entry)
+	// TODO: We have to create a mikrocloud-queue service
+	if err := startQueue(runtime); err != nil {
+		return fmt.Errorf("failed to start queue: %w", err)
 	}
 
 	if cfg.Proxy.Enabled && cfg.Proxy.AutoStart {
@@ -105,6 +110,8 @@ func startMikrocloud() error {
 			return fmt.Errorf("failed to start proxy: %w", err)
 		}
 	}
+
+	// Pull Postgres or Clickhouse if needed by the config
 
 	if !isContainerExists(runtime, containerName) {
 		slog.Info("Pulling Mikrocloud container image...", "image", containerImage)
@@ -273,7 +280,7 @@ func ensureNetwork(runtime string) error {
 	return createCmd.Run()
 }
 
-func startQueue(runtime string, cfg *config.Config) error {
+func startQueue(runtime string) error {
 	if isContainerRunning(runtime, queueName) {
 		fmt.Println("✅ Queue is already running")
 		return nil
@@ -412,7 +419,7 @@ func startTunnel(runtime string, cfg *config.Config) error {
 
 func waitForHealthy(runtime, name string, timeoutSeconds int) error {
 	fmt.Printf("⏳ Waiting for %s to be healthy...\n", name)
-	for i := 0; i < timeoutSeconds; i++ {
+	for range timeoutSeconds {
 		cmd := exec.Command(runtime, "inspect", "--format", "{{.State.Running}}", name)
 		output, err := cmd.Output()
 		if err == nil && strings.TrimSpace(string(output)) == "true" {

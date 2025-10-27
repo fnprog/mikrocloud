@@ -14,6 +14,8 @@ type User struct {
 	name            string
 	username        *Username
 	avatarURL       *string
+	oauthProvider   *string
+	oauthProviderID *string
 	status          UserStatus
 	emailVerifiedAt *time.Time
 	lastLoginAt     *time.Time
@@ -134,6 +136,20 @@ func (u *User) AvatarURL() *string {
 	return u.avatarURL
 }
 
+func (u *User) OAuthProvider() string {
+	if u.oauthProvider == nil {
+		return ""
+	}
+	return *u.oauthProvider
+}
+
+func (u *User) OAuthProviderID() string {
+	if u.oauthProviderID == nil {
+		return ""
+	}
+	return *u.oauthProviderID
+}
+
 func (u *User) Status() UserStatus {
 	return u.status
 }
@@ -173,6 +189,12 @@ func (u *User) SetAvatarURL(avatarURL *string) {
 	u.updatedAt = time.Now()
 }
 
+func (u *User) SetOAuthProvider(provider, providerID string) {
+	u.oauthProvider = &provider
+	u.oauthProviderID = &providerID
+	u.updatedAt = time.Now()
+}
+
 func (u *User) VerifyEmail() {
 	now := time.Now()
 	u.emailVerifiedAt = &now
@@ -208,6 +230,8 @@ func ReconstructUser(
 	name string,
 	username *Username,
 	avatarURL *string,
+	oauthProvider *string,
+	oauthProviderID *string,
 	status UserStatus,
 	emailVerifiedAt *time.Time,
 	lastLoginAt *time.Time,
@@ -222,6 +246,8 @@ func ReconstructUser(
 		name:            name,
 		username:        username,
 		avatarURL:       avatarURL,
+		oauthProvider:   oauthProvider,
+		oauthProviderID: oauthProviderID,
 		status:          status,
 		emailVerifiedAt: emailVerifiedAt,
 		lastLoginAt:     lastLoginAt,

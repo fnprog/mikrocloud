@@ -660,3 +660,81 @@ func (h *AuthHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 
 	utils.SendJSON(w, http.StatusOK, response)
 }
+
+type RequestPasswordResetRequest struct {
+	Email string `json:"email" validate:"required,email"`
+}
+
+func (h *AuthHandler) RequestPasswordReset(w http.ResponseWriter, r *http.Request) {
+	var req RequestPasswordResetRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_json", "Invalid JSON format")
+		return
+	}
+
+	if err := h.validator.Struct(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "validation_error", err.Error())
+		return
+	}
+
+	cmd := service.RequestPasswordResetCommand{
+		Email: req.Email,
+	}
+
+	err := h.authService.RequestPasswordReset(r.Context(), cmd)
+	if err != nil {
+		switch err {
+		case service.ErrInvalidEmail:
+			utils.SendError(w, http.StatusBadRequest, "invalid_email", "Invalid email format")
+		default:
+			utils.SendError(w, http.StatusInternalServerError, "reset_failed", "Failed to request password reset: "+err.Error())
+		}
+		return
+	}
+
+	response := utils.SuccessResponse{
+		Message: "If an account with this email exists, a password reset link has been sent",
+	}
+
+	utils.SendJSON(w, http.StatusOK, response)
+}
+
+type ResetPasswordRequest struct {
+	Token    string `json:"token" validate:"required"`
+	Password string `json:"password" validate:"required,min=8"`
+}
+
+func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	var req ResetPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "invalid_json", "Invalid JSON format")
+		return
+	}
+
+	if err := h.validator.Struct(&req); err != nil {
+		utils.SendError(w, http.StatusBadRequest, "validation_error", err.Error())
+		return
+	}
+
+	cmd := service.ResetPasswordCommand{
+		Token:    req.Token,
+		Password: req.Password,
+	}
+
+	err := h.authService.ResetPassword(r.Context(), cmd)
+	if err != nil {
+		switch err {
+		case service.ErrWeakPassword:
+			utils.SendError(w, http.StatusBadRequest, "weak_password", "Password does not meet security requirements")
+		default:
+			utils.SendError(w, http.StatusInternalServerError, "reset_failed", "Failed to reset password: "+err.Error())
+		}
+		return
+	}
+
+	response := utils.SuccessResponse{
+		Message: "Password reset successfully",
+	}
+
+	utils.SendJSON(w, http.StatusOK, response)
+}

@@ -15,9 +15,12 @@ func RegisterAuthRoutes(r chi.Router, deps *deps.Dependencies) {
 		r.Post("/register", handler.Register)
 		r.Post("/refresh", handler.RefreshToken)
 		r.Get("/setup", handler.GetSetupStatus)
+		r.Post("/request-password-reset", handler.RequestPasswordReset)
+		r.Post("/reset-password", handler.ResetPassword)
 
 		// Oauth Routes
 		oauthHandler.RegisterOAuthRoutes(r, deps)
+		RegisterUserOAuthRoutes(r, deps.AuthService, deps.Config)
 
 		// Protected auth routes
 		r.Group(func(r chi.Router) {

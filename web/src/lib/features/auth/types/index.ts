@@ -25,3 +25,7 @@ export interface AuthResponse {
 export interface UpdateProfileRequest {
   name?: string; username?: string; avatar?: string
 }
+
+export interface SetupStatus {
+  is_setup: boolean;
+}

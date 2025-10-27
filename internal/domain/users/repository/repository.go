@@ -492,6 +492,8 @@ type userRow struct {
 	PasswordHash    string
 	Username        sql.NullString
 	AvatarURL       sql.NullString
+	OAuthProvider   sql.NullString
+	OAuthProviderID sql.NullString
 	Status          string
 	EmailVerifiedAt sql.NullTime
 	LastLoginAt     sql.NullTime
@@ -560,8 +562,17 @@ func (r *SQLiteUserRepository) mapRowToUser(row userRow) (*users.User, error) {
 		avatarURL = &row.AvatarURL.String
 	}
 
+	var oauthProvider *string
+	if row.OAuthProvider.Valid && row.OAuthProvider.String != "" {
+		oauthProvider = &row.OAuthProvider.String
+	}
+	var oauthProviderID *string
+	if row.OAuthProviderID.Valid && row.OAuthProviderID.String != "" {
+		oauthProviderID = &row.OAuthProviderID.String
+	}
+
 	return users.ReconstructUser(
-		userID, email, row.PasswordHash, row.Name, username, avatarURL, status,
+		userID, email, row.PasswordHash, row.Name, username, avatarURL, oauthProvider, oauthProviderID, status,
 		emailVerifiedAt, lastLoginAt, row.Timezone, createdAt, updatedAt), nil
 }
 
