@@ -29,7 +29,8 @@ export const gitApi = {
 
 	async listGitSources(): Promise<GitSource[]> {
 		const response = await apiClient.get<GitSourcesResponse>('/git/sources');
-		return response.sources;
+		// defensive fallback: ensure we return an array even if the server returns null
+		return response.sources ?? [];
 	},
 
 	async getGitSource(sourceId: string): Promise<GitSource> {

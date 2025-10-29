@@ -2,64 +2,42 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Input } from '$lib/components/ui/input';
 	import { Button } from '$lib/components/ui/button';
-	import { Tabs, TabsList, TabsTrigger } from '$lib/components/ui/tabs';
-	import { RefreshCw, Check, AlertCircle } from 'lucide-svelte';
-	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
+	import * as InputGroup from '$lib/components/ui/input-group/index.js';
+	import * as Tabs from '$lib/components/ui/tabs/index.js';
+	import { RefreshCw, Check, AlertCircle, Lock, Github } from 'lucide-svelte';
 	import { gitApi } from '$lib/features/git-sources/api';
-	import { type GitProvider } from '$lib/features/git-sources/types';
+	import { Search } from 'lucide-svelte';
 
 	interface Props {
-		provider: 'github' | 'gitlab' | 'bitbucket' | 'custom';
-		onProviderChange: (provider: 'github' | 'gitlab' | 'bitbucket' | 'custom') => void;
-		repository: string;
-		onRepositoryChange: (repository: string) => void;
-		branch: string;
-		onBranchChange: (branch: string) => void;
-		autoDeploy: boolean;
-		onAutoDeployChange: (autoDeploy: boolean) => void;
-		isPrivate: boolean;
-		onIsPrivateChange: (isPrivate: boolean) => void;
-		customGitUrl?: string;
-		onCustomGitUrlChange?: (url: string) => void;
-		basePath?: string;
-		onBasePathChange?: (basePath: string) => void;
+		source_repository_url: string;
+		public_repository_url: string;
 	}
 
-	let {
-		provider,
-		onProviderChange,
-		repository,
-		onRepositoryChange,
-		branch = $bindable(),
-		onBranchChange,
-		autoDeploy,
-		onAutoDeployChange,
-		isPrivate,
-		onIsPrivateChange,
-		customGitUrl = '',
-		onCustomGitUrlChange,
-		basePath = '/',
-		onBasePathChange
-	}: Props = $props();
+	let { source_repository_url = $bindable(), public_repository_url = $bindable() }: Props =
+		$props();
 
-	let branches = $state<string[]>(['main', 'master', 'develop', 'staging', 'production']);
 	let isValidating = $state(false);
 	let validationStatus = $state<'idle' | 'valid' | 'invalid'>('idle');
 	let validationMessage = $state('');
-	let isFetchingBranches = $state(false);
+
+	const repositories = [
+		{ id: '1', name: 'mikrocloud-web', isPrivate: true, date: 'Oct 18' },
+		{ id: '2', name: 'trotroways', isPrivate: true, date: 'Oct 12' },
+		{ id: '3', name: 'toffnet', isPrivate: true, date: 'Oct 11', icon: 'N' },
+		{ id: '4', name: 'mikrocloud', isPrivate: false, date: 'Oct 8' },
+		{ id: '5', name: 'vault', isPrivate: true, date: 'Sep 27' }
+	];
 
 	async function validateRepository() {
-		if (!repository) return;
+		if (!public_repository_url) return;
 
 		isValidating = true;
 		validationStatus = 'idle';
 
 		try {
 			const result = await gitApi.validateRepository({
-				provider: provider as GitProvider,
-				repository: repository,
-				branch: branch || undefined,
-				custom_url: provider === 'custom' ? customGitUrl : undefined
+				public_repository_url: public_repository_url
 			});
 
 			if (result.valid) {
@@ -76,174 +54,174 @@
 			isValidating = false;
 		}
 	}
-
-	async function fetchBranches() {
-		if (!repository) return;
-
-		isFetchingBranches = true;
-		try {
-			const result = await gitApi.listBranches({
-				provider: provider as GitProvider,
-				repository: repository,
-				custom_url: provider === 'custom' ? customGitUrl : undefined
-			});
-
-			branches = result.branches.map((b) => b.name);
-			if (branches.length > 0 && !branch) {
-				onBranchChange(branches[0]);
-			}
-		} catch (error) {
-			console.error('Failed to fetch branches:', error);
-			branches = ['main'];
-		} finally {
-			isFetchingBranches = false;
-		}
-	}
 </script>
 
-<div class="space-y-6">
-	<div class="flex gap-4">
-		<Button
-			variant={!isPrivate ? 'default' : 'outline'}
-			onclick={() => onIsPrivateChange(false)}
-			class="flex-1"
-		>
-			Public repository
-		</Button>
-		<Button
-			variant={isPrivate ? 'default' : 'outline'}
-			onclick={() => onIsPrivateChange(true)}
-			class="flex-1"
-		>
-			Private repository
-		</Button>
-	</div>
+<Tabs.Root value="source">
+	<Tabs.List>
+		<Tabs.Trigger value="source">Git Sources</Tabs.Trigger>
+		<Tabs.Trigger value="public">Public Git repository</Tabs.Trigger>
+	</Tabs.List>
+	<Tabs.Content value="source">
+		<div class="flex gap-4 my-4">
+			<InputGroup.Root class="flex-2">
+				<InputGroup.Input placeholder="Search" />
+				<InputGroup.Addon>
+					<Search />
+				</InputGroup.Addon>
+			</InputGroup.Root>
 
-	<Tabs
-		value={provider}
-		onValueChange={(v: string | undefined) =>
-			v && onProviderChange(v as 'github' | 'gitlab' | 'bitbucket' | 'custom')}
-	>
-		<TabsList class="grid w-full grid-cols-4">
-			<TabsTrigger value="github">GitHub</TabsTrigger>
-			<TabsTrigger value="gitlab">GitLab</TabsTrigger>
-			<TabsTrigger value="bitbucket">Bitbucket</TabsTrigger>
-			<TabsTrigger value="custom">Custom</TabsTrigger>
-		</TabsList>
-	</Tabs>
-
-	{#if provider === 'custom' && onCustomGitUrlChange}
-		<div class="space-y-2">
-			<Label for="custom-git-url">Git URL</Label>
-			<Input
-				id="custom-git-url"
-				placeholder="https://git.example.com or git@example.com:repo.git"
-				value={customGitUrl}
-				oninput={(e) => onCustomGitUrlChange(e.currentTarget.value)}
-			/>
-			<p class="text-xs text-muted-foreground">Enter the full Git URL (HTTPS or SSH)</p>
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger>
+					{#snippet child({ props })}
+						<Button {...props} variant="outline" class="w-full flex-1">Open</Button>
+					{/snippet}
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Content>
+					<DropdownMenu.RadioGroup value="fnprog">
+						<DropdownMenu.RadioItem value="fnprog">fnprog</DropdownMenu.RadioItem>
+					</DropdownMenu.RadioGroup>
+					<DropdownMenu.Item>Add New source</DropdownMenu.Item>
+				</DropdownMenu.Content>
+			</DropdownMenu.Root>
 		</div>
-	{/if}
-
-	<div class="space-y-2">
-		<Label for="repository">Repository</Label>
-		<div class="flex gap-2">
-			<div class="flex-1 relative">
-				<Input
-					id="repository"
-					placeholder={provider === 'custom'
-						? 'Leave empty if URL contains path'
-						: 'username/repo-name'}
-					value={repository}
-					oninput={(e) => {
-						onRepositoryChange(e.currentTarget.value);
-						validationStatus = 'idle';
-					}}
-					class="pr-8"
-				/>
-				{#if validationStatus === 'valid'}
-					<Check class="h-4 w-4 text-green-600 absolute right-2 top-1/2 -translate-y-1/2" />
-				{:else if validationStatus === 'invalid'}
-					<AlertCircle class="h-4 w-4 text-destructive absolute right-2 top-1/2 -translate-y-1/2" />
-				{/if}
+		<div class="space-y-px border border-border rounded-lg overflow-hidden">
+			{#each repositories as repo, index (repo.id)}
+				<div
+					class={`flex items-center justify-between px-6 py-4 bg-card hover:bg-muted transition-colors ${
+						index !== repositories.length - 1 ? 'border-b border-border' : ''
+					}`}
+				>
+					<div class="flex items-center gap-3 flex-1">
+						{#if repo.icon}
+							<div
+								class="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold text-sm"
+							>
+								{repo.icon}
+							</div>
+						{:else}
+							<div class="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+								<Github size={16} className="text-muted-foreground" />
+							</div>
+						{/if}
+						<div class="flex items-center gap-2">
+							<span class="text-foreground font-medium">{repo.name}</span>
+							{#if repo.isPrivate}
+								<Lock size={14} class="text-muted-foreground" />
+							{/if}
+							<span class="text-muted-foreground text-sm">· {repo.date}</span>
+						</div>
+					</div>
+					<Button variant="outline" size="sm">Import</Button>
+				</div>
+			{/each}
+		</div>
+	</Tabs.Content>
+	<Tabs.Content value="public">
+		<div class="space-y-2 mt-10">
+			<Label for="repository">Repository URL</Label>
+			<div class="flex gap-2">
+				<div class="flex-1 relative">
+					<Input
+						id="repository"
+						placeholder={'Leave empty if URL contains path'}
+						bind:value={public_repository_url}
+						class="pr-8"
+					/>
+					{#if validationStatus === 'valid'}
+						<Check class="h-4 w-4 text-green-600 absolute right-2 top-1/2 -translate-y-1/2" />
+					{:else if validationStatus === 'invalid'}
+						<AlertCircle
+							class="h-4 w-4 text-destructive absolute right-2 top-1/2 -translate-y-1/2"
+						/>
+					{/if}
+				</div>
+				<Button
+					variant="outline"
+					size="icon"
+					onclick={validateRepository}
+					disabled={isValidating || !public_repository_url}
+				>
+					<RefreshCw class="h-4 w-4 {isValidating ? 'animate-spin' : ''}" />
+				</Button>
 			</div>
-			<Button
-				variant="outline"
-				size="icon"
-				onclick={validateRepository}
-				disabled={isValidating || !repository}
-			>
-				<RefreshCw class="h-4 w-4 {isValidating ? 'animate-spin' : ''}" />
-			</Button>
+			{#if validationMessage}
+				<p
+					class="text-xs"
+					class:text-green-600={validationStatus === 'valid'}
+					class:text-destructive={validationStatus === 'invalid'}
+				>
+					{validationMessage}
+				</p>
+			{:else}
+				<p class="text-xs text-muted-foreground">
+					Enter the repository path (e.g., username/repository-name)
+				</p>
+			{/if}
 		</div>
-		{#if validationMessage}
-			<p
-				class="text-xs"
-				class:text-green-600={validationStatus === 'valid'}
-				class:text-destructive={validationStatus === 'invalid'}
-			>
-				{validationMessage}
-			</p>
-		{:else}
-			<p class="text-xs text-muted-foreground">
-				{provider === 'custom'
-					? 'Optional: specify repository path if not in URL'
-					: 'Enter the repository path (e.g., username/repository-name)'}
-			</p>
-		{/if}
-	</div>
+	</Tabs.Content>
+</Tabs.Root>
 
-	<div class="space-y-2">
-		<div class="flex items-center justify-between">
-			<Label for="branch">Default branch</Label>
-			<Button
-				variant="ghost"
-				size="sm"
-				onclick={fetchBranches}
-				disabled={isFetchingBranches || !repository}
-				class="h-7 text-xs"
-			>
-				<RefreshCw class="h-3 w-3 mr-1 {isFetchingBranches ? 'animate-spin' : ''}" />
-				Fetch branches
-			</Button>
-		</div>
-		<Select type="single" bind:value={branch}>
-			<SelectTrigger id="branch">
-				{branch || 'Select a branch'}
-			</SelectTrigger>
-			<SelectContent>
-				{#each branches as branchOption}
-					<SelectItem value={branchOption}>{branchOption}</SelectItem>
-				{/each}
-			</SelectContent>
-		</Select>
-	</div>
-
-	{#if onBasePathChange}
-		<div class="space-y-2">
-			<Label for="base-path">Base path</Label>
-			<Input
-				id="base-path"
-				placeholder="/"
-				value={basePath}
-				oninput={(e) => onBasePathChange(e.currentTarget.value)}
-			/>
-			<p class="text-xs text-muted-foreground">
-				The directory containing your Dockerfile or docker-compose.yml (default: /)
-			</p>
-		</div>
-	{/if}
-
-	<div class="flex items-center space-x-2">
-		<input
-			type="checkbox"
-			id="auto-deploy"
-			checked={autoDeploy}
-			onchange={(e) => onAutoDeployChange(e.currentTarget.checked)}
-			class="h-4 w-4 rounded border-input"
-		/>
-		<Label for="auto-deploy" class="font-normal cursor-pointer">
-			Automatic deployment on commit
-		</Label>
-	</div>
-</div>
+<!-- <div class="flex gap-5 space-x-5"> -->
+<!-- 	<div class="space-y-6 flex-1"> -->
+<!-- 		<h2 class="text-2xl font-semibold">Import From Git Source</h2> -->
+<!---->
+<!---->
+<!-- 		<div class="space-y-2"> -->
+<!-- 			<div class="flex items-center justify-between"> -->
+<!-- 				<Label for="branch">Default branch</Label> -->
+<!-- 				<Button -->
+<!-- 					variant="ghost" -->
+<!-- 					size="sm" -->
+<!-- 					onclick={fetchBranches} -->
+<!-- 					disabled={isFetchingBranches || !repository} -->
+<!-- 					class="h-7 text-xs" -->
+<!-- 				> -->
+<!-- 					<RefreshCw class="h-3 w-3 mr-1 {isFetchingBranches ? 'animate-spin' : ''}" /> -->
+<!-- 					Fetch branches -->
+<!-- 				</Button> -->
+<!-- 			</div> -->
+<!-- 			<Select type="single" bind:value={branch}> -->
+<!-- 				<SelectTrigger id="branch"> -->
+<!-- 					{branch || 'Select a branch'} -->
+<!-- 				</SelectTrigger> -->
+<!-- 				<SelectContent> -->
+<!-- 					{#each branches as branchOption} -->
+<!-- 						<SelectItem value={branchOption}>{branchOption}</SelectItem> -->
+<!-- 					{/each} -->
+<!-- 				</SelectContent> -->
+<!-- 			</Select> -->
+<!-- 		</div> -->
+<!-- 	</div> -->
+<!-- 	<Separator orientation="vertical" /> -->
+<!---->
+<!-- 	<div class="space-y-6 flex-1 mt-8"> -->
+<!-- 		<h2 class="text-2xl font-semibold">Import From Public Repository</h2> -->
+<!---->
+<!---->
+<!-- 		<div class="space-y-2"> -->
+<!-- 			<div class="flex items-center justify-between"> -->
+<!-- 				<Label for="branch">Default branch</Label> -->
+<!-- 				<Button -->
+<!-- 					variant="ghost" -->
+<!-- 					size="sm" -->
+<!-- 					onclick={fetchBranches} -->
+<!-- 					disabled={isFetchingBranches || !repository} -->
+<!-- 					class="h-7 text-xs" -->
+<!-- 				> -->
+<!-- 					<RefreshCw class="h-3 w-3 mr-1 {isFetchingBranches ? 'animate-spin' : ''}" /> -->
+<!-- 					Fetch branches -->
+<!-- 				</Button> -->
+<!-- 			</div> -->
+<!-- 			<Select type="single" bind:value={branch}> -->
+<!-- 				<SelectTrigger id="branch"> -->
+<!-- 					{branch || 'Select a branch'} -->
+<!-- 				</SelectTrigger> -->
+<!-- 				<SelectContent> -->
+<!-- 					{#each branches as branchOption} -->
+<!-- 						<SelectItem value={branchOption}>{branchOption}</SelectItem> -->
+<!-- 					{/each} -->
+<!-- 				</SelectContent> -->
+<!-- 			</Select> -->
+<!-- 		</div> -->
+<!-- 	</div> -->
+<!-- </div> -->

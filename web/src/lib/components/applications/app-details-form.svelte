@@ -21,20 +21,6 @@
 	</div>
 
 	<div class="space-y-2">
-		<Label for="app-name">Application name</Label>
-		<Input
-			id="app-name"
-			placeholder="my-app"
-			value={name}
-			oninput={(e) => onNameChange(e.currentTarget.value)}
-			required
-		/>
-		<p class="text-xs text-muted-foreground">
-			A unique name to identify your application
-		</p>
-	</div>
-
-	<div class="space-y-2">
 		<Label for="app-description">Description (optional)</Label>
 		<Input
 			id="app-description"

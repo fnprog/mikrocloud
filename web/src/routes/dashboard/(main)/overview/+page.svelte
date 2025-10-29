@@ -193,10 +193,10 @@
 								</div>
 								<div class="flex-1 min-w-0">
 									<div class="flex items-center justify-between mb-1">
-										<span class="text-sm font-medium">{activity.initiator_name || 'System'}</span>
+										<span class="text-sm font-medium">{activity.initiator?.name || 'System'}</span>
 										<span class="text-xs text-gray-500">{formatTimeAgo(activity.created_at)}</span>
 									</div>
-									<div class="text-xs text-gray-400 mb-1">{activity.activity_type}</div>
+									<div class="text-xs text-gray-400 mb-1">{activity.event_type}</div>
 									{#if activity.resource_type && activity.resource_id}
 										<div
 											class="text-xs bg-card border border-border rounded px-2 py-1 inline-block"

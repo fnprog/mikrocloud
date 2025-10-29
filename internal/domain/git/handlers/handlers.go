@@ -143,6 +143,11 @@ func (h *GitHandler) ListGitSources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ensure we return an empty slice instead of null when no sources exist
+	if sources == nil {
+		sources = []*git.GitSource{}
+	}
+
 	utils.SendJSON(w, http.StatusOK, map[string]interface{}{
 		"sources": sources,
 	})

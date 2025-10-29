@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,15 +20,15 @@ func NewActivitiesRepository(db *sql.DB) *ActivitiesRepository {
 
 func (r *ActivitiesRepository) Create(activity *activities.Activity) error {
 	_, err := r.db.Exec(`
-		INSERT INTO activities (id, activity_type, description, initiator_id, initiator_name, 
+		INSERT INTO activities (id, event_type, level, description, initiator_id, 
 			resource_type, resource_id, resource_name, metadata, organization_id, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		activity.ID().String(),
-		string(activity.ActivityType()),
+		string(activity.EventType()),
+		string(activity.Level()),
 		activity.Description(),
 		uuidToNullString(activity.InitiatorID()),
-		activity.InitiatorName(),
 		strPtrToNullString(activity.ResourceType()),
 		uuidToNullString(activity.ResourceID()),
 		strPtrToNullString(activity.ResourceName()),
@@ -40,11 +41,11 @@ func (r *ActivitiesRepository) Create(activity *activities.Activity) error {
 
 func (r *ActivitiesRepository) ListByOrganization(organizationID uuid.UUID, limit int, offset int) ([]*activities.Activity, error) {
 	rows, err := r.db.Query(`
-		SELECT id, activity_type, description, initiator_id, initiator_name,
-			resource_type, resource_id, resource_name, metadata, organization_id, created_at
-		FROM activities
-		WHERE organization_id = ?
-		ORDER BY created_at DESC
+		SELECT a.id, a.event_type, a.level, a.description, a.initiator_id,
+			a.resource_type, a.resource_id, a.resource_name, a.metadata, a.organization_id, a.created_at
+		FROM activities a
+		WHERE a.organization_id = ?
+		ORDER BY a.created_at DESC
 		LIMIT ? OFFSET ?
 	`, organizationID.String(), limit, offset)
 	if err != nil {
@@ -57,11 +58,11 @@ func (r *ActivitiesRepository) ListByOrganization(organizationID uuid.UUID, limi
 
 func (r *ActivitiesRepository) ListByResource(resourceType string, resourceID uuid.UUID, limit int) ([]*activities.Activity, error) {
 	rows, err := r.db.Query(`
-		SELECT id, activity_type, description, initiator_id, initiator_name,
-			resource_type, resource_id, resource_name, metadata, organization_id, created_at
-		FROM activities
-		WHERE resource_type = ? AND resource_id = ?
-		ORDER BY created_at DESC
+		SELECT a.id, a.event_type, a.level, a.description, a.initiator_id,
+			a.resource_type, a.resource_id, a.resource_name, a.metadata, a.organization_id, a.created_at
+		FROM activities a
+		WHERE a.resource_type = ? AND a.resource_id = ?
+		ORDER BY a.created_at DESC
 		LIMIT ?
 	`, resourceType, resourceID.String(), limit)
 	if err != nil {
@@ -86,10 +87,10 @@ func (r *ActivitiesRepository) scanActivities(rows *sql.Rows) ([]*activities.Act
 	for rows.Next() {
 		var (
 			id             string
-			activityType   string
+			eventType      string
+			level          string
 			description    string
 			initiatorID    sql.NullString
-			initiatorName  string
 			resourceType   sql.NullString
 			resourceID     sql.NullString
 			resourceName   sql.NullString
@@ -99,7 +100,7 @@ func (r *ActivitiesRepository) scanActivities(rows *sql.Rows) ([]*activities.Act
 		)
 
 		if err := rows.Scan(
-			&id, &activityType, &description, &initiatorID, &initiatorName,
+			&id, &eventType, &level, &description, &initiatorID,
 			&resourceType, &resourceID, &resourceName, &metadata, &organizationID, &createdAt,
 		); err != nil {
 			return nil, err
@@ -110,10 +111,10 @@ func (r *ActivitiesRepository) scanActivities(rows *sql.Rows) ([]*activities.Act
 
 		activity := activities.ReconstructActivity(
 			activityID,
-			activities.ActivityType(activityType),
+			activities.EventType(eventType),
+			activities.ActivityLevel(level),
 			description,
 			nullStringToUUIDPtr(initiatorID),
-			initiatorName,
 			nullStringToStrPtr(resourceType),
 			nullStringToUUIDPtr(resourceID),
 			nullStringToStrPtr(resourceName),
@@ -161,48 +162,110 @@ func nullStringToStrPtr(ns sql.NullString) *string {
 }
 
 type ActivityDTO struct {
-	ID             string                 `json:"id"`
-	ActivityType   string                 `json:"activity_type"`
-	Description    string                 `json:"description"`
-	InitiatorID    *string                `json:"initiator_id"`
-	InitiatorName  string                 `json:"initiator_name"`
-	ResourceType   *string                `json:"resource_type"`
-	ResourceID     *string                `json:"resource_id"`
-	ResourceName   *string                `json:"resource_name"`
-	Metadata       map[string]interface{} `json:"metadata"`
-	OrganizationID string                 `json:"organization_id"`
-	CreatedAt      time.Time              `json:"created_at"`
+	ID          string                 `json:"id"`
+	EventType   string                 `json:"event_type"`
+	Level       string                 `json:"level"`
+	Description string                 `json:"description"`
+	Initiator   *InitiatorDTO          `json:"initiator"`
+	Metadata    map[string]interface{} `json:"metadata"`
+	CreatedAt   time.Time              `json:"created_at"`
 }
 
-func ToDTO(activity *activities.Activity) (*ActivityDTO, error) {
-	var metadata map[string]interface{}
-	if err := json.Unmarshal([]byte(activity.Metadata()), &metadata); err != nil {
-		metadata = make(map[string]interface{})
+type InitiatorDTO struct {
+	Name     string `json:"name"`
+	Avatar   string `json:"avatar,omitempty"`
+	Initials string `json:"initials"`
+}
+
+func (r *ActivitiesRepository) ListByOrganizationWithUsers(organizationID uuid.UUID, limit int, offset int) ([]*ActivityDTO, error) {
+	rows, err := r.db.Query(`
+		SELECT a.id, a.event_type, a.level, a.description, a.metadata, a.created_at,
+			u.name, u.avatar_url
+		FROM activities a
+		LEFT JOIN users u ON a.initiator_id = u.id
+		WHERE a.organization_id = ?
+		ORDER BY a.created_at DESC
+		LIMIT ? OFFSET ?
+	`, organizationID.String(), limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return r.scanActivityDTOs(rows)
+}
+
+func (r *ActivitiesRepository) ListByResourceWithUsers(resourceType string, resourceID uuid.UUID, limit int) ([]*ActivityDTO, error) {
+	rows, err := r.db.Query(`
+		SELECT a.id, a.event_type, a.level, a.description, a.metadata, a.created_at,
+			u.name, u.avatar_url
+		FROM activities a
+		LEFT JOIN users u ON a.initiator_id = u.id
+		WHERE a.resource_type = ? AND a.resource_id = ?
+		ORDER BY a.created_at DESC
+		LIMIT ?
+	`, resourceType, resourceID.String(), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return r.scanActivityDTOs(rows)
+}
+
+func (r *ActivitiesRepository) scanActivityDTOs(rows *sql.Rows) ([]*ActivityDTO, error) {
+	var result []*ActivityDTO
+
+	for rows.Next() {
+		var (
+			id          string
+			eventType   string
+			level       string
+			description string
+			metadata    string
+			createdAt   time.Time
+			userName    sql.NullString
+			userAvatar  sql.NullString
+		)
+
+		if err := rows.Scan(&id, &eventType, &level, &description, &metadata, &createdAt, &userName, &userAvatar); err != nil {
+			return nil, err
+		}
+
+		var metadataMap map[string]interface{}
+		if err := json.Unmarshal([]byte(metadata), &metadataMap); err != nil {
+			metadataMap = make(map[string]interface{})
+		}
+
+		var initiator *InitiatorDTO
+		if userName.Valid {
+			initiator = &InitiatorDTO{
+				Name:   userName.String,
+				Avatar: userAvatar.String,
+			}
+			// Generate initials from name
+			if userName.String != "" {
+				parts := strings.Split(strings.TrimSpace(userName.String), " ")
+				if len(parts) >= 2 {
+					initiator.Initials = strings.ToUpper(string(parts[0][0]) + string(parts[len(parts)-1][0]))
+				} else if len(parts[0]) > 0 {
+					initiator.Initials = strings.ToUpper(string(parts[0][0]))
+				}
+			}
+		}
+
+		dto := &ActivityDTO{
+			ID:          id,
+			EventType:   eventType,
+			Level:       level,
+			Description: description,
+			Initiator:   initiator,
+			Metadata:    metadataMap,
+			CreatedAt:   createdAt,
+		}
+
+		result = append(result, dto)
 	}
 
-	var initiatorID *string
-	if activity.InitiatorID() != nil {
-		id := activity.InitiatorID().String()
-		initiatorID = &id
-	}
-
-	var resourceID *string
-	if activity.ResourceID() != nil {
-		id := activity.ResourceID().String()
-		resourceID = &id
-	}
-
-	return &ActivityDTO{
-		ID:             activity.ID().String(),
-		ActivityType:   string(activity.ActivityType()),
-		Description:    activity.Description(),
-		InitiatorID:    initiatorID,
-		InitiatorName:  activity.InitiatorName(),
-		ResourceType:   activity.ResourceType(),
-		ResourceID:     resourceID,
-		ResourceName:   activity.ResourceName(),
-		Metadata:       metadata,
-		OrganizationID: activity.OrganizationID().String(),
-		CreatedAt:      activity.CreatedAt(),
-	}, nil
+	return result, rows.Err()
 }

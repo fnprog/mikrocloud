@@ -18,16 +18,17 @@ func NewActivitiesService(repo *repository.ActivitiesRepository) *ActivitiesServ
 }
 
 func (s *ActivitiesService) LogActivity(
-	activityType activities.ActivityType,
+	eventType activities.EventType,
 	description string,
 	initiatorID *uuid.UUID,
-	initiatorName string,
 	resourceType *string,
 	resourceID *uuid.UUID,
 	resourceName *string,
 	metadata map[string]any,
 	organizationID uuid.UUID,
 ) error {
+	level := s.determineLevel(eventType)
+
 	metadataJSON := "{}"
 	if metadata != nil {
 		jsonBytes, err := json.Marshal(metadata)
@@ -38,10 +39,10 @@ func (s *ActivitiesService) LogActivity(
 	}
 
 	activity := activities.NewActivity(
-		activityType,
+		eventType,
+		level,
 		description,
 		initiatorID,
-		initiatorName,
 		resourceType,
 		resourceID,
 		resourceName,
@@ -52,40 +53,31 @@ func (s *ActivitiesService) LogActivity(
 	return s.repo.Create(activity)
 }
 
+func (s *ActivitiesService) determineLevel(eventType activities.EventType) activities.ActivityLevel {
+	switch eventType {
+	case activities.EventTypeAppDeleted,
+		activities.EventTypeDatabaseDeleted,
+		activities.EventTypeEnvironmentDeleted,
+		activities.EventTypeDiskDeleted,
+		activities.EventTypeProxyDeleted,
+		activities.EventTypeUserLogin:
+		return activities.ActivityLevelWarn
+
+	case activities.EventTypeSystemStarted,
+		activities.EventTypeSystemStopped:
+		return activities.ActivityLevelInfo
+
+	default:
+		return activities.ActivityLevelSuccess
+	}
+}
+
 func (s *ActivitiesService) GetRecentActivities(organizationID uuid.UUID, limit int, offset int) ([]*repository.ActivityDTO, error) {
-	activityList, err := s.repo.ListByOrganization(organizationID, limit, offset)
-	if err != nil {
-		return nil, err
-	}
-
-	dtos := make([]*repository.ActivityDTO, 0, len(activityList))
-	for _, activity := range activityList {
-		dto, err := repository.ToDTO(activity)
-		if err != nil {
-			continue
-		}
-		dtos = append(dtos, dto)
-	}
-
-	return dtos, nil
+	return s.repo.ListByOrganizationWithUsers(organizationID, limit, offset)
 }
 
 func (s *ActivitiesService) GetResourceActivities(resourceType string, resourceID uuid.UUID, limit int) ([]*repository.ActivityDTO, error) {
-	activityList, err := s.repo.ListByResource(resourceType, resourceID, limit)
-	if err != nil {
-		return nil, err
-	}
-
-	dtos := make([]*repository.ActivityDTO, 0, len(activityList))
-	for _, activity := range activityList {
-		dto, err := repository.ToDTO(activity)
-		if err != nil {
-			continue
-		}
-		dtos = append(dtos, dto)
-	}
-
-	return dtos, nil
+	return s.repo.ListByResourceWithUsers(resourceType, resourceID, limit)
 }
 
 func (s *ActivitiesService) CleanupOldActivities(days int) error {

@@ -1,111 +1,126 @@
 <script lang="ts">
-  import { cn } from '$lib/utils';
-  import { stepperContext, type StepperOrientation, type StepIndicators } from './stepper-context.js';
-  import { tick } from 'svelte';
+	import { setContext, getContext } from 'svelte';
+	import type { Snippet } from 'svelte';
 
-  interface Props {
-    defaultValue?: number;
-    value?: number;
-    onValueChange?: (value: number) => void;
-    orientation?: StepperOrientation;
-    indicators?: StepIndicators;
-    class?: string;
-    children: any;
-  }
+	// Types
+	export type StepperOrientation = 'horizontal' | 'vertical';
+	export type StepState = 'active' | 'completed' | 'inactive' | 'loading';
 
-  let {
-    defaultValue = 1,
-    value,
-    onValueChange,
-    orientation = 'horizontal',
-    class: className,
-    children,
-    indicators = {},
-    ...props
-  }: Props = $props();
+	export interface StepIndicators {
+		active?: Snippet;
+		completed?: Snippet;
+		inactive?: Snippet;
+		loading?: Snippet;
+	}
 
-  let activeStep = $state(defaultValue);
-  let triggerNodes = $state<HTMLElement[]>([]);
-  let registeredSteps = $state<Set<number>>(new Set());
+	export interface StepperContext {
+		activeStep: number;
+		setActiveStep: (step: number) => void;
+		stepsCount: number;
+		orientation: StepperOrientation;
+		registerTrigger: (node: HTMLButtonElement) => void;
+		unregisterTrigger: (node: HTMLButtonElement) => void;
+		triggerNodes: HTMLButtonElement[];
+		focusNext: (currentIdx: number) => void;
+		focusPrev: (currentIdx: number) => void;
+		focusFirst: () => void;
+		focusLast: () => void;
+		indicators: StepIndicators;
+		disableTrigger: boolean;
+	}
 
-  // Register/unregister triggers
-  function registerTrigger(node: HTMLElement | null) {
-    if (node && !triggerNodes.includes(node)) {
-      triggerNodes = [...triggerNodes, node];
-    } else if (!node) {
-      // Remove null nodes
-      triggerNodes = triggerNodes.filter(n => n !== null);
-    }
-  }
+	export interface StepItemContext {
+		step: number;
+		state: StepState;
+		isDisabled: boolean;
+		isLoading: boolean;
+	}
 
-  function registerStep(step: number) {
-    registeredSteps.add(step);
-    // Trigger reactivity
-    registeredSteps = new Set(registeredSteps);
-  }
+	interface Props {
+		defaultValue?: number;
+		value?: number;
+		onValueChange?: (value: number) => void;
+		orientation?: StepperOrientation;
+		class?: string;
+		indicators?: StepIndicators;
+		disableTrigger?: boolean;
+		children: Snippet;
+	}
 
-  function handleSetActiveStep(step: number) {
-    if (value === undefined) {
-      activeStep = step;
-    }
-    onValueChange?.(step);
-  }
+	let {
+		defaultValue = 1,
+		value = $bindable(defaultValue),
+		onValueChange,
+		orientation = 'horizontal',
+		class: className = '',
+		indicators = {},
+		disableTrigger = false,
+		children
+	}: Props = $props();
 
-  let currentStep = $derived(value ?? activeStep);
+	let triggerNodes = $state<HTMLButtonElement[]>([]);
 
-  // Keyboard navigation logic
-  function focusTrigger(idx: number) {
-    if (triggerNodes[idx]) triggerNodes[idx].focus();
-  }
+	const registerTrigger = (node: HTMLButtonElement) => {
+		if (!triggerNodes.includes(node)) {
+			triggerNodes = [...triggerNodes, node];
+		}
+	};
 
-  function focusNext(currentIdx: number) {
-    focusTrigger((currentIdx + 1) % triggerNodes.length);
-  }
+	const unregisterTrigger = (node: HTMLButtonElement) => {
+		triggerNodes = triggerNodes.filter((n) => n !== node);
+	};
 
-  function focusPrev(currentIdx: number) {
-    focusTrigger((currentIdx - 1 + triggerNodes.length) % triggerNodes.length);
-  }
+	const setActiveStep = (step: number) => {
+		value = step;
+		onValueChange?.(step);
+	};
 
-  function focusFirst() {
-    focusTrigger(0);
-  }
+	const focusTrigger = (idx: number) => {
+		if (triggerNodes[idx]) triggerNodes[idx].focus();
+	};
 
-  function focusLast() {
-    focusTrigger(triggerNodes.length - 1);
-  }
+	const focusNext = (currentIdx: number) => {
+		focusTrigger((currentIdx + 1) % triggerNodes.length);
+	};
 
-  // Count steps
-  let stepsCount = $derived(Math.max(...Array.from(registeredSteps), 0));
+	const focusPrev = (currentIdx: number) => {
+		focusTrigger((currentIdx - 1 + triggerNodes.length) % triggerNodes.length);
+	};
 
-  // Context value
-  let contextValue = $derived({
-    activeStep: currentStep,
-    setActiveStep: handleSetActiveStep,
-    stepsCount,
-    orientation,
-    registerTrigger,
-    registerStep,
-    focusNext,
-    focusPrev,
-    focusFirst,
-    focusLast,
-    triggerNodes,
-    indicators,
-  });
+	const focusFirst = () => focusTrigger(0);
+	const focusLast = () => focusTrigger(triggerNodes.length - 1);
 
-  // Set context
-  $effect(() => {
-    stepperContext.set(contextValue);
-  });
+	const context: StepperContext = {
+		get activeStep() {
+			return value;
+		},
+		setActiveStep,
+		stepsCount: 0,
+		orientation,
+		registerTrigger,
+		unregisterTrigger,
+		get triggerNodes() {
+			return triggerNodes;
+		},
+		focusNext,
+		focusPrev,
+		focusFirst,
+		focusLast,
+		indicators,
+		get disableTrigger() {
+			return disableTrigger;
+		}
+	};
+
+	setContext('stepper', context);
 </script>
 
 <div
-  role="tablist"
-  aria-orientation={orientation}
-  data-slot="stepper"
-  class={cn('w-full', className)}
-  data-orientation={orientation}
-  {...props}
+	role="tablist"
+	aria-orientation={orientation}
+	data-slot="stepper"
+	data-orientation={orientation}
+	class="w-full {className}"
 >
-  {@render children()}
+	{@render children()}
 </div>

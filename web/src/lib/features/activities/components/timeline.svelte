@@ -15,33 +15,33 @@
 
 	let { items = [] }: Props = $props();
 
-	const getErrorLevelColor = (level: ErrorLevel) => {
-		switch (level) {
-			case 'error':
-				return 'border-red-500';
-			case 'warn':
-				return 'border-orange-500';
-			case 'success':
-				return 'border-emerald-500';
-			case 'info':
-			default:
-				return 'border-gray-500';
-		}
-	};
+  const getErrorLevelColor = (level: ActivityLevel) => {
+    switch (level) {
+      case 'error':
+        return 'border-red-500';
+      case 'warn':
+        return 'border-orange-500';
+      case 'success':
+        return 'border-emerald-500';
+      case 'info':
+      default:
+        return 'border-gray-500';
+    }
+  };
 
-	const getErrorLevelIconColor = (level: ErrorLevel) => {
-		switch (level) {
-			case 'error':
-				return 'text-red-500';
-			case 'warn':
-				return 'text-orange-500';
-			case 'success':
-				return 'text-emerald-500';
-			case 'info':
-			default:
-				return 'text-gray-500';
-		}
-	};
+  const getErrorLevelIconColor = (level: ActivityLevel) => {
+    switch (level) {
+      case 'error':
+        return 'text-red-500';
+      case 'warn':
+        return 'text-orange-500';
+      case 'success':
+        return 'text-emerald-500';
+      case 'info':
+      default:
+        return 'text-gray-500';
+    }
+  };
 
 	const getResourceIcon = (resourceType?: string) => {
 		switch (resourceType) {
@@ -77,16 +77,16 @@
 			<!-- Activity Items -->
 			<div class="space-y-8">
 				{#each items as item, index (item.id)}
-					{@const IconComponent = getResourceIcon(item.resourceType)}
+					{@const IconComponent = getResourceIcon(undefined)}
 					<div class="relative pl-20">
 						<!-- Circle with icon using svelte-cn for dynamic classes -->
 						<div
 							class={cn(
 								'absolute left-0 top-0 w-10 h-10 rounded-full border-2 flex items-center justify-center bg-black/80 z-10',
-								getErrorLevelColor(item.errorLevel)
+								getErrorLevelColor(item.level)
 							)}
 						>
-							<IconComponent class={cn('w-5 h-5', getErrorLevelIconColor(item.errorLevel))} />
+							<IconComponent class={cn('w-5 h-5', getErrorLevelIconColor(item.level))} />
 						</div>
 
 						<!-- Content -->
@@ -95,13 +95,13 @@
 								<div class="flex items-center gap-3">
 									<Avatar class="w-8 h-8">
 										<AvatarImage
-											src={item.user.avatar || '/placeholder.svg'}
-											alt={item.user.name}
+											src={item.initiator?.avatar || '/placeholder.svg'}
+											alt={item.initiator?.name}
 										/>
-										<AvatarFallback class="text-xs">{item.user.initials}</AvatarFallback>
+										<AvatarFallback class="text-xs">{item.initiator?.initials}</AvatarFallback>
 									</Avatar>
 									<div>
-										<h3 class="text-white font-semibold">{item.user.name}</h3>
+										<h3 class="text-white font-semibold">{item.initiator?.name}</h3>
 									</div>
 								</div>
 								<div class="flex items-center gap-2 text-gray-400 text-sm">

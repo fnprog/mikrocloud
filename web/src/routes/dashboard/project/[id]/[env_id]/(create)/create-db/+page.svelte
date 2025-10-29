@@ -158,21 +158,14 @@
 	}
 </script>
 
-<div class="container mx-auto max-w-4xl py-8 px-4">
+<div class="container mx-auto max-w-7xl py-8 px-4">
 	<div class="mb-6">
 		<h1 class="text-3xl font-bold">Create Database</h1>
 		<p class="text-muted-foreground">Add a new database to your project</p>
 	</div>
 
 	{#if step === 'type'}
-		<Card>
-			<CardHeader>
-				<CardTitle>Select Database Type</CardTitle>
-			</CardHeader>
-			<CardContent>
-				<DatabaseTypeSelector onSelect={handleTypeSelect} />
-			</CardContent>
-		</Card>
+		<DatabaseTypeSelector onSelect={handleTypeSelect} />
 	{:else if step === 'config' && selectedType}
 		<Card>
 			<CardHeader>

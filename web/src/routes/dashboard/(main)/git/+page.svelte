@@ -299,10 +299,6 @@
 					<p class="text-gray-500 mb-4">
 						Connect your Git providers to deploy applications from repositories
 					</p>
-					<Button onclick={() => (isCreateSheetOpen = true)}>
-						<Plus class="h-4 w-4 mr-2" />
-						Add Your First Source
-					</Button>
 				</CardContent>
 			</Card>
 		{:else if sourcesQuery.data}

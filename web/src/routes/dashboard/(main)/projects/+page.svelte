@@ -12,6 +12,7 @@
 		deleteProjectMutationQuery
 	} from '$lib/features/projects/mutations';
 	import type { Project } from '$lib/features/projects/types';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 
 	const projectsQuery = createProjectsQuery();
 	let projects = $state<Project[]>([]);
@@ -76,30 +77,61 @@
 			</InputGroup.Addon>
 		</InputGroup.Root>
 
-		<!-- TODO: Shimmer for loading stuffs -->
-		<!-- TODO: Better looking error state -->
-		<!-- TODO: Better looking not found state -->
-
+		<!-- Loading skeleton: show a grid of pulsing card placeholders -->
 		{#if projectsQuery.isLoading}
-			<div class="flex min-h-[400px] items-center justify-center">
-				<p class="text-muted-foreground">Loading projects...</p>
+
+			<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+				{#each Array(6) as _}
+					<div class="bg-card border border-border rounded-lg p-6">
+						<div class="flex items-center gap-3 mb-4">
+							<Skeleton class="w-12 h-12 rounded-lg" />
+							<div class="flex-1">
+								<Skeleton class="h-4 rounded mb-2 w-3/4" />
+								<Skeleton class="h-3 rounded w-1/2" />
+							</div>
+						</div>
+						<Skeleton class="h-3 rounded w-1/3" />
+					</div>
+				{/each}
 			</div>
 		{:else if projectsQuery.isError}
+			<!-- Improved error state with a clear message and retry CTA -->
 			<div class="flex min-h-[400px] items-center justify-center">
-				<div class="text-center">
-					<p class="text-destructive mb-2">{projectsQuery.error}</p>
-					<Button variant="outline" onclick={projectsQuery.refetch}>Retry</Button>
+				<div class="max-w-lg w-full">
+					<div class="border border-destructive/10 bg-destructive/5 rounded-lg p-6 text-center">
+						<h2 class="text-destructive font-semibold mb-2">Failed to load projects</h2>
+						<p class="text-muted-foreground mb-4">
+							{projectsQuery.error ?? 'An unexpected error occurred while fetching projects.'}
+						</p>
+						<div class="flex items-center justify-center gap-2">
+							<Button variant="outline" onclick={projectsQuery.refetch}>Retry</Button>
+							<Button onclick={() => (showAddModal = true)}>Create Project</Button>
+						</div>
+					</div>
 				</div>
 			</div>
 		{:else if filteredProjects.length === 0}
+			<!-- Improved empty state with CTA -->
 			<div class="flex min-h-[400px] items-center justify-center">
 				<div class="text-center">
 					{#if searchQuery}
 						<p class="text-muted-foreground">No projects found matching "{searchQuery}"</p>
 					{:else}
-						<p class="text-muted-foreground mb-4">
-							No projects yet. Add your first project to get started.
-						</p>
+						<div class="max-w-md">
+							<h3 class="text-lg font-semibold mb-2">No projects yet</h3>
+							<p class="text-muted-foreground mb-4">
+								Add your first project to organize your work and invite collaborators.
+							</p>
+							<div class="flex items-center justify-center gap-2">
+								<Button onclick={() => (showAddModal = true)}>
+									<Plus class="size-4 mr-2" />
+									Create Project
+								</Button>
+								<Button variant="ghost" onclick={() => goto('/dashboard/project/explore')}>
+									Explore Templates
+								</Button>
+							</div>
+						</div>
 					{/if}
 				</div>
 			</div>

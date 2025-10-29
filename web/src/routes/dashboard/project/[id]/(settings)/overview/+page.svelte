@@ -14,6 +14,20 @@
 	import { createEnvironmentsListQuery } from '$lib/features/environments/queries';
 	import { createApplicationsFetchQuery } from '$lib/features/applications/queries';
 	import { createDatabasesFetchQuery } from '$lib/features/databases/queries';
+	import { createEnvironmentMutationQuery } from '$lib/features/environments/mutations';
+
+	import { Skeleton } from '$lib/components/ui/skeleton';
+	import {
+		Dialog,
+		DialogContent,
+		DialogDescription,
+		DialogFooter,
+		DialogHeader,
+		DialogTitle
+	} from '$lib/components/ui/dialog';
+	import { Input } from '$lib/components/ui/input';
+	import { Button } from '$lib/components/ui/button';
+	import * as Field from '$lib/components/ui/field/index.js';
 
 	import type { Application } from '$lib/features/applications/types';
 	import type { Database } from '$lib/features/databases/types';
@@ -80,15 +94,63 @@
 		return counts;
 	});
 
+	// Add Environment dialog state + mutation
+	let showAddEnvDialog = $state(false);
+	let envName = $state('');
+	let envDescription = $state('');
+	let envLoading = $state(false);
+	let envError = $state('');
+
+	const createEnvironmentMutation = createEnvironmentMutationQuery();
+
 	function handleAddEnvironment() {
-		console.log('Add environment clicked');
+		showAddEnvDialog = true;
 	}
+
+	const handleOpenChange = (isOpen: boolean) => {
+		showAddEnvDialog = isOpen;
+		if (!isOpen) {
+			envName = '';
+			envDescription = '';
+			envError = '';
+		}
+	};
+
+	const handleEnvSubmit = async (e: Event) => {
+		e.preventDefault();
+		envError = '';
+
+		if (!envName.trim()) {
+			envError = 'Environment name is required';
+			return;
+		}
+
+		envLoading = true;
+		try {
+			const created = await createEnvironmentMutation.mutateAsync({
+				projectId,
+				data: { name: envName.trim(), description: envDescription.trim() || undefined }
+			});
+			envName = '';
+			envDescription = '';
+			showAddEnvDialog = false;
+			selectedEnvironmentId = created.id;
+			environmentsQuery.refetch();
+		} catch (err) {
+			envError = err instanceof Error ? err.message : 'Failed to create environment';
+		} finally {
+			envLoading = false;
+		}
+	};
 </script>
 
 <!-- TODO: Better loading and skeletton for the active stuff -->
 <div class="flex flex-col gap-6 max-w-7xl mx-auto p-6">
 	{#if projectQuery.isLoading}
-		<div class="text-muted-foreground">Loading project...</div>
+		<div class="my-[40px] w-full mx-auto">
+			<Skeleton class="h-8 w-1/3 mb-3" />
+			<Skeleton class="h-3 w-1/2" />
+		</div>
 	{:else if projectQuery.error}
 		<div class="text-destructive">Error loading project: {projectQuery.error.message}</div>
 	{:else if projectQuery.data}
@@ -101,7 +163,7 @@
 			</div>
 			<div class="mt-[46px]"></div>
 
-			<!-- TODO: Add a modal to create new environments -->
+			<!-- Add Environment tabs (opens dialog on Add) -->
 			<EnvironmentTabs
 				environments={environmentsQuery.data || []}
 				bind:selectedEnvironmentId
@@ -122,7 +184,21 @@
 			</div>
 
 			{#if applicationsQuery.isLoading || databasesQuery.isLoading}
-				<div class="text-muted-foreground">Loading resources...</div>
+				<!-- show resource skeletons -->
+				<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+					{#each Array(6) as _}
+						<div class="bg-card border border-border rounded-lg p-6">
+							<div class="flex items-center gap-3 mb-4">
+								<Skeleton class="w-12 h-12 rounded-lg" />
+								<div class="flex-1">
+									<Skeleton class="h-4 rounded mb-2 w-3/4" />
+									<Skeleton class="h-3 rounded w-1/2" />
+								</div>
+							</div>
+							<Skeleton class="h-3 rounded w-1/3" />
+						</div>
+					{/each}
+				</div>
 			{:else if filteredResources.length === 0}
 				<Empty.Root>
 					<Empty.Header>
@@ -161,3 +237,38 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Add Environment Dialog -->
+<Dialog bind:open={showAddEnvDialog} onOpenChange={handleOpenChange}>
+	<DialogContent>
+		<DialogHeader>
+			<DialogTitle>Create New Environment</DialogTitle>
+			<DialogDescription>Add an environment to your project.</DialogDescription>
+		</DialogHeader>
+		<form onsubmit={handleEnvSubmit} class="py-4" id="env_form">
+			<Field.Set>
+				<Field.Group>
+					<Field.Field>
+						<Field.Label for="env-name">Environment name</Field.Label>
+						<Input id="env-name" type="text" bind:value={envName} placeholder="staging" disabled={envLoading} required />
+					</Field.Field>
+
+					<Field.Field>
+						<Field.Label for="env-desc">Description (optional)</Field.Label>
+						<Input id="env-desc" type="text" bind:value={envDescription} placeholder="A short description" disabled={envLoading} />
+					</Field.Field>
+
+					{#if envError}
+						<Field.Error>{envError}</Field.Error>
+					{/if}
+				</Field.Group>
+			</Field.Set>
+		</form>
+		<DialogFooter>
+			<Button form="env_form" type="submit" disabled={envLoading}>
+				{envLoading ? 'Creating...' : 'Create Environment'}
+			</Button>
+		</DialogFooter>
+	</DialogContent>
+</Dialog>
+

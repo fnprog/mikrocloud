@@ -105,3 +105,18 @@ export const createRequestPasswordResetMutation = (options: GenericMutationOptio
     }
   }));
 };
+
+export const createUploadAvatarMutation = (options: GenericMutationOptions = {}) => {
+  const queryClient = useQueryClient();
+
+  return createMutation(() => ({
+    mutationFn: (file: File) => authApi.uploadAvatar(file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: authKeys.profile() });
+      options.onSuccess?.()
+    },
+    onError: (error: Error) => {
+      options.onError?.(error)
+    }
+  }));
+};

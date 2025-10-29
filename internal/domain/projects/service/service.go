@@ -93,10 +93,9 @@ func (s *ProjectService) CreateProject(ctx context.Context, cmd CreateProjectCom
 		userUUID, _ := uuid.Parse(userID.String())
 		orgUUID, _ := uuid.Parse(orgID.String())
 		_ = s.activitiesService.LogActivity(
-			activities.ActivityTypeProjectCreated,
+			activities.EventTypeProjectCreated,
 			fmt.Sprintf("Project '%s' created", projNameStr),
 			&userUUID,
-			"",
 			&resourceType,
 			&projIDUUID,
 			&projNameStr,

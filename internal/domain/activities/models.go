@@ -9,10 +9,10 @@ import (
 
 type Activity struct {
 	id             ActivityID
-	activityType   ActivityType
+	eventType      EventType
+	level          ActivityLevel
 	description    string
 	initiatorID    *uuid.UUID
-	initiatorName  string
 	resourceType   *string
 	resourceID     *uuid.UUID
 	resourceName   *string
@@ -49,50 +49,59 @@ func (id ActivityID) UUID() uuid.UUID {
 	return id.value
 }
 
-type ActivityType string
+type EventType string
 
 const (
-	ActivityTypeProjectCreated     ActivityType = "project.created"
-	ActivityTypeProjectUpdated     ActivityType = "project.updated"
-	ActivityTypeProjectDeleted     ActivityType = "project.deleted"
-	ActivityTypeAppCreated         ActivityType = "app.created"
-	ActivityTypeAppUpdated         ActivityType = "app.updated"
-	ActivityTypeAppDeleted         ActivityType = "app.deleted"
-	ActivityTypeAppDeployed        ActivityType = "app.deployed"
-	ActivityTypeAppStarted         ActivityType = "app.started"
-	ActivityTypeAppStopped         ActivityType = "app.stopped"
-	ActivityTypeAppRestarted       ActivityType = "app.restarted"
-	ActivityTypeDatabaseCreated    ActivityType = "database.created"
-	ActivityTypeDatabaseUpdated    ActivityType = "database.updated"
-	ActivityTypeDatabaseDeleted    ActivityType = "database.deleted"
-	ActivityTypeDatabaseStarted    ActivityType = "database.started"
-	ActivityTypeDatabaseStopped    ActivityType = "database.stopped"
-	ActivityTypeDatabaseRestarted  ActivityType = "database.restarted"
-	ActivityTypeEnvironmentCreated ActivityType = "environment.created"
-	ActivityTypeEnvironmentUpdated ActivityType = "environment.updated"
-	ActivityTypeEnvironmentDeleted ActivityType = "environment.deleted"
-	ActivityTypeDiskCreated        ActivityType = "disk.created"
-	ActivityTypeDiskResized        ActivityType = "disk.resized"
-	ActivityTypeDiskDeleted        ActivityType = "disk.deleted"
-	ActivityTypeDiskAttached       ActivityType = "disk.attached"
-	ActivityTypeDiskDetached       ActivityType = "disk.detached"
-	ActivityTypeProxyCreated       ActivityType = "proxy.created"
-	ActivityTypeProxyUpdated       ActivityType = "proxy.updated"
-	ActivityTypeProxyDeleted       ActivityType = "proxy.deleted"
-	ActivityTypeUserRegistered     ActivityType = "user.registered"
-	ActivityTypeUserLogin          ActivityType = "user.login"
-	ActivityTypeSettingsUpdated    ActivityType = "settings.updated"
-	ActivityTypeBackupCreated      ActivityType = "backup.created"
-	ActivityTypeBackupRestored     ActivityType = "backup.restored"
-	ActivityTypeSystemStarted      ActivityType = "system.started"
-	ActivityTypeSystemStopped      ActivityType = "system.stopped"
+	EventTypeProjectCreated     EventType = "project.created"
+	EventTypeProjectUpdated     EventType = "project.updated"
+	EventTypeProjectDeleted     EventType = "project.deleted"
+	EventTypeAppCreated         EventType = "app.created"
+	EventTypeAppUpdated         EventType = "app.updated"
+	EventTypeAppDeleted         EventType = "app.deleted"
+	EventTypeAppDeployed        EventType = "app.deployed"
+	EventTypeAppStarted         EventType = "app.started"
+	EventTypeAppStopped         EventType = "app.stopped"
+	EventTypeAppRestarted       EventType = "app.restarted"
+	EventTypeDatabaseCreated    EventType = "database.created"
+	EventTypeDatabaseUpdated    EventType = "database.updated"
+	EventTypeDatabaseDeleted    EventType = "database.deleted"
+	EventTypeDatabaseStarted    EventType = "database.started"
+	EventTypeDatabaseStopped    EventType = "database.stopped"
+	EventTypeDatabaseRestarted  EventType = "database.restarted"
+	EventTypeEnvironmentCreated EventType = "environment.created"
+	EventTypeEnvironmentUpdated EventType = "environment.updated"
+	EventTypeEnvironmentDeleted EventType = "environment.deleted"
+	EventTypeDiskCreated        EventType = "disk.created"
+	EventTypeDiskResized        EventType = "disk.resized"
+	EventTypeDiskDeleted        EventType = "disk.deleted"
+	EventTypeDiskAttached       EventType = "disk.attached"
+	EventTypeDiskDetached       EventType = "disk.detached"
+	EventTypeProxyCreated       EventType = "proxy.created"
+	EventTypeProxyUpdated       EventType = "proxy.updated"
+	EventTypeProxyDeleted       EventType = "proxy.deleted"
+	EventTypeUserRegistered     EventType = "user.registered"
+	EventTypeUserLogin          EventType = "user.login"
+	EventTypeSettingsUpdated    EventType = "settings.updated"
+	EventTypeBackupCreated      EventType = "backup.created"
+	EventTypeBackupRestored     EventType = "backup.restored"
+	EventTypeSystemStarted      EventType = "system.started"
+	EventTypeSystemStopped      EventType = "system.stopped"
+)
+
+type ActivityLevel string
+
+const (
+	ActivityLevelInfo    ActivityLevel = "info"
+	ActivityLevelError   ActivityLevel = "error"
+	ActivityLevelWarn    ActivityLevel = "warn"
+	ActivityLevelSuccess ActivityLevel = "success"
 )
 
 func NewActivity(
-	activityType ActivityType,
+	eventType EventType,
+	level ActivityLevel,
 	description string,
 	initiatorID *uuid.UUID,
-	initiatorName string,
 	resourceType *string,
 	resourceID *uuid.UUID,
 	resourceName *string,
@@ -101,10 +110,10 @@ func NewActivity(
 ) *Activity {
 	return &Activity{
 		id:             NewActivityID(),
-		activityType:   activityType,
+		eventType:      eventType,
+		level:          level,
 		description:    description,
 		initiatorID:    initiatorID,
-		initiatorName:  initiatorName,
 		resourceType:   resourceType,
 		resourceID:     resourceID,
 		resourceName:   resourceName,
@@ -118,8 +127,12 @@ func (a *Activity) ID() ActivityID {
 	return a.id
 }
 
-func (a *Activity) ActivityType() ActivityType {
-	return a.activityType
+func (a *Activity) EventType() EventType {
+	return a.eventType
+}
+
+func (a *Activity) Level() ActivityLevel {
+	return a.level
 }
 
 func (a *Activity) Description() string {
@@ -128,10 +141,6 @@ func (a *Activity) Description() string {
 
 func (a *Activity) InitiatorID() *uuid.UUID {
 	return a.initiatorID
-}
-
-func (a *Activity) InitiatorName() string {
-	return a.initiatorName
 }
 
 func (a *Activity) ResourceType() *string {
@@ -160,10 +169,10 @@ func (a *Activity) CreatedAt() time.Time {
 
 func ReconstructActivity(
 	id ActivityID,
-	activityType ActivityType,
+	eventType EventType,
+	level ActivityLevel,
 	description string,
 	initiatorID *uuid.UUID,
-	initiatorName string,
 	resourceType *string,
 	resourceID *uuid.UUID,
 	resourceName *string,
@@ -173,10 +182,10 @@ func ReconstructActivity(
 ) *Activity {
 	return &Activity{
 		id:             id,
-		activityType:   activityType,
+		eventType:      eventType,
+		level:          level,
 		description:    description,
 		initiatorID:    initiatorID,
-		initiatorName:  initiatorName,
 		resourceType:   resourceType,
 		resourceID:     resourceID,
 		resourceName:   resourceName,

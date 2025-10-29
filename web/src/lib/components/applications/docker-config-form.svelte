@@ -43,7 +43,7 @@
 		</TabsList>
 
 		<TabsContent value="paste" class="space-y-2 mt-4">
-			<Label for="docker-content">
+			<Label for="docker-content" class="hidden sr-only">
 				{fileType === 'dockerfile' ? 'Dockerfile' : 'Docker Compose'} content
 			</Label>
 			<Textarea
