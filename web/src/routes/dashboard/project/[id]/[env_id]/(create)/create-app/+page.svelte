@@ -134,13 +134,19 @@
 								config: {}
 							};
 
+		// Convert envVars array to expected Record<string,string>
+		const envVarsObject: Record<string,string> = {};
+		for (const ev of envVars) {
+			if (ev.key) envVarsObject[ev.key] = ev.value;
+		}
+
 		const data: CreateApplicationRequest = {
 			name: appName,
 			environment_id: envId,
 			project_id: projectId,
 			deployment_source: deploymentSource,
 			buildpack,
-			env_vars: envVars
+			env_vars: Object.keys(envVarsObject).length ? envVarsObject : undefined
 		};
 
 		createApplicationMutation.mutate(data);
@@ -220,41 +226,48 @@
 							bind:source_repository_url={source_repository}
 							bind:public_repository_url={public_repository}
 						/>
-					{:else if sourceType === 'docker'}
-						<DockerConfigForm
-							bind:method={dockerfileUploadMethod}
-							bind:fileType={dockerType}
-							bind:content={dockerContent}
-						/>
-					{:else if sourceType === 'zip'}
-						<Card>
-							<CardHeader>
-								<CardTitle>Upload file</CardTitle>
-								<CardDescription
-									>Upload a zipped archive containing your application code</CardDescription
-								>
-							</CardHeader>
-							<CardContent>
-								<div class="space-y-2">
-									<Label for="zip-file">Zip file</Label>
-									<Input
-										id="zip-file"
-										type="file"
-										accept=".zip,.tar,.tar.gz,.tgz"
-										onchange={(e) => {
-											const files = e.currentTarget.files;
-											if (files && files.length > 0) {
-												zipFile = files[0];
-											}
-										}}
-										required
-									/>
-									<p class="text-xs text-muted-foreground">
-										Supported formats: .zip, .tar, .tar.gz, .tgz
-									</p>
+				{:else if sourceType === 'docker'}
+					<DockerConfigForm
+						bind:method={dockerfileUploadMethod}
+						bind:fileType={dockerType}
+						bind:content={dockerContent}
+						bind:image={registryImage}
+						bind:tag={registryTag}
+					/>
+				{:else if sourceType === 'zip'}
+					<Card>
+						<CardHeader>
+							<CardTitle>Upload file</CardTitle>
+							<CardDescription
+								>Upload a zipped archive containing your application code</CardDescription
+							>
+						</CardHeader>
+						<CardContent>
+							<div class="space-y-2">
+								<Label for="zip-file">Zip file</Label>
+								<div class="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
+									<svg class="h-8 w-8 mx-auto mb-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V8a4 4 0 014-4h0a4 4 0 014 4v8m-5-4h6" />
+									</svg>
+									<p class="text-sm text-muted-foreground mb-4">Click to upload or drag and drop your archive</p>
+									<input id="zip-file" type="file" accept=".zip,.tar,.tar.gz,.tgz" class="hidden" onchange={(e) => {
+										const files = e.currentTarget.files;
+										if (files && files.length > 0) {
+											zipFile = files[0];
+										}
+									}} />
+									<Button type="button" variant="outline" onclick={() => document.getElementById('zip-file')?.click()}>Select File</Button>
 								</div>
-							</CardContent>
-						</Card>
+								{#if zipFile}
+									<div class="bg-muted p-4 rounded-lg mt-4">
+										<p class="text-sm font-medium mb-2">Selected file:</p>
+										<p class="text-xs">{zipFile.name} · {(zipFile.size / 1024).toFixed(2)} KB</p>
+									</div>
+								{/if}
+								<p class="text-xs text-muted-foreground">Supported formats: .zip, .tar, .tar.gz, .tgz</p>
+							</div>
+						</CardContent>
+					</Card>
 					{/if}
 
 					<div class="w-full">
