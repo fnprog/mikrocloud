@@ -183,8 +183,8 @@ func (s *DeploymentService) createBuildRequest(deployment *deployments.Deploymen
 			gitBranch = deploymentSource.GitRepo.Branch
 			contextRoot = deploymentSource.GitRepo.Path
 		}
-	case applications.DeploymentSourceTypeRegistry:
-		// For registry deployments, we don't need to build
+	case applications.DeploymentSourceTypeDocker:
+		// For Docker deployments, we don't need to build
 		return nil, fmt.Errorf("registry deployments don't require building")
 	case applications.DeploymentSourceTypeUpload:
 		if deploymentSource.Upload != nil {
@@ -198,15 +198,18 @@ func (s *DeploymentService) createBuildRequest(deployment *deployments.Deploymen
 
 	// Get environment variables
 	environment = app.EnvVars()
-	// Convert buildpack config to build request format
+
 	buildpackConfig := app.Buildpack()
+
 	if buildpackConfig == nil {
 		return nil, fmt.Errorf("application has no buildpack configuration")
 	}
 
+	buildpack := *buildpackConfig
+
 	var buildpackType build.BuildpackType
 
-	switch buildpackConfig.BuildpackType() {
+	switch buildpack {
 	case applications.BuildpackTypeNixpacks:
 		buildpackType = build.Nixpacks
 	case applications.BuildpackTypeStatic:

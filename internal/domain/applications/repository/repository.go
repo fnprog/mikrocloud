@@ -35,11 +35,6 @@ func NewSQLiteApplicationRepository(db *sql.DB) *SQLiteApplicationRepository {
 }
 
 func (r *SQLiteApplicationRepository) Save(ctx context.Context, app *applications.Application) error {
-	buildpackJSON, err := json.Marshal(app.Buildpack())
-	if err != nil {
-		return fmt.Errorf("failed to marshal buildpack config: %w", err)
-	}
-
 	exposedPortsJSON, err := json.Marshal(app.ExposedPorts())
 	if err != nil {
 		return fmt.Errorf("failed to marshal exposed ports: %w", err)
@@ -62,8 +57,8 @@ func (r *SQLiteApplicationRepository) Save(ctx context.Context, app *application
 			sqlite.Arg(app.RepoBranch()),
 			sqlite.Arg(app.RepoPath()),
 			sqlite.Arg(app.Domain()),
-			sqlite.Arg(string(app.BuildpackType())),
-			sqlite.Arg(string(buildpackJSON)),
+			sqlite.Arg(app.Buildpack()),
+			sqlite.Arg(app.Buildpack()),
 			sqlite.Arg(app.AutoDeploy()),
 			sqlite.Arg(string(app.Status())),
 			sqlite.Arg(app.CreatedAt().Format(time.RFC3339)),
@@ -73,6 +68,7 @@ func (r *SQLiteApplicationRepository) Save(ctx context.Context, app *application
 			sqlite.Arg(string(exposedPortsJSON)),
 			sqlite.Arg(string(portMappingsJSON)),
 		),
+
 		im.OnConflict("id").DoUpdate(
 			im.SetCol("name").ToArg(app.Name().String()),
 			im.SetCol("description").ToArg(app.Description()),
@@ -80,8 +76,8 @@ func (r *SQLiteApplicationRepository) Save(ctx context.Context, app *application
 			im.SetCol("repo_branch").ToArg(app.RepoBranch()),
 			im.SetCol("repo_path").ToArg(app.RepoPath()),
 			im.SetCol("domain").ToArg(app.Domain()),
-			im.SetCol("buildpack_type").ToArg(string(app.BuildpackType())),
-			im.SetCol("config").ToArg(string(buildpackJSON)),
+			im.SetCol("buildpack_type").ToArg(app.Buildpack()),
+			im.SetCol("config").ToArg(app.Buildpack()),
 			im.SetCol("auto_deploy").ToArg(app.AutoDeploy()),
 			im.SetCol("status").ToArg(string(app.Status())),
 			im.SetCol("updated_at").ToArg(app.UpdatedAt().Format(time.RFC3339)),
@@ -123,7 +119,6 @@ func (r *SQLiteApplicationRepository) FindByID(ctx context.Context, id applicati
 		&row.RepoURL, &row.RepoBranch, &row.RepoPath, &row.Domain, &row.BuildpackType,
 		&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt, &row.BasePath,
 		&row.GeneratedDomain, &row.ExposedPorts, &row.PortMappings)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("application not found: %s", id.String())
@@ -155,7 +150,6 @@ func (r *SQLiteApplicationRepository) FindByName(ctx context.Context, projectID 
 		&row.RepoURL, &row.RepoBranch, &row.RepoPath, &row.Domain, &row.BuildpackType,
 		&row.Config, &row.AutoDeploy, &row.Status, &row.CreatedAt, &row.UpdatedAt, &row.BasePath,
 		&row.GeneratedDomain, &row.ExposedPorts, &row.PortMappings)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("application not found: %s in project %s", name.String(), projectID.String())
@@ -443,20 +437,7 @@ func (r *SQLiteApplicationRepository) mapRowToApplication(row applicationRow) (*
 		}
 	}
 
-	// Parse buildpack config from config field
-	buildpackType := applications.BuildpackType(row.BuildpackType)
-	var buildConfig *applications.BuildConfig
-
-	// Try to parse config as legacy buildpack config format
-	var parsedConfig applications.BuildpackConfig
-	if err := json.Unmarshal([]byte(row.Config), &parsedConfig); err == nil && parsedConfig.Type != "" {
-		// Convert legacy format to new format
-		buildConfig = applications.NewLegacyBuildpackConfig(parsedConfig.Type, parsedConfig.Config)
-	} else {
-		// Fallback to simple config
-		buildConfig = applications.NewBuildConfig(buildpackType)
-	}
-
+	buildConfig := row.BuildpackType
 	envVars := make(map[string]string)
 
 	generatedDomain := ""
@@ -481,5 +462,5 @@ func (r *SQLiteApplicationRepository) mapRowToApplication(row applicationRow) (*
 	return applications.ReconstructApplication(
 		appID, appName, description, projectID, environmentID,
 		deploymentSource, domain, generatedDomain, exposedPorts, portMappings,
-		buildConfig, envVars, row.AutoDeploy, status, createdAt, updatedAt), nil
+		&buildConfig, envVars, row.AutoDeploy, status, createdAt, updatedAt), nil
 }

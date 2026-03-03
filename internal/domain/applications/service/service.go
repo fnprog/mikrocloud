@@ -44,7 +44,7 @@ type CreateApplicationCommand struct {
 	ProjectID        uuid.UUID
 	EnvironmentID    uuid.UUID
 	DeploymentSource applications.DeploymentSource
-	BuildpackConfig  *applications.BuildConfig
+	BuildpackConfig  *string
 	EnvVars          map[string]string
 }
 
@@ -59,6 +59,7 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, cmd CreateAp
 	if err != nil {
 		return nil, fmt.Errorf("failed to check if application exists: %w", err)
 	}
+
 	if exists {
 		return nil, fmt.Errorf("application with name %s already exists in project", name.String())
 	}
@@ -96,15 +97,9 @@ type UpdateApplicationCommand struct {
 	ID               applications.ApplicationID
 	Description      *string
 	DeploymentSource *applications.DeploymentSource
-	RepoURL          *string // For backward compatibility
-	RepoBranch       *string // For backward compatibility
-	RepoPath         *string // For backward compatibility
 	Domain           *string
-	BuildpackType    *applications.BuildpackType // For backward compatibility
-	BuildpackConfig  *applications.BuildConfig
-	Config           *string // For backward compatibility
+	Buildpack        *string
 	EnvVars          map[string]string
-	AutoDeploy       *bool
 }
 
 func (s *ApplicationService) UpdateApplication(ctx context.Context, cmd UpdateApplicationCommand) (*applications.Application, error) {
@@ -120,43 +115,19 @@ func (s *ApplicationService) UpdateApplication(ctx context.Context, cmd UpdateAp
 	// Handle deployment source updates
 	if cmd.DeploymentSource != nil {
 		app.SetDeploymentSource(*cmd.DeploymentSource)
-	} else {
-		// Handle backward compatibility fields
-		if cmd.RepoURL != nil {
-			app.SetRepoURL(*cmd.RepoURL)
-		}
-		if cmd.RepoBranch != nil {
-			app.SetRepoBranch(*cmd.RepoBranch)
-		}
-		if cmd.RepoPath != nil {
-			app.SetRepoPath(*cmd.RepoPath)
-		}
 	}
 
 	if cmd.Domain != nil {
 		app.SetDomain(*cmd.Domain)
 	}
 
-	// Handle buildpack updates
-	if cmd.BuildpackConfig != nil {
-		app.SetBuildpack(cmd.BuildpackConfig)
-	} else {
-		// Handle backward compatibility fields
-		if cmd.BuildpackType != nil {
-			app.SetBuildpackType(*cmd.BuildpackType)
-		}
-		if cmd.Config != nil {
-			app.UpdateConfig(*cmd.Config)
-		}
+	if cmd.Buildpack != nil {
+		app.SetBuildpack(cmd.Buildpack)
 	}
 
 	// Handle env vars
 	if cmd.EnvVars != nil {
 		app.SetEnvVars(cmd.EnvVars)
-	}
-
-	if cmd.AutoDeploy != nil {
-		app.SetAutoDeploy(*cmd.AutoDeploy)
 	}
 
 	if err := s.repo.Save(ctx, app); err != nil {

@@ -12,7 +12,6 @@
 	import { tick } from 'svelte';
 	import { createGeneralSettingsQuery } from '$lib/features/settings/queries/settings';
 	import { createUpdateGeneralSettingsMutation } from '$lib/features/settings/mutations';
-	import { settingsApi } from '$lib/features/settings/api';
 
 	const settingsQuery = createGeneralSettingsQuery();
 	const updateSettingsMutation = createUpdateGeneralSettingsMutation();
@@ -22,7 +21,6 @@
 	let ipv4 = $state('');
 	let ipv6 = $state('');
 	let allowRegistrations = $state(true);
-	let isDetecting = $state(false);
 	let timezoneOpen = $state(false);
 	let timezoneSearch = $state('');
 	let triggerRef = $state<HTMLButtonElement>(null!);
@@ -51,34 +49,6 @@
 		}
 	});
 
-	function handleSave() {
-		updateSettingsMutation.mutate({
-			domain,
-			timezone,
-			ipv4,
-			ipv6,
-			allow_registrations: allowRegistrations,
-			do_not_track: true
-		});
-	}
-
-	async function handleDetectIPs() {
-		isDetecting = true;
-		try {
-			const detected = await settingsApi.detectIPs();
-			if (detected.ipv4) {
-				ipv4 = detected.ipv4;
-			}
-			if (detected.ipv6) {
-				ipv6 = detected.ipv6;
-			}
-		} catch (error) {
-			console.error('Failed to detect IP addresses:', error);
-		} finally {
-			isDetecting = false;
-		}
-	}
-
 	function closeAndFocusTrigger() {
 		timezoneOpen = false;
 		tick().then(() => {
@@ -105,6 +75,11 @@
 				placeholder="https://mikrocloud.example.com"
 			/>
 		</Card.Content>
+		<Card.Footer
+			class="flex flex-col-reverse gap-2 sm:mt-4 sm:-mb-6 sm:flex-row sm:justify-end sm:rounded-b-xl sm:border-t sm:bg-muted/50 sm:px-6 sm:py-2"
+		>
+			<Button size="sm">save</Button>
+		</Card.Footer>
 	</Card.Root>
 
 	<Card.Root class="gap-3">
@@ -152,6 +127,12 @@
 				</Popover.Content>
 			</Popover.Root>
 		</Card.Content>
+
+		<Card.Footer
+			class="flex flex-col-reverse gap-2 sm:mt-4 sm:-mb-6 sm:flex-row sm:justify-end sm:rounded-b-xl sm:border-t sm:bg-muted/50 sm:px-6 sm:py-2"
+		>
+			<Button size="sm">save</Button>
+		</Card.Footer>
 	</Card.Root>
 
 	<Card.Root class="gap-3">
@@ -171,9 +152,6 @@
 								placeholder="192.168.1.100"
 								class="flex-1"
 							/>
-							<Button variant="outline" onclick={handleDetectIPs} disabled={isDetecting} size="sm">
-								{isDetecting ? 'Detecting...' : 'Auto-detect'}
-							</Button>
 						</div>
 						<Field.Description>
 							Enter the IPv4 address of the instance. It is useful if you have several IPv4
@@ -192,9 +170,6 @@
 								placeholder="2001:db8::1"
 								class="flex-1"
 							/>
-							<Button variant="outline" onclick={handleDetectIPs} disabled={isDetecting} size="sm">
-								{isDetecting ? 'Detecting...' : 'Auto-detect'}
-							</Button>
 						</div>
 						<Field.Description>
 							Enter the IPv6 address of the instance. It is useful if you have several IPv6
@@ -204,6 +179,12 @@
 				</Field.Group>
 			</Field.Set>
 		</Card.Content>
+
+		<Card.Footer
+			class="flex flex-col-reverse gap-2 sm:mt-4 sm:-mb-6 sm:flex-row sm:justify-end sm:rounded-b-xl sm:border-t sm:bg-muted/50 sm:px-6 sm:py-2"
+		>
+			<Button size="sm">save</Button>
+		</Card.Footer>
 	</Card.Root>
 
 	<Card.Root class="gap-3">

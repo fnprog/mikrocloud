@@ -50,7 +50,7 @@ type ApplicationResponse struct {
 	GeneratedDomain  string                         `json:"generated_domain"`
 	ExposedPorts     []int                          `json:"exposed_ports"`
 	PortMappings     []applications.PortMapping     `json:"port_mappings"`
-	Buildpack        applications.BuildpackConfig   `json:"buildpack"`
+	Buildpack        *string                        `json:"buildpack"`
 	EnvVars          map[string]string              `json:"env_vars"`
 	AutoDeploy       bool                           `json:"auto_deploy"`
 	Status           applications.ApplicationStatus `json:"status"`
@@ -63,7 +63,7 @@ type CreateApplicationRequest struct {
 	Description      string                        `json:"description,omitempty"`
 	EnvironmentID    string                        `json:"environment_id" validate:"required,uuid"`
 	DeploymentSource applications.DeploymentSource `json:"deployment_source" validate:"required"`
-	Buildpack        applications.BuildpackConfig  `json:"buildpack" validate:"required"`
+	BuildPack        string                        `json:"buildpack" validate:"required,oneof=auto nixpacks static dockefile compose"`
 	EnvVars          map[string]string             `json:"env_vars,omitempty"`
 }
 
@@ -71,7 +71,7 @@ type UpdateApplicationRequest struct {
 	Description      *string                        `json:"description,omitempty"`
 	DeploymentSource *applications.DeploymentSource `json:"deployment_source,omitempty"`
 	Domain           *string                        `json:"domain,omitempty"`
-	Buildpack        *applications.BuildpackConfig  `json:"buildpack,omitempty"`
+	Buildpack        *string                        `json:"buildpack,omitempty"`
 	EnvVars          map[string]string              `json:"env_vars,omitempty"`
 	AutoDeploy       *bool                          `json:"auto_deploy,omitempty"`
 }
@@ -144,7 +144,7 @@ func (h *ApplicationHandler) CreateApplication(w http.ResponseWriter, r *http.Re
 		ProjectID:        projectID,
 		EnvironmentID:    environmentID,
 		DeploymentSource: req.DeploymentSource,
-		BuildpackConfig:  convertLegacyBuildpackConfig(req.Buildpack),
+		BuildpackConfig:  &req.BuildPack,
 		EnvVars:          req.EnvVars,
 	}
 
@@ -166,7 +166,7 @@ func (h *ApplicationHandler) CreateApplication(w http.ResponseWriter, r *http.Re
 		GeneratedDomain:  app.GeneratedDomain(),
 		ExposedPorts:     app.ExposedPorts(),
 		PortMappings:     app.PortMappings(),
-		Buildpack:        convertToLegacyBuildpackConfig(app.Buildpack()),
+		Buildpack:        app.Buildpack(),
 		EnvVars:          app.EnvVars(),
 		AutoDeploy:       app.AutoDeploy(),
 		Status:           app.Status(),
@@ -219,7 +219,7 @@ func (h *ApplicationHandler) GetApplication(w http.ResponseWriter, r *http.Reque
 		GeneratedDomain:  app.GeneratedDomain(),
 		ExposedPorts:     app.ExposedPorts(),
 		PortMappings:     app.PortMappings(),
-		Buildpack:        convertToLegacyBuildpackConfig(app.Buildpack()),
+		Buildpack:        app.Buildpack(),
 		EnvVars:          app.EnvVars(),
 		AutoDeploy:       app.AutoDeploy(),
 		Status:           app.Status(),
@@ -314,9 +314,8 @@ func (h *ApplicationHandler) UpdateApplication(w http.ResponseWriter, r *http.Re
 		Description:      req.Description,
 		DeploymentSource: req.DeploymentSource,
 		Domain:           req.Domain,
-		BuildpackConfig:  convertLegacyBuildpackConfigPtr(req.Buildpack),
+		Buildpack:        req.Buildpack,
 		EnvVars:          req.EnvVars,
-		AutoDeploy:       req.AutoDeploy,
 	}
 
 	updatedApp, err := h.appService.UpdateApplication(r.Context(), cmd)
@@ -337,7 +336,7 @@ func (h *ApplicationHandler) UpdateApplication(w http.ResponseWriter, r *http.Re
 		GeneratedDomain:  updatedApp.GeneratedDomain(),
 		ExposedPorts:     updatedApp.ExposedPorts(),
 		PortMappings:     updatedApp.PortMappings(),
-		Buildpack:        convertToLegacyBuildpackConfig(updatedApp.Buildpack()),
+		Buildpack:        updatedApp.Buildpack(),
 		EnvVars:          updatedApp.EnvVars(),
 		AutoDeploy:       updatedApp.AutoDeploy(),
 		Status:           updatedApp.Status(),
@@ -690,48 +689,6 @@ func (h *ApplicationHandler) GetApplicationLogs(w http.ResponseWriter, r *http.R
 	}
 }
 
-// Helper functions to convert between legacy and new buildpack configs
-
-// convertLegacyBuildpackConfig converts from legacy BuildpackConfig to new BuildConfig
-func convertLegacyBuildpackConfig(legacy applications.BuildpackConfig) *applications.BuildConfig {
-	return applications.NewLegacyBuildpackConfig(legacy.Type, legacy.Config)
-}
-
-// convertLegacyBuildpackConfigPtr converts from pointer to legacy BuildpackConfig to new BuildConfig
-func convertLegacyBuildpackConfigPtr(legacy *applications.BuildpackConfig) *applications.BuildConfig {
-	if legacy == nil {
-		return nil
-	}
-	return applications.NewLegacyBuildpackConfig(legacy.Type, legacy.Config)
-}
-
-// convertToLegacyBuildpackConfig converts from new BuildConfig to legacy BuildpackConfig
-func convertToLegacyBuildpackConfig(config *applications.BuildConfig) applications.BuildpackConfig {
-	if config == nil {
-		return applications.BuildpackConfig{
-			Type:   applications.BuildpackTypeNixpacks,
-			Config: nil,
-		}
-	}
-
-	var configData any
-	switch config.BuildpackType() {
-	case applications.BuildpackTypeNixpacks:
-		configData = config.NixpacksConfig()
-	case applications.BuildpackTypeStatic:
-		configData = config.StaticConfig()
-	case applications.BuildpackTypeDockerfile:
-		configData = config.DockerfileConfig()
-	case applications.BuildpackTypeDockerCompose:
-		configData = config.ComposeConfig()
-	}
-
-	return applications.BuildpackConfig{
-		Type:   config.BuildpackType(),
-		Config: configData,
-	}
-}
-
 func (h *ApplicationHandler) UpdateGeneral(w http.ResponseWriter, r *http.Request) {
 	var req UpdateGeneralRequest
 
@@ -794,7 +751,7 @@ func (h *ApplicationHandler) UpdateGeneral(w http.ResponseWriter, r *http.Reques
 		GeneratedDomain:  updatedApp.GeneratedDomain(),
 		ExposedPorts:     updatedApp.ExposedPorts(),
 		PortMappings:     updatedApp.PortMappings(),
-		Buildpack:        convertToLegacyBuildpackConfig(updatedApp.Buildpack()),
+		Buildpack:        updatedApp.Buildpack(),
 		EnvVars:          updatedApp.EnvVars(),
 		AutoDeploy:       updatedApp.AutoDeploy(),
 		Status:           updatedApp.Status(),
@@ -906,7 +863,7 @@ func (h *ApplicationHandler) AssignDomain(w http.ResponseWriter, r *http.Request
 		GeneratedDomain:  updatedApp.GeneratedDomain(),
 		ExposedPorts:     updatedApp.ExposedPorts(),
 		PortMappings:     updatedApp.PortMappings(),
-		Buildpack:        convertToLegacyBuildpackConfig(updatedApp.Buildpack()),
+		Buildpack:        updatedApp.Buildpack(),
 		EnvVars:          updatedApp.EnvVars(),
 		AutoDeploy:       updatedApp.AutoDeploy(),
 		Status:           updatedApp.Status(),
@@ -975,7 +932,7 @@ func (h *ApplicationHandler) UpdatePorts(w http.ResponseWriter, r *http.Request)
 		EnvironmentID:    updatedApp.EnvironmentID().String(),
 		DeploymentSource: updatedApp.DeploymentSource(),
 		Domain:           updatedApp.Domain(),
-		Buildpack:        convertToLegacyBuildpackConfig(updatedApp.Buildpack()),
+		Buildpack:        updatedApp.Buildpack(),
 		EnvVars:          updatedApp.EnvVars(),
 		AutoDeploy:       updatedApp.AutoDeploy(),
 		Status:           updatedApp.Status(),
@@ -1157,7 +1114,7 @@ func (h *ApplicationHandler) UploadContent(w http.ResponseWriter, r *http.Reques
 		GeneratedDomain:  updatedApp.GeneratedDomain(),
 		ExposedPorts:     updatedApp.ExposedPorts(),
 		PortMappings:     updatedApp.PortMappings(),
-		Buildpack:        convertToLegacyBuildpackConfig(updatedApp.Buildpack()),
+		Buildpack:        updatedApp.Buildpack(),
 		EnvVars:          updatedApp.EnvVars(),
 		AutoDeploy:       updatedApp.AutoDeploy(),
 		Status:           updatedApp.Status(),

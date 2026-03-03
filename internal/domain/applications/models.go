@@ -9,7 +9,7 @@ import (
 )
 
 type DeploymentSource struct {
-	Type     DeploymentSourceType `json:"type"`
+	Type     DeploymentSourceType `json:"type" validate:"required,oneof=git docker upload"`
 	GitRepo  *GitRepoSource       `json:"git_repo,omitempty"`
 	Registry *RegistrySource      `json:"registry,omitempty"`
 	Upload   *UploadSource        `json:"upload,omitempty"`
@@ -18,9 +18,9 @@ type DeploymentSource struct {
 type DeploymentSourceType string
 
 const (
-	DeploymentSourceTypeGit      DeploymentSourceType = "git"
-	DeploymentSourceTypeRegistry DeploymentSourceType = "registry"
-	DeploymentSourceTypeUpload   DeploymentSourceType = "upload"
+	DeploymentSourceTypeGit    DeploymentSourceType = "git"
+	DeploymentSourceTypeDocker DeploymentSourceType = "docker"
+	DeploymentSourceTypeUpload DeploymentSourceType = "upload"
 )
 
 // GitRepoSource represents a Git repository source with enhanced validation
@@ -190,7 +190,7 @@ type Application struct {
 	generatedDomain  string
 	exposedPorts     []int
 	portMappings     []PortMapping
-	buildpack        *BuildConfig
+	buildpack        *string
 	envVars          map[string]string
 	autoDeploy       bool
 	status           ApplicationStatus
@@ -242,7 +242,7 @@ const (
 	BuildpackTypeStatic        BuildpackType = "static"
 	BuildpackTypeDockerfile    BuildpackType = "dockerfile"
 	BuildpackTypeDockerCompose BuildpackType = "docker-compose"
-	BuildpackTypeBuildpacks    BuildpackType = "buildpacks"
+	BuildpackTypeAuto          BuildpackType = "auto"
 )
 
 type ApplicationStatus string
@@ -261,7 +261,7 @@ func NewApplication(
 	description string,
 	projectID, environmentID uuid.UUID,
 	deploymentSource DeploymentSource,
-	buildpack *BuildConfig,
+	buildpack *string,
 ) *Application {
 	now := time.Now()
 	return &Application{
@@ -350,49 +350,7 @@ func (a *Application) PortMappings() []PortMapping {
 	return a.portMappings
 }
 
-func (a *Application) BuildpackType() BuildpackType {
-	if a.buildpack != nil {
-		return a.buildpack.BuildpackType()
-	}
-	return BuildpackTypeNixpacks // default
-}
-
-func (a *Application) Config() string {
-	// For backward compatibility, serialize the entire config
-	if a.buildpack == nil {
-		return "{}"
-	}
-
-	switch a.buildpack.BuildpackType() {
-	case BuildpackTypeNixpacks:
-		if config := a.buildpack.NixpacksConfig(); config != nil {
-			if configJSON, err := json.Marshal(config); err == nil {
-				return string(configJSON)
-			}
-		}
-	case BuildpackTypeStatic:
-		if config := a.buildpack.StaticConfig(); config != nil {
-			if configJSON, err := json.Marshal(config); err == nil {
-				return string(configJSON)
-			}
-		}
-	case BuildpackTypeDockerfile:
-		if config := a.buildpack.DockerfileConfig(); config != nil {
-			if configJSON, err := json.Marshal(config); err == nil {
-				return string(configJSON)
-			}
-		}
-	case BuildpackTypeDockerCompose:
-		if config := a.buildpack.ComposeConfig(); config != nil {
-			if configJSON, err := json.Marshal(config); err == nil {
-				return string(configJSON)
-			}
-		}
-	}
-	return "{}"
-}
-
-func (a *Application) Buildpack() *BuildConfig {
+func (a *Application) Buildpack() *string {
 	return a.buildpack
 }
 
@@ -523,18 +481,6 @@ func (a *Application) SetPortMappings(mappings []PortMapping) error {
 	return nil
 }
 
-func (a *Application) SetBuildpackType(buildpackType BuildpackType) {
-	if a.buildpack == nil {
-		a.buildpack = NewBuildConfig(buildpackType)
-	} else {
-		// Create new config with the new type, preserving existing config if possible
-		newConfig := NewBuildConfig(buildpackType)
-		// TODO: Add logic to preserve config when switching types if needed
-		a.buildpack = newConfig
-	}
-	a.updatedAt = time.Now()
-}
-
 func (a *Application) UpdateConfig(config string) {
 	if a.buildpack == nil {
 		return
@@ -545,29 +491,11 @@ func (a *Application) UpdateConfig(config string) {
 		return
 	}
 
-	// Update specific config based on buildpack type
-	switch a.buildpack.BuildpackType() {
-	case BuildpackTypeNixpacks:
-		if nixpacksConfig, ok := configData.(*NixpacksConfig); ok {
-			a.buildpack.SetNixpacksConfig(nixpacksConfig)
-		}
-	case BuildpackTypeStatic:
-		if staticConfig, ok := configData.(*StaticConfig); ok {
-			a.buildpack.SetStaticConfig(staticConfig)
-		}
-	case BuildpackTypeDockerfile:
-		if dockerfileConfig, ok := configData.(*DockerfileConfig); ok {
-			a.buildpack.SetDockerfileConfig(dockerfileConfig)
-		}
-	case BuildpackTypeDockerCompose:
-		if composeConfig, ok := configData.(*ComposeConfig); ok {
-			a.buildpack.SetComposeConfig(composeConfig)
-		}
-	}
+	a.buildpack = configData.(*string)
 	a.updatedAt = time.Now()
 }
 
-func (a *Application) SetBuildpack(buildpack *BuildConfig) {
+func (a *Application) SetBuildpack(buildpack *string) {
 	a.buildpack = buildpack
 	a.updatedAt = time.Now()
 }
@@ -633,7 +561,7 @@ func ReconstructApplication(
 	generatedDomain string,
 	exposedPorts []int,
 	portMappings []PortMapping,
-	buildpack *BuildConfig,
+	buildpack *string,
 	envVars map[string]string,
 	autoDeploy bool,
 	status ApplicationStatus,
@@ -684,12 +612,12 @@ func NewGitDeploymentSource(url, branch, path, basePath string) DeploymentSource
 	}
 }
 
-func NewRegistryDeploymentSource(image, tag string) DeploymentSource {
+func NewDockerDeploymentSource(image, tag string) DeploymentSource {
 	if tag == "" {
 		tag = "latest"
 	}
 	return DeploymentSource{
-		Type: DeploymentSourceTypeRegistry,
+		Type: DeploymentSourceTypeDocker,
 		Registry: &RegistrySource{
 			Image: image,
 			Tag:   tag,
@@ -705,105 +633,4 @@ func NewUploadDeploymentSource(filename, filePath string) DeploymentSource {
 			FilePath: filePath,
 		},
 	}
-}
-
-// Helper functions for creating buildpack configs
-func NewLegacyBuildpackConfig(buildpackType BuildpackType, config interface{}) *BuildConfig {
-	buildConfig := NewBuildConfig(buildpackType)
-
-	if config == nil {
-		return buildConfig
-	}
-
-	// Handle JSON map conversion from HTTP requests
-	configMap, isMap := config.(map[string]interface{})
-
-	// Try to convert legacy config to new format
-	switch buildpackType {
-	case BuildpackTypeNixpacks:
-		if nixConfig, ok := config.(*NixpacksConfig); ok {
-			buildConfig.SetNixpacksConfig(nixConfig)
-		} else if isMap {
-			nixConfig := &NixpacksConfig{}
-			if startCmd, ok := configMap["start_command"].(string); ok {
-				nixConfig.StartCommand = startCmd
-			}
-			if buildCmd, ok := configMap["build_command"].(string); ok {
-				nixConfig.BuildCommand = buildCmd
-			}
-			if vars, ok := configMap["variables"].(map[string]interface{}); ok {
-				nixConfig.Variables = make(map[string]string)
-				for k, v := range vars {
-					if strVal, ok := v.(string); ok {
-						nixConfig.Variables[k] = strVal
-					}
-				}
-			}
-			buildConfig.SetNixpacksConfig(nixConfig)
-		}
-	case BuildpackTypeStatic:
-		if staticConfig, ok := config.(*StaticConfig); ok {
-			buildConfig.SetStaticConfig(staticConfig)
-		} else if isMap {
-			staticConfig := &StaticConfig{}
-			if buildCmd, ok := configMap["build_command"].(string); ok {
-				staticConfig.BuildCommand = buildCmd
-			}
-			if outputDir, ok := configMap["output_dir"].(string); ok {
-				staticConfig.OutputDir = outputDir
-			}
-			if nginxCfg, ok := configMap["nginx_config"].(string); ok {
-				staticConfig.NginxConfig = nginxCfg
-			}
-			if isStatic, ok := configMap["is_static"].(bool); ok {
-				staticConfig.IsStatic = isStatic
-			}
-			if isSPA, ok := configMap["is_spa"].(bool); ok {
-				staticConfig.IsSPA = isSPA
-			}
-			buildConfig.SetStaticConfig(staticConfig)
-		}
-	case BuildpackTypeDockerfile:
-		if dockerConfig, ok := config.(*DockerfileConfig); ok {
-			buildConfig.SetDockerfileConfig(dockerConfig)
-		} else if isMap {
-			dockerConfig := &DockerfileConfig{}
-			if dockerfilePath, ok := configMap["dockerfile_path"].(string); ok {
-				dockerConfig.DockerfilePath = dockerfilePath
-			}
-			if basePath, ok := configMap["base_path"].(string); ok {
-				dockerConfig.BasePath = basePath
-			}
-			if target, ok := configMap["target"].(string); ok {
-				dockerConfig.Target = target
-			}
-			if buildArgs, ok := configMap["build_args"].(map[string]interface{}); ok {
-				dockerConfig.BuildArgs = make(map[string]string)
-				for k, v := range buildArgs {
-					if strVal, ok := v.(string); ok {
-						dockerConfig.BuildArgs[k] = strVal
-					}
-				}
-			}
-			buildConfig.SetDockerfileConfig(dockerConfig)
-		}
-	case BuildpackTypeDockerCompose:
-		if composeConfig, ok := config.(*ComposeConfig); ok {
-			buildConfig.SetComposeConfig(composeConfig)
-		} else if isMap {
-			composeConfig := &ComposeConfig{}
-			if composeFile, ok := configMap["compose_file"].(string); ok {
-				composeConfig.ComposeFile = composeFile
-			}
-			if basePath, ok := configMap["base_path"].(string); ok {
-				composeConfig.BasePath = basePath
-			}
-			if service, ok := configMap["service"].(string); ok {
-				composeConfig.Service = service
-			}
-			buildConfig.SetComposeConfig(composeConfig)
-		}
-	}
-
-	return buildConfig
 }

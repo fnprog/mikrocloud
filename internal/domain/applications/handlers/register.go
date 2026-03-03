@@ -17,10 +17,12 @@ func RegisterApplicationRoutes(r chi.Router, deps *deps.Dependencies) {
 			r.Get("/", applicationHandler.GetApplication)
 			r.Put("/", applicationHandler.UpdateApplication)
 			r.Delete("/", applicationHandler.DeleteApplication)
+
 			r.Post("/deploy", applicationHandler.DeployApplication)
 			r.Post("/start", applicationHandler.StartApplication)
 			r.Post("/stop", applicationHandler.StopApplication)
 			r.Post("/restart", applicationHandler.RestartApplication)
+
 			r.Get("/logs", applicationHandler.GetApplicationLogs)
 			r.Patch("/general", applicationHandler.UpdateGeneral)
 			r.Post("/domain/generate", applicationHandler.GenerateDomain)

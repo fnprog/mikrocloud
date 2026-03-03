@@ -89,13 +89,13 @@
 								{tab.name}
 							</a>
 						{/each}
-						<div
-							class="absolute -bottom-px h-[3px] bg-foreground transition-all duration-300 ease-out"
-							style="left: {indicatorStyle.left}px; width: {indicatorStyle.width}px; transform-origin: {direction ===
-							'right'
-								? 'left'
-								: 'right'};"
-						></div>
+						<!-- <div -->
+						<!-- 	class="absolute -bottom-px h-[3px] bg-foreground transition-all duration-300 ease-out" -->
+						<!-- 	style="left: {indicatorStyle.left}px; width: {indicatorStyle.width}px; transform-origin: {direction === -->
+						<!-- 	'right' -->
+						<!-- 		? 'left' -->
+						<!-- 		: 'right'};" -->
+						<!-- ></div> -->
 					</div>
 				</div>
 			</div>

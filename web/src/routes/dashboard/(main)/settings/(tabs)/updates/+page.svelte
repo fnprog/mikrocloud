@@ -4,6 +4,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Switch } from '$lib/components/ui/switch';
+	import * as Field from '$lib/components/ui/field/index.js';
 	import * as Card from '$lib/components/ui/card';
 
 	let updateCheckCron = $state('0 * * * *');
@@ -51,15 +52,24 @@
 			<Card.Title>Version Checks</Card.Title>
 		</Card.Header>
 		<Card.Content class="space-y-6">
-			<div class="space-y-2">
-				<Label for="update-check">Update Check Cron Expression</Label>
-				<Input id="update-check" bind:value={updateCheckCron} placeholder="0 * * * *" />
-				<p class="text-xs text-muted-foreground">
-					Cron expression to check for new versions and pull new Service Templates from CDN. Default
-					is <code class="rounded bg-muted px-1 py-0.5">0 * * * *</code> (every hour).
-				</p>
-			</div>
+			<Field.Set>
+				<Field.Field>
+					<Field.Label for="update-check">Update Check Cron Expression</Field.Label>
+					<div class="flex gap-2">
+						<Input id="update-check" bind:value={updateCheckCron} placeholder="0 * * * *" />
+					</div>
+					<Field.Description>
+						Cron expression to check for new versions and pull new Service Templates from CDN.
+						Default is <code class="rounded bg-muted px-1 py-0.5">0 * * * *</code> (every hour).
+					</Field.Description>
+				</Field.Field>
+			</Field.Set>
 		</Card.Content>
+		<Card.Footer
+			class="flex flex-col-reverse gap-2 sm:mt-4 sm:-mb-6 sm:flex-row sm:justify-end sm:rounded-b-xl sm:border-t sm:bg-muted/50 sm:px-6 sm:py-2"
+		>
+			<Button size="sm">save</Button>
+		</Card.Footer>
 	</Card.Root>
 
 	<Card.Root>
@@ -89,9 +99,10 @@
 				</div>
 			{/if}
 		</Card.Content>
+		<Card.Footer
+			class="flex flex-col-reverse gap-2 sm:mt-4 sm:-mb-6 sm:flex-row sm:justify-end sm:rounded-b-xl sm:border-t sm:bg-muted/50 sm:px-6 sm:py-2"
+		>
+			<Button size="sm">save</Button>
+		</Card.Footer>
 	</Card.Root>
-
-	<div class="flex justify-end">
-		<Button onclick={handleSave}>Save Changes</Button>
-	</div>
 </div>

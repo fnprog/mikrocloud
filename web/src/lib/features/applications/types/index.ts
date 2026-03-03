@@ -46,10 +46,7 @@ export interface CreateApplicationRequest {
   project_id: string;
   environment_id: string;
   deployment_source: DeploymentSource;
-  buildpack: {
-    type: string;
-    config: any;
-  };
+  buildpack: string;
   env_vars?: Record<string, string>;
 }
 

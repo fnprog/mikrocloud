@@ -83,14 +83,24 @@
 
 					<div class="space-y-2">
 						<Label for="smtp-password">Password</Label>
-						<Input id="smtp-password" type="password" bind:value={password} placeholder="your-app-password" />
+						<Input
+							id="smtp-password"
+							type="password"
+							bind:value={password}
+							placeholder="your-app-password"
+						/>
 					</div>
 				</div>
 
 				<div class="grid grid-cols-2 gap-4">
 					<div class="space-y-2">
 						<Label for="smtp-from-email">From Email</Label>
-						<Input id="smtp-from-email" type="email" bind:value={fromEmail} placeholder="noreply@mikrocloud.com" />
+						<Input
+							id="smtp-from-email"
+							type="email"
+							bind:value={fromEmail}
+							placeholder="noreply@mikrocloud.com"
+						/>
 					</div>
 
 					<div class="space-y-2">
@@ -100,15 +110,17 @@
 				</div>
 			{/if}
 		</Card.Content>
+		<Card.Footer
+			class="flex flex-col-reverse gap-2 sm:mt-4 sm:-mb-6 sm:flex-row sm:justify-end sm:rounded-b-xl sm:border-t sm:bg-muted/50 sm:px-6 sm:py-2"
+		>
+			<Button size="sm" onclick={handleSave} disabled={updateSettingsMutation.isPending}>
+				{#if updateSettingsMutation.isPending}
+					Saving...
+				{:else}
+					Save
+				{/if}
+			</Button>
+		</Card.Footer>
 	</Card.Root>
-
-	<div class="flex justify-end">
-		<Button onclick={handleSave} disabled={updateSettingsMutation.isPending}>
-			{#if updateSettingsMutation.isPending}
-				Saving...
-			{:else}
-				Save Changes
-			{/if}
-		</Button>
-	</div>
 </div>
+
